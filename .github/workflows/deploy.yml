@@ -40,8 +40,13 @@ jobs:
           ssh -p "${{ secrets.SSH_PORT }}" "${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }}" <<'SSH'
           set -euo pipefail
           cd "${DEPLOY_PATH}"
-          docker compose build
-          docker compose up -d
+          if docker compose version >/dev/null 2>&1; then
+            docker compose build
+            docker compose up -d
+          else
+            docker-compose build
+            docker-compose up -d
+          fi
           docker image prune -f
 SSH
         env:
