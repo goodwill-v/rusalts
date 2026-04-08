@@ -3,7 +3,7 @@
 <header class="site-header" role="banner">
   <div class="site-header__inner">
     <a class="brandmark" href="/" aria-label="АЛТ — на главную">
-      <img class="brandmark__logo" src="{{ request.url_for('static', path='img/logo.png') }}" alt="Логотип АЛТ" />
+      <img class="brandmark__logo" src="/static/img/logo.png" alt="Логотип АЛТ" />
       <span class="brandmark__text">АЛЬТЕРНАТИВА</span>
     </a>
 
@@ -241,7 +241,7 @@
 <footer class="site-footer" role="contentinfo">
   <div class="site-footer__inner">
     <div class="footer-brand">
-      <img class="footer-brand__logo" src="{{ request.url_for('static', path='img/logo.png') }}" alt="АЛТ" />
+      <img class="footer-brand__logo" src="/static/img/logo.png" alt="АЛТ" />
       <p class="footer-brand__text">АЛЬТЕРНАТИВА — альтернативные легальные технологии</p>
     </div>
     <div class="footer-links">
@@ -273,7 +273,7 @@
     <p class="altbot__note">Диалог может записываться для улучшения сервиса. Не отправляйте чувствительные данные.</p>
   </div>
   <button class="altbot__fab" type="button" aria-label="Открыть АЛТ‑Эксперта" data-open-chat>
-    <img src="{{ request.url_for('static', path='img/logo.png') }}" alt="" aria-hidden="true" />
+    <img src="/static/img/logo.png" alt="" aria-hidden="true" />
   </button>
 </div>
 {% endblock %}
