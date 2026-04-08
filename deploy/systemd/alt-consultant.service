@@ -1,0 +1,19 @@
+[Unit]
+Description=ALT consultant FastAPI (uvicorn)
+After=network.target
+
+[Service]
+Type=simple
+User=www-data
+Group=www-data
+WorkingDirectory=/opt/alt
+EnvironmentFile=/opt/alt/.env
+ExecStart=/opt/alt/.venv/bin/uvicorn app.main:app --host 127.0.0.1 --port 8000 --proxy-headers
+Restart=on-failure
+RestartSec=3
+
+# Безопасность (минимально; при контейнерном деплое замените)
+NoNewPrivileges=true
+
+[Install]
+WantedBy=multi-user.target

@@ -1,0 +1,2 @@
+date_utc,service,model,purpose,input_tokens,output_tokens,cost_usd,request_id,notes
+2026-04-06,backend,MODEL_ID,chat,0,0,0.00,REQ-EXAMPLE,"пример строки; заполняется автоматически"

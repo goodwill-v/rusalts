@@ -1,0 +1,15 @@
+[Unit]
+Description=ALT Parser agent (daily monitoring)
+After=network.target
+
+[Service]
+Type=oneshot
+User=www-data
+Group=www-data
+WorkingDirectory=/opt/alt
+EnvironmentFile=/opt/alt/.env
+ExecStart=/opt/alt/.venv/bin/python -m app.parser_agent.cli
+
+# Безопасность (минимально)
+NoNewPrivileges=true
+

@@ -1,0 +1,92 @@
+{
+  "meta": {
+    "version": "1.1",
+    "updated": "2026-04-06",
+    "project": "АЛЬТЕРНАТИВА",
+    "template_source": "templates/alt_expert_ru.json"
+  },
+  "triggers": [
+    {
+      "id": "t_invite_soft",
+      "keywords": ["приглашение", "пригласить", "как позвать", "анонс", "мы в max", "переходим в max"],
+      "template_key": "invitation_max_migration_soft",
+      "template_type": "invitations",
+      "priority": "high",
+      "description": "Мягкое приглашение аудитории в MAX"
+    },
+    {
+      "id": "t_invite_b2b_compliance",
+      "keywords": ["b2b", "для клиентов", "официально", "деловое", "комплаенс", "требования", "регламент"],
+      "template_key": "invitation_max_b2b_compliance",
+      "template_type": "invitations",
+      "priority": "high",
+      "description": "B2B-приглашение с упором на контроль и комплаенс"
+    },
+    {
+      "id": "t_checklist_individual",
+      "keywords": ["чек-лист", "инструкция", "как перейти", "как установить", "не могу найти канал", "переезд", "миграция", "пошагово"],
+      "template_key": "checklist_max_migration_individual",
+      "template_type": "checklists",
+      "priority": "high",
+      "description": "Пошаговая миграция для пользователя"
+    },
+    {
+      "id": "t_checklist_org",
+      "keywords": ["чек-лист для компании", "для организации", "админ", "ит", "внедрение", "перенос канала", "перевод поддержки", "регламент доступов"],
+      "template_key": "checklist_max_migration_org",
+      "template_type": "checklists",
+      "priority": "high",
+      "description": "Чек-лист миграции для организации"
+    },
+    {
+      "id": "t_help_migration",
+      "keywords": ["помощь_переезд", "не получается", "ошибка", "не входит", "не регистрируется", "не открывается ссылка", "проблема с max", "помогите"],
+      "template_key": "response_help_migration",
+      "template_type": "quick_responses",
+      "priority": "critical",
+      "description": "Диагностика проблемы переезда (короткий опрос)"
+    },
+    {
+      "id": "t_max_vs_tg",
+      "keywords": ["max или telegram", "max vs telegram", "что лучше", "сравнить", "плюсы и минусы"],
+      "template_key": "response_max_vs_telegram",
+      "template_type": "quick_responses",
+      "priority": "medium",
+      "description": "Нейтральное сравнение MAX и Telegram"
+    },
+    {
+      "id": "t_compliance_min",
+      "keywords": ["152-фз", "персональные данные", "пдн", "комплаенс", "политика", "обработка данных", "журналирование", "удаление данных", "срок хранения"],
+      "template_key": "response_compliance_minimum",
+      "template_type": "quick_responses",
+      "priority": "high",
+      "description": "Комплаенс-минимум: практический список"
+    },
+    {
+      "id": "t_doc_notice_clients",
+      "keywords": ["уведомление клиентам", "письмо клиентам", "шаблон письма", "сообщение о переходе", "официальное уведомление"],
+      "template_key": "doc_notice_migration_clients",
+      "template_type": "docs",
+      "priority": "high",
+      "description": "Документ-уведомление о переходе"
+    },
+    {
+      "id": "t_doc_dpia",
+      "keywords": ["dpia", "оценка воздействия", "оценка рисков", "модель угроз", "риски", "скелет документа", "шаблон dpia"],
+      "template_key": "doc_dpia_messenger_skeleton",
+      "template_type": "docs",
+      "priority": "high",
+      "description": "Скелет DPIA/оценки рисков для мессенджера"
+    }
+  ],
+  "fallback": {
+    "template_key": "response_help_migration",
+    "template_type": "quick_responses",
+    "message": "Я не нашёл точный шаблон. Напишите: «переезд» / «комплаенс» / «документ» — и я продолжу."
+  },
+  "analytics": {
+    "track_usage": true,
+    "log_fields": ["trigger_id", "template_key", "timestamp", "platform", "request_id", "user_id"]
+  }
+}
+

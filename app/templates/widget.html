@@ -1,0 +1,48 @@
+{% extends "base.html" %}
+{% block body %}
+<div class="widget-wrap">
+  <header class="widget-head">
+    <h1 class="brand compact">Консультант</h1>
+  </header>
+  <main class="grid-main widget-grid">
+    <section class="panel chat-panel" aria-labelledby="w-chat-heading">
+      <h2 id="w-chat-heading" class="sr-only">Диалог</h2>
+      <div id="chat-log" class="chat-log" role="log" aria-live="polite"></div>
+      <form id="chat-form" class="chat-form">
+        <label class="sr-only" for="question">Ваш вопрос</label>
+        <textarea id="question" name="question" rows="2" placeholder="Вопрос…" required></textarea>
+        <div class="chat-actions">
+          <label class="file-pill">
+            <input type="file" id="attachment" name="attachment" />
+            <span>Файл</span>
+          </label>
+          <button type="submit" class="btn primary">Спросить</button>
+        </div>
+        <p id="upload-hint" class="hint" hidden></p>
+      </form>
+    </section>
+    <section class="panel templates-panel" aria-labelledby="w-tpl-heading">
+      <h2 id="w-tpl-heading" class="h-small">Шаблоны</h2>
+      <ul id="template-list" class="template-list compact"></ul>
+      <p id="templates-empty" class="muted small" hidden>Нет файлов шаблонов.</p>
+    </section>
+  </main>
+</div>
+{% endblock %}
+{% block vk_bridge %}
+{# Мини-приложение VK: VKWebAppInit — иначе клиент VK показывает «Приложение не инициализировано» #}
+<script src="https://unpkg.com/@vkontakte/vk-bridge@2.14.1/dist/browser.min.js" crossorigin="anonymous"></script>
+<script>
+(function () {
+  if (!window.vkBridge) return;
+  window.vkBridge.send("VKWebAppInit")
+    .then(function () {
+      document.documentElement.classList.add("vk-app-ready");
+      try {
+        window.vkBridge.send("VKWebAppResize", { height: Math.max(document.body.scrollHeight, 500) });
+      } catch (e) {}
+    })
+    .catch(function () {});
+})();
+</script>
+{% endblock %}

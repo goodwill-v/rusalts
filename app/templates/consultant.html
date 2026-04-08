@@ -1,0 +1,34 @@
+{% extends "base.html" %}
+{% block body %}
+<header class="topbar">
+  <h1 class="brand">Консультант</h1>
+  <p class="tagline">Прототип интерфейса: вопросы, ответы и шаблоны документов</p>
+  <a class="link-quiet" href="/widget" target="_blank" rel="noopener">Открыть виджет (как во ВКонтакте)</a>
+</header>
+
+<main class="grid-main">
+  <section class="panel chat-panel" aria-labelledby="chat-heading">
+    <h2 id="chat-heading">Диалог</h2>
+    <div id="chat-log" class="chat-log" role="log" aria-live="polite"></div>
+    <form id="chat-form" class="chat-form">
+      <label class="sr-only" for="question">Ваш вопрос</label>
+      <textarea id="question" name="question" rows="3" placeholder="Введите вопрос…" required></textarea>
+      <div class="chat-actions">
+        <label class="file-pill">
+          <input type="file" id="attachment" name="attachment" />
+          <span>Вложение</span>
+        </label>
+        <button type="submit" class="btn primary">Отправить</button>
+      </div>
+      <p id="upload-hint" class="hint" hidden></p>
+    </form>
+  </section>
+
+  <section class="panel templates-panel" aria-labelledby="tpl-heading">
+    <h2 id="tpl-heading">Шаблоны документов</h2>
+    <p class="muted">Готовые файлы для скачивания (замените на свои .docx и т.д.).</p>
+    <ul id="template-list" class="template-list"></ul>
+    <p id="templates-empty" class="muted" hidden>Шаблоны пока не загружены в каталог <code>data/document_templates</code>.</p>
+  </section>
+</main>
+{% endblock %}

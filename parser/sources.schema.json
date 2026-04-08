@@ -1,0 +1,41 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "ALT daily monitoring sources",
+  "type": "object",
+  "required": ["meta", "sources"],
+  "properties": {
+    "meta": {
+      "type": "object",
+      "required": ["version", "generated_from"],
+      "properties": {
+        "version": { "type": "string" },
+        "generated_from": { "type": "string" },
+        "generated_at_utc": { "type": "string" }
+      },
+      "additionalProperties": true
+    },
+    "sources": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "required": ["id", "url", "priority", "level", "content_type", "frequency", "status"],
+        "properties": {
+          "id": { "type": "string", "minLength": 1 },
+          "title": { "type": "string" },
+          "url": { "type": "string", "format": "uri" },
+          "priority": { "type": "string", "enum": ["high", "medium", "low"] },
+          "level": { "type": "integer", "minimum": 1, "maximum": 5 },
+          "content_type": { "type": "string" },
+          "frequency": { "type": "string" },
+          "tech_notes": { "type": "string" },
+          "status": { "type": "string" },
+          "tags": { "type": "array", "items": { "type": "string" } }
+        },
+        "additionalProperties": false
+      }
+    }
+  },
+  "additionalProperties": false
+}
+

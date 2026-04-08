@@ -1,0 +1,140 @@
+{
+  "meta": {
+    "version": "0.1",
+    "generated_from": "АЛЬТЕРНАТИВА_АЛТбот/Ресурсы_для_ежедневного_мониторинга_обновлений.xlsx"
+  },
+  "sources": [
+    {
+      "id": "dev.max.ru/changelog",
+      "title": "dev.max.ru/changelog",
+      "url": "https://dev.max.ru/changelog",
+      "priority": "high",
+      "level": 1,
+      "content_type": "Релиз-ноты для разработчиков, изменения API",
+      "frequency": "По факту релиза",
+      "tech_notes": "Статическая страница, возможен RSS",
+      "status": "✅ Активен"
+    },
+    {
+      "id": "business.max.ru/news",
+      "title": "business.max.ru/news",
+      "url": "https://business.max.ru/news",
+      "priority": "high",
+      "level": 1,
+      "content_type": "Новости для бизнеса, интеграции, правила",
+      "frequency": "Ежедневно / по событию",
+      "tech_notes": "Вероятен JSON-фид, проверить /api/feed.json",
+      "status": "✅ Активен"
+    },
+    {
+      "id": "GitHub: max-messenger",
+      "title": "GitHub: max-messenger",
+      "url": "https://github.com/max-messenger",
+      "priority": "high",
+      "level": 1,
+      "content_type": "Исходный код, SDK, релизы, issues",
+      "frequency": "По коммитам / релизам",
+      "tech_notes": "GitHub API: /repos/{repo}/releases, RSS-лента",
+      "status": "✅ Активен"
+    },
+    {
+      "id": "RuStore: страница МАХ",
+      "title": "RuStore: страница МАХ",
+      "url": "https://www.rustore.ru/catalog/app/ru.max.messenger",
+      "priority": "high",
+      "level": 1,
+      "content_type": "Версии приложения, описания обновлений",
+      "frequency": "По релизам в сторе",
+      "tech_notes": "Публичный API каталога: /api/app/{id}/versions",
+      "status": "✅ Активен"
+    },
+    {
+      "id": "TAdviser: Product:Max",
+      "title": "TAdviser: Product:Max",
+      "url": "https://tadviser.com/index.php/Product:Max_(messenger)",
+      "priority": "medium",
+      "level": 2,
+      "content_type": "Хронология релизов, аналитика, интеграции",
+      "frequency": "1–2 раза в неделю",
+      "tech_notes": "Статическая страница с историей версий",
+      "status": "✅ Активен"
+    },
+    {
+      "id": "MinTsifry: новости",
+      "title": "MinTsifry: новости",
+      "url": "https://digital.gov.ru/ru/news/",
+      "priority": "medium",
+      "level": 2,
+      "content_type": "Стратегия, нормативные акты, требования к ПО",
+      "frequency": "Ежедневно",
+      "tech_notes": "Официальный сайт, возможен RSS-экспорт",
+      "status": "✅ Активен"
+    },
+    {
+      "id": "Roskomnadzor: реестры",
+      "title": "Roskomnadzor: реестры",
+      "url": "https://rkn.gov.ru/treatment/2024/",
+      "priority": "medium",
+      "level": 2,
+      "content_type": "Реестры каналов, маркировка А+, требования",
+      "frequency": "По мере обновления",
+      "tech_notes": "Часто доступны CSV/JSON, проверить API",
+      "status": "✅ Активен"
+    },
+    {
+      "id": "VK: max.platform",
+      "title": "VK: max.platform",
+      "url": "https://vk.com/max.platform",
+      "priority": "medium",
+      "level": 2,
+      "content_type": "Анонсы, вебинары, обновления для разработчиков",
+      "frequency": "Ежедневно / по событию",
+      "tech_notes": "Парсинг через VK API (wall.get)",
+      "status": "✅ Активен"
+    },
+    {
+      "id": "Habr: тег MAX",
+      "title": "Habr: тег MAX",
+      "url": "https://habr.com/ru/rss/tag/max/",
+      "priority": "low",
+      "level": 3,
+      "content_type": "Технические статьи, кейсы, опыт разработчиков",
+      "frequency": "По публикациям",
+      "tech_notes": "RSS-лента, удобно для агрегации",
+      "status": "✅ Активен"
+    },
+    {
+      "id": "Sostav.ru",
+      "title": "Sostav.ru",
+      "url": "https://www.sostav.ru",
+      "priority": "low",
+      "level": 3,
+      "content_type": "Новости бизнеса, маркетинг, внедрения",
+      "frequency": "Ежедневно",
+      "tech_notes": "Парсинг только для трендов, не источник истины",
+      "status": "⚠️ Ограничения"
+    },
+    {
+      "id": "Kommersant.ru",
+      "title": "Kommersant.ru",
+      "url": "https://www.kommersant.ru",
+      "priority": "low",
+      "level": 3,
+      "content_type": "Аналитика, интервью, стратегия",
+      "frequency": "Ежедневно",
+      "tech_notes": "Парсинг только для контекста",
+      "status": "⚠️ Ограничения"
+    },
+    {
+      "id": "RBC.ru",
+      "title": "RBC.ru",
+      "url": "https://www.rbc.ru",
+      "priority": "low",
+      "level": 3,
+      "content_type": "Новости ИТ-рынка, госзаказы, цифровизация",
+      "frequency": "Ежедневно",
+      "tech_notes": "Парсинг только для мониторинга трендов",
+      "status": "⚠️ Ограничения"
+    }
+  ]
+}

@@ -1,0 +1,14 @@
+.venv/
+.env
+.env.*
+__pycache__/
+*.py[cod]
+*.egg-info/
+.pytest_cache/
+
+# Runtime данные (генерируются при работе)
+data/
+
+# Не игнорируем docs/ — они нужны в GitHub.
+# Agennts_instractions/ больше не используем (брифы уже в docs/agents).
+

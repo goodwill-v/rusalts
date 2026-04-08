@@ -1,0 +1,31 @@
+services:
+  web:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: alt-expert-web:latest
+    env_file:
+      - .env
+    ports:
+      - "8000:8000"
+    volumes:
+      # persist runtime artifacts (KB updates, snapshots, published content)
+      - ./data:/app/data
+      # persist knowledge base edits done by parser
+      - ./knowledge_base:/app/knowledge_base
+    restart: unless-stopped
+
+  # Optional: daily parser runner (manual trigger by default).
+  # For production scheduling, prefer host systemd timer (deploy/systemd/alt-parser.*)
+  parser:
+    image: alt-expert-web:latest
+    env_file:
+      - .env
+    volumes:
+      - ./data:/app/data
+      - ./knowledge_base:/app/knowledge_base
+      - ./parser:/app/parser
+    entrypoint: ["python", "-m", "app.parser_agent.cli"]
+    restart: "no"
+    profiles: ["ops"]
+

@@ -1,0 +1,101 @@
+{
+  "meta": {
+    "version": "1.0",
+    "updated": "2026-03-26",
+    "project": "АЛЬТЕРНАТИВА",
+    "template_source": "templates/invitations_ru.json"
+  },
+  "triggers": [
+    {
+      "id": "invite_short",
+      "keywords": ["пригласить", "приглашение", "рассылка", "массовая рассылка", "короткое приглашение"],
+      "template_key": "invitation_short",
+      "template_type": "invitations",
+      "priority": "high",
+      "description": "Короткое приглашение для массовой рассылки"
+    },
+    {
+      "id": "invite_benefits",
+      "keywords": ["преимущества", "почему мах", "зачем переходить", "лояльная аудитория"],
+      "template_key": "invitation_benefits",
+      "template_type": "invitations",
+      "priority": "high",
+      "description": "Приглашение с акцентом на преимущества МАХ"
+    },
+    {
+      "id": "invite_business",
+      "keywords": ["бизнес", "клиенты", "b2b", "деловое приглашение", "эксперт"],
+      "template_key": "invitation_business",
+      "template_type": "invitations",
+      "priority": "high",
+      "description": "Деловое приглашение для B2B-аудитории"
+    },
+    {
+      "id": "invite_reminder",
+      "keywords": ["напомнить", "напоминание", "не перешли", "мягкий переход"],
+      "template_key": "invitation_reminder",
+      "template_type": "invitations",
+      "priority": "medium",
+      "description": "Напоминание для тех, кто ещё не перешёл"
+    },
+    {
+      "id": "invite_interactive",
+      "keywords": ["кнопки", "интерактив", "keyboard", "быстрый переход"],
+      "template_key": "invitation_interactive",
+      "template_type": "invitations",
+      "priority": "medium",
+      "description": "Интерактивное приглашение с кнопками (если поддерживается платформой)",
+      "platform_requirement": "vk_keyboard_support"
+    },
+    {
+      "id": "checklist_user",
+      "keywords": ["чек-лист", "инструкция", "как перейти", "пошагово", "переход в мах"],
+      "template_key": "checklist_user",
+      "template_type": "checklists",
+      "priority": "high",
+      "description": "Пошаговый чек-лист для физического лица"
+    },
+    {
+      "id": "checklist_business",
+      "keywords": ["перенести канал", "миграция бизнеса", "чек-лист для бизнеса", "админ"],
+      "template_key": "checklist_business",
+      "template_type": "checklists",
+      "priority": "high",
+      "description": "Чек-лист для владельца канала / бизнеса"
+    },
+    {
+      "id": "help_request",
+      "keywords": ["помощь", "помогите", "не получается", "проблема", "вопрос"],
+      "template_key": "response_help",
+      "template_type": "quick_responses",
+      "priority": "critical",
+      "description": "Быстрый ответ на запрос помощи"
+    },
+    {
+      "id": "bonus_request",
+      "keywords": ["бонус", "промокод", "подарок", "акция"],
+      "template_key": "response_bonus",
+      "template_type": "quick_responses",
+      "priority": "high",
+      "description": "Выдача бонуса / промокода",
+      "context_required": ["user_id", "campaign_id"]
+    },
+    {
+      "id": "crosspost_request",
+      "keywords": ["кросспостинг", "дублирование", "автопостинг", "два канала"],
+      "template_key": "response_crosspost",
+      "template_type": "quick_responses",
+      "priority": "medium",
+      "description": "Инструкция по настройке кросспостинга"
+    }
+  ],
+  "fallback": {
+    "template_key": "response_help",
+    "template_type": "quick_responses",
+    "message": "К сожалению, я не нашёл точный ответ. Но я могу помочь! Напишите «помощь» — отправлю базовую инструкцию."
+  },
+  "analytics": {
+    "track_usage": true,
+    "log_fields": ["trigger_id", "template_key", "user_id", "timestamp", "platform"]
+  }
+}

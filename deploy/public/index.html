@@ -1,0 +1,38 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>АЛЬТЕРНАТИВА — тестовая страница</title>
+  <link rel="stylesheet" href="/landing.css" />
+</head>
+<body>
+  <header class="hero">
+    <p class="eyebrow">Проект</p>
+    <h1 class="title">АЛЬТЕРНАТИВА</h1>
+    <p class="lead">
+      Тестовая витрина сайта. Ниже встроен прототип консультанта (виджет). Позже здесь будет полноценная версия, деплой — через контейнеры и GitHub.
+    </p>
+  </header>
+
+  <section class="embed" aria-label="Виджет консультанта">
+    <div class="embed-head">
+      <span class="embed-title">Консультант — прототип</span>
+      <a class="embed-link" href="/widget" target="_blank" rel="noopener">Открыть отдельно</a>
+    </div>
+    <div class="embed-frame-wrap">
+      <iframe
+        class="embed-frame"
+        src="/widget"
+        title="Консультант"
+        loading="lazy"
+        referrerpolicy="strict-origin-when-cross-origin"
+      ></iframe>
+    </div>
+  </section>
+
+  <footer class="foot">
+    <span>rusalts.ru · тестовый режим</span>
+  </footer>
+</body>
+</html>

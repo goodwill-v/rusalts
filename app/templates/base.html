@@ -1,0 +1,27 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>{{ page_title }}</title>
+  <link rel="stylesheet" href="{{ request.url_for('static', path='css/app.css') }}" />
+  {% if is_widget %}
+  <meta name="widget-mode" content="vk" />
+  {% endif %}
+</head>
+<body class="{{ layout_class if layout_class else ('layout-widget' if is_widget else 'layout-app') }}">
+  <div class="shell">
+    {% block body %}{% endblock %}
+  </div>
+  <script>
+    window.__APP__ = {
+      vkAppId: {{ vk_app_id | tojson }},
+      isWidget: {{ is_widget | tojson }},
+      baseUrl: {{ request.base_url | string | tojson }}
+    };
+  </script>
+  {% block vk_bridge %}{% endblock %}
+  <script type="module" src="{{ request.url_for('static', path='js/app.js') }}"></script>
+  {% block extra_scripts %}{% endblock %}
+</body>
+</html>

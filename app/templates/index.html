@@ -1,0 +1,274 @@
+{% extends "base.html" %}
+{% block body %}
+<header class="site-header" role="banner">
+  <div class="site-header__inner">
+    <a class="brandmark" href="/" aria-label="АЛТ — на главную">
+      <img class="brandmark__logo" src="{{ request.url_for('static', path='img/logo.png') }}" alt="Логотип АЛТ" />
+      <span class="brandmark__text">АЛЬТЕРНАТИВА</span>
+    </a>
+
+    <button class="nav-toggle" type="button" aria-label="Открыть меню" aria-expanded="false" aria-controls="site-nav">
+      <span class="nav-toggle__bar"></span>
+      <span class="nav-toggle__bar"></span>
+      <span class="nav-toggle__bar"></span>
+    </button>
+
+    <nav id="site-nav" class="site-nav" aria-label="Основная навигация">
+      <a class="site-nav__link" href="#home">Главная</a>
+      <a class="site-nav__link" href="#about">О проекте</a>
+      <a class="site-nav__link" href="#services">Услуги</a>
+      <a class="site-nav__link" href="#law">Правовая база</a>
+      <a class="site-nav__link" href="#news">Новости</a>
+      <a class="site-nav__link" href="#contacts">Контакты</a>
+    </nav>
+
+    <div class="header-actions">
+      <button id="a11y-toggle" class="btn-site btn-site--ghost" type="button">
+        Версия для слабовидящих
+      </button>
+      <button class="btn-site btn-site--primary" type="button" data-open-chat>
+        Бесплатная диагностика
+      </button>
+    </div>
+  </div>
+</header>
+
+<main id="home" class="site-main">
+  <section class="hero" aria-label="Первый экран">
+    <div class="hero__bg" aria-hidden="true"></div>
+    <div class="hero__content">
+      <h1 class="hero__title">АЛЬТЕРНАТИВА — ваш юридически безупречный переход в российский цифровой суверенитет</h1>
+      <p class="hero__subtitle">
+        Помогаем бизнесу и сообществам легально работать в отечественных мессенджерах: МАХ, ВКонтакте, Сферум
+      </p>
+      <div class="hero__actions">
+        <button class="btn-site btn-site--primary btn-site--lg" type="button" data-open-chat>Записаться на диагностику</button>
+        <a class="btn-site btn-site--outline btn-site--lg" href="#services">Изучить возможности</a>
+      </div>
+    </div>
+  </section>
+
+  <section id="about" class="section">
+    <div class="section__head">
+      <h2 class="section__title">Почему АЛТ</h2>
+      <p class="section__lead">Экспертиза на стыке права, технологий и бизнес‑процессов.</p>
+    </div>
+    <div class="cards">
+      <article class="card">
+        <h3 class="card__title">Законность</h3>
+        <p class="card__text">Решения соответствуют законодательству РФ: 152‑ФЗ, 168‑ФЗ, требованиям РКН.</p>
+      </article>
+      <article class="card">
+        <h3 class="card__title">Экспертность</h3>
+        <p class="card__text">Проверенные методики миграции и внедрения отечественных платформ.</p>
+      </article>
+      <article class="card">
+        <h3 class="card__title">Развитие</h3>
+        <p class="card__text">Постоянно улучшаем продукты и компетенции под изменения рынка.</p>
+      </article>
+      <article class="card">
+        <h3 class="card__title">Партнёрство</h3>
+        <p class="card__text">Долгосрочные отношения на основе доверия и измеримых результатов.</p>
+      </article>
+    </div>
+  </section>
+
+  <section class="section alt-surface">
+    <div class="section__head">
+      <h2 class="section__title">Почему переходить сейчас</h2>
+      <p class="section__lead">Снижение рисков, соответствие законам и доступ к интеграциям.</p>
+    </div>
+
+    <div class="accordion">
+      <details class="acc-item">
+        <summary class="acc-title">Снижение рисков блокировок</summary>
+        <div class="acc-body">
+          <ul class="bullets">
+            <li>Отечественные платформы не подвержены санкционным ограничениям.</li>
+            <li>Стабильный доступ для пользователей из РФ.</li>
+          </ul>
+        </div>
+      </details>
+      <details class="acc-item">
+        <summary class="acc-title">Соответствие законодательству</summary>
+        <div class="acc-body">
+          <ul class="bullets">
+            <li>Локализация персональных данных в РФ (152‑ФЗ).</li>
+            <li>Требования по использованию русского языка (168‑ФЗ).</li>
+          </ul>
+        </div>
+      </details>
+      <details class="acc-item">
+        <summary class="acc-title">Интеграция с госсервисами</summary>
+        <div class="acc-body">
+          <ul class="bullets">
+            <li>Авторизация через Госуслуги (резерв).</li>
+            <li>Оплата через СБП, юридически значимые уведомления (резерв).</li>
+          </ul>
+        </div>
+      </details>
+      <details class="acc-item">
+        <summary class="acc-title">Поддержка российского разработчика</summary>
+        <div class="acc-body">
+          <ul class="bullets">
+            <li>Приоритетное развитие функционала под локальные потребности.</li>
+          </ul>
+        </div>
+      </details>
+    </div>
+  </section>
+
+  <section id="services" class="section">
+    <div class="section__head">
+      <h2 class="section__title">Услуги</h2>
+      <p class="section__lead">Стартуем с диагностики — затем строим понятный план миграции и соответствия.</p>
+    </div>
+    <div class="cards cards--3">
+      <article class="card">
+        <h3 class="card__title">Бесплатная диагностика</h3>
+        <p class="card__text">Быстрая оценка рисков и маршрута перехода в отечественные платформы.</p>
+        <button class="linklike" type="button" data-open-chat>Оставить заявку</button>
+      </article>
+      <article class="card">
+        <h3 class="card__title">Миграция коммуникаций</h3>
+        <p class="card__text">Переезд аудитории, настройка каналов, сценарии общения, уведомления.</p>
+        <a class="linklike" href="#contacts">Запросить консультацию</a>
+      </article>
+      <article class="card">
+        <h3 class="card__title">Правовой аудит</h3>
+        <p class="card__text">Проверка процессов и материалов на соответствие 152‑ФЗ и 168‑ФЗ.</p>
+        <a class="linklike" href="#law">Перейти к правовой базе</a>
+      </article>
+    </div>
+  </section>
+
+  <section id="news" class="section alt-surface">
+    <div class="section__head section__head--row">
+      <div>
+        <h2 class="section__title">Новости и обновления</h2>
+        <p class="section__lead">В MVP — статическая лента; далее подключим источники из Parser/Content.</p>
+      </div>
+      <div class="news-tabs" role="tablist" aria-label="Фильтр новостей">
+        <button class="tab is-active" type="button" data-news-filter="all" role="tab" aria-selected="true">Все</button>
+        <button class="tab" type="button" data-news-filter="law" role="tab" aria-selected="false">Законодательство</button>
+        <button class="tab" type="button" data-news-filter="tech" role="tab" aria-selected="false">Технологии</button>
+        <button class="tab" type="button" data-news-filter="cases" role="tab" aria-selected="false">Кейсы</button>
+        <button class="tab" type="button" data-news-filter="events" role="tab" aria-selected="false">События</button>
+      </div>
+    </div>
+
+    <div class="news-grid" data-news-grid>
+      <article class="news-card" data-news-cat="law">
+        <p class="news-meta"><time datetime="2026-03-10">10.03.2026</time> · <span class="tag">Законодательство</span></p>
+        <h3 class="news-title">Обновили чек‑лист по 152‑ФЗ для миграции коммуникаций</h3>
+        <p class="news-text">Собрали минимальный набор шагов для локализации данных и корректного согласия на обработку.</p>
+      </article>
+      <article class="news-card" data-news-cat="tech">
+        <p class="news-meta"><time datetime="2026-03-15">15.03.2026</time> · <span class="tag">Технологии</span></p>
+        <h3 class="news-title">Добавили сценарии быстрых вопросов для АЛТ‑Эксперта</h3>
+        <p class="news-text">Теперь виджет предлагает варианты: миграция, правовые вопросы, ИИ‑инструменты.</p>
+      </article>
+      <article class="news-card" data-news-cat="events">
+        <p class="news-meta"><time datetime="2026-03-22">22.03.2026</time> · <span class="tag">События</span></p>
+        <h3 class="news-title">Готовим вебинар: «Как переехать в отечественные платформы без штрафов»</h3>
+        <p class="news-text">Расскажем про 152‑ФЗ, 168‑ФЗ и практику внедрения коммуникаций в команде.</p>
+      </article>
+    </div>
+  </section>
+
+  <section id="law" class="section">
+    <div class="section__head">
+      <h2 class="section__title">Правовая поддержка</h2>
+      <p class="section__lead">Коротко по ключевым темам — с возможностью раскрыть детали.</p>
+    </div>
+    <div class="accordion">
+      <details class="acc-item">
+        <summary class="acc-title">Закон № 152‑ФЗ «О персональных данных»</summary>
+        <div class="acc-body">
+          <p class="acc-p">Требования к сбору, хранению и обработке персональных данных граждан РФ.</p>
+          <p class="acc-links">
+            <a class="link" href="https://pravo.gov.ru/" target="_blank" rel="noopener noreferrer">Официальный источник</a>
+            <button class="linklike" type="button" data-open-chat>Заказать аудит соответствия</button>
+          </p>
+        </div>
+      </details>
+      <details class="acc-item">
+        <summary class="acc-title">Закон № 168‑ФЗ о русском языке</summary>
+        <div class="acc-body">
+          <p class="acc-p">Ограничения на использование иностранных слов и требования к интерфейсам/наименованиям.</p>
+          <p class="acc-links">
+            <button class="linklike" type="button" data-open-chat>Проверить контент на соответствие</button>
+          </p>
+        </div>
+      </details>
+      <details class="acc-item">
+        <summary class="acc-title">Региональные ограничения в интернете</summary>
+        <div class="acc-body">
+          <p class="acc-p">Особенности доступа к цифровым сервисам в разных субъектах РФ и практические рекомендации.</p>
+          <p class="acc-links">
+            <button class="linklike" type="button" data-open-chat>Получить консультацию по региону</button>
+          </p>
+        </div>
+      </details>
+    </div>
+  </section>
+
+  <section id="contacts" class="section alt-surface">
+    <div class="section__head">
+      <h2 class="section__title">Контакты</h2>
+      <p class="section__lead">Напишите нам — или начните с бесплатной диагностики.</p>
+    </div>
+    <div class="contacts">
+      <div class="contacts__card">
+        <p class="contacts__line"><strong>Email:</strong> <a class="link" href="mailto:info@rusalts.ru">info@rusalts.ru</a></p>
+        <p class="contacts__line"><strong>Телефон:</strong> <a class="link" href="tel:+70000000000">+7 (___) ___‑__‑__</a></p>
+        <p class="contacts__line"><strong>Адрес:</strong> г. Москва, Россия</p>
+        <button class="btn-site btn-site--primary" type="button" data-open-chat>Открыть АЛТ‑Эксперта</button>
+      </div>
+      <div class="contacts__note">
+        <p class="muted-site">Сайт готов к встраиванию в iframe (VK) и не содержит секретов на фронте.</p>
+        <p class="muted-site">Прототип “Консультант” доступен по адресу <a class="link" href="/consultant">/consultant</a>.</p>
+      </div>
+    </div>
+  </section>
+</main>
+
+<footer class="site-footer" role="contentinfo">
+  <div class="site-footer__inner">
+    <div class="footer-brand">
+      <img class="footer-brand__logo" src="{{ request.url_for('static', path='img/logo.png') }}" alt="АЛТ" />
+      <p class="footer-brand__text">АЛЬТЕРНАТИВА — альтернативные легальные технологии</p>
+    </div>
+    <div class="footer-links">
+      <a class="footer-link" href="#about">О проекте</a>
+      <a class="footer-link" href="#services">Услуги</a>
+      <a class="footer-link" href="#law">Правовая база</a>
+      <a class="footer-link" href="#news">Новости</a>
+      <a class="footer-link" href="#contacts">Контакты</a>
+    </div>
+    <div class="footer-legal">
+      <a class="footer-link" href="#">Политика конфиденциальности</a>
+      <a class="footer-link" href="#">Пользовательское соглашение</a>
+    </div>
+  </div>
+</footer>
+
+<div class="altbot" data-altbot hidden>
+  <div class="altbot__panel" role="dialog" aria-label="АЛТ‑Эксперт">
+    <div class="altbot__head">
+      <div class="altbot__title">АЛТ‑Эксперт</div>
+      <button class="altbot__close" type="button" aria-label="Закрыть" data-close-chat>×</button>
+    </div>
+    <div class="altbot__log" data-chat-log role="log" aria-live="polite"></div>
+    <form class="altbot__form" data-chat-form>
+      <label class="sr-only" for="altbot-q">Сообщение</label>
+      <input id="altbot-q" name="q" type="text" autocomplete="off" placeholder="Напишите ваш вопрос…" required />
+      <button class="btn-site btn-site--primary" type="submit">Отправить</button>
+    </form>
+    <p class="altbot__note">Диалог может записываться для улучшения сервиса. Не отправляйте чувствительные данные.</p>
+  </div>
+  <button class="altbot__fab" type="button" aria-label="Открыть АЛТ‑Эксперта" data-open-chat>
+    <img src="{{ request.url_for('static', path='img/logo.png') }}" alt="" aria-hidden="true" />
+  </button>
+</div>
+{% endblock %}
