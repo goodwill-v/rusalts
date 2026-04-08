@@ -48,30 +48,32 @@
     </div>
   </section>
 
-  <section id="about" class="section">
-    <div class="section__head">
-      <h2 class="section__title">Почему АЛТ</h2>
-      <p class="section__lead">Экспертиза на стыке права, технологий и бизнес‑процессов.</p>
-    </div>
-    <div class="cards">
-      <article class="card">
-        <h3 class="card__title">Законность</h3>
-        <p class="card__text">Решения соответствуют законодательству РФ: 152‑ФЗ, 168‑ФЗ, требованиям РКН.</p>
-      </article>
-      <article class="card">
-        <h3 class="card__title">Экспертность</h3>
-        <p class="card__text">Проверенные методики миграции и внедрения отечественных платформ.</p>
-      </article>
-      <article class="card">
-        <h3 class="card__title">Развитие</h3>
-        <p class="card__text">Постоянно улучшаем продукты и компетенции под изменения рынка.</p>
-      </article>
-      <article class="card">
-        <h3 class="card__title">Партнёрство</h3>
-        <p class="card__text">Долгосрочные отношения на основе доверия и измеримых результатов.</p>
-      </article>
-    </div>
-  </section>
+  <div class="page-grid">
+    <div class="page-main">
+      <section id="about" class="section">
+        <div class="section__head">
+          <h2 class="section__title">Почему АЛТ</h2>
+          <p class="section__lead">Экспертиза на стыке права, технологий и бизнес‑процессов.</p>
+        </div>
+        <div class="cards">
+          <article class="card">
+            <h3 class="card__title">Законность</h3>
+            <p class="card__text">Решения соответствуют законодательству РФ: 152‑ФЗ, 168‑ФЗ, требованиям РКН.</p>
+          </article>
+          <article class="card">
+            <h3 class="card__title">Экспертность</h3>
+            <p class="card__text">Проверенные методики миграции и внедрения отечественных платформ.</p>
+          </article>
+          <article class="card">
+            <h3 class="card__title">Развитие</h3>
+            <p class="card__text">Постоянно улучшаем продукты и компетенции под изменения рынка.</p>
+          </article>
+          <article class="card">
+            <h3 class="card__title">Партнёрство</h3>
+            <p class="card__text">Долгосрочные отношения на основе доверия и измеримых результатов.</p>
+          </article>
+        </div>
+      </section>
 
   <section class="section alt-surface">
     <div class="section__head">
@@ -141,41 +143,6 @@
       </article>
     </div>
   </section>
-
-  <section id="news" class="section alt-surface">
-    <div class="section__head section__head--row">
-      <div>
-        <h2 class="section__title">Новости и обновления</h2>
-        <p class="section__lead">В MVP — статическая лента; далее подключим источники из Parser/Content.</p>
-      </div>
-      <div class="news-tabs" role="tablist" aria-label="Фильтр новостей">
-        <button class="tab is-active" type="button" data-news-filter="all" role="tab" aria-selected="true">Все</button>
-        <button class="tab" type="button" data-news-filter="law" role="tab" aria-selected="false">Законодательство</button>
-        <button class="tab" type="button" data-news-filter="tech" role="tab" aria-selected="false">Технологии</button>
-        <button class="tab" type="button" data-news-filter="cases" role="tab" aria-selected="false">Кейсы</button>
-        <button class="tab" type="button" data-news-filter="events" role="tab" aria-selected="false">События</button>
-      </div>
-    </div>
-
-    <div class="news-grid" data-news-grid>
-      <article class="news-card" data-news-cat="law">
-        <p class="news-meta"><time datetime="2026-03-10">10.03.2026</time> · <span class="tag">Законодательство</span></p>
-        <h3 class="news-title">Обновили чек‑лист по 152‑ФЗ для миграции коммуникаций</h3>
-        <p class="news-text">Собрали минимальный набор шагов для локализации данных и корректного согласия на обработку.</p>
-      </article>
-      <article class="news-card" data-news-cat="tech">
-        <p class="news-meta"><time datetime="2026-03-15">15.03.2026</time> · <span class="tag">Технологии</span></p>
-        <h3 class="news-title">Добавили сценарии быстрых вопросов для АЛТ‑Эксперта</h3>
-        <p class="news-text">Теперь виджет предлагает варианты: миграция, правовые вопросы, ИИ‑инструменты.</p>
-      </article>
-      <article class="news-card" data-news-cat="events">
-        <p class="news-meta"><time datetime="2026-03-22">22.03.2026</time> · <span class="tag">События</span></p>
-        <h3 class="news-title">Готовим вебинар: «Как переехать в отечественные платформы без штрафов»</h3>
-        <p class="news-text">Расскажем про 152‑ФЗ, 168‑ФЗ и практику внедрения коммуникаций в команде.</p>
-      </article>
-    </div>
-  </section>
-
   <section id="law" class="section">
     <div class="section__head">
       <h2 class="section__title">Правовая поддержка</h2>
@@ -231,6 +198,44 @@
       </div>
     </div>
   </section>
+    </div>
+
+    <aside id="news" class="page-aside" aria-label="Новости">
+      <div class="aside-card">
+        <div class="aside-head">
+          <h2 class="aside-title">Новости</h2>
+          <p class="aside-subtitle">Последние — сверху</p>
+        </div>
+
+        <ol class="news-list">
+          <li class="news-item">
+            <div class="news-item__meta">
+              <time datetime="2026-03-22">22.03.2026</time>
+              <span class="news-item__no">№ 3</span>
+            </div>
+            <p class="news-item__announce">Готовим вебинар: «Как переехать в отечественные платформы без штрафов».</p>
+            <a class="news-item__more" href="#" aria-label="Показать ещё: новость № 3">Показать ещё</a>
+          </li>
+          <li class="news-item">
+            <div class="news-item__meta">
+              <time datetime="2026-03-15">15.03.2026</time>
+              <span class="news-item__no">№ 2</span>
+            </div>
+            <p class="news-item__announce">Добавили сценарии быстрых вопросов для АЛТ‑Эксперта.</p>
+            <a class="news-item__more" href="#" aria-label="Показать ещё: новость № 2">Показать ещё</a>
+          </li>
+          <li class="news-item">
+            <div class="news-item__meta">
+              <time datetime="2026-03-10">10.03.2026</time>
+              <span class="news-item__no">№ 1</span>
+            </div>
+            <p class="news-item__announce">Обновили чек‑лист по 152‑ФЗ для миграции коммуникаций.</p>
+            <a class="news-item__more" href="#" aria-label="Показать ещё: новость № 1">Показать ещё</a>
+          </li>
+        </ol>
+      </div>
+    </aside>
+  </div>
 </main>
 
 <footer class="site-footer" role="contentinfo">
