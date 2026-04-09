@@ -18,5 +18,8 @@
 - `ROUTERAI_REASONING_MODEL=...`
 - `ROUTERAI_EMBEDDINGS_MODEL=...`
 
-Конкретные идентификаторы моделей добавим после сверки списка доступных в RouterAI.
+Также в продакшене используются agent‑specific переменные для роутинга main → heavy:
+- `BACKEND_MODEL_MAIN`, `BACKEND_MODEL_HEAVY`
+- `PARSER_MODEL_MAIN`, `PARSER_MODEL_HEAVY`
+- `CONTENT_MODEL_MAIN`, `CONTENT_MODEL_HEAVY`
 

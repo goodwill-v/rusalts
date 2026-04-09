@@ -11,6 +11,18 @@
 - (рекомендуется добавить) `ROUTERAI_REASONING_MODEL`
 - (рекомендуется добавить) `ROUTERAI_EMBEDDINGS_MODEL`
 
+## Модели по агентам (prod main → heavy)
+
+- Backend: `BACKEND_MODEL_MAIN`, `BACKEND_MODEL_HEAVY`
+- Parser: `PARSER_MODEL_MAIN`, `PARSER_MODEL_HEAVY`
+- Content: `CONTENT_MODEL_MAIN`, `CONTENT_MODEL_HEAVY`
+
+## Queue / inter-service messaging (Redis)
+
+- `QUEUE_REDIS_URL`
+- `QUEUE_STREAM_PARSER_JOBS`, `QUEUE_STREAM_CONTENT_JOBS`
+- `QUEUE_GROUP_PARSER`, `QUEUE_GROUP_CONTENT`
+
 ## VK (виджет/мини‑приложение)
 
 Уже есть:

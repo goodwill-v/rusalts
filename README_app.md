@@ -53,6 +53,24 @@ curl -sS http://127.0.0.1:8000/health
 
 Секреты (VK ключи, RouterAI ключ) хранятся только в `.env` на сервере и не коммитятся.
 
+## Как работает main → heavy (роутинг моделей)
+
+В проекте используется policy‑подход “**main → heavy**” для RouterAI:
+- **main‑модель** — по умолчанию для большинства запросов (быстрее/дешевле).
+- **heavy‑модель** — подключается только когда есть триггеры “высокий риск ошибки” или провал валидации результата.
+
+Где настраивается:
+- `.env.example` / `deploy/env.production.example`
+  - Backend: `BACKEND_MODEL_MAIN`, `BACKEND_MODEL_HEAVY`
+  - Content: `CONTENT_MODEL_MAIN`, `CONTENT_MODEL_HEAVY`
+
+Триггеры эскалации (коротко):
+- **Backend**: legal/комплаенс‑тематика в тексте запроса; низкая уверенность (мало KB‑хитов).
+- **Content**: change package содержит `classification: legal.*`; либо ответ LLM не проходит валидацию (например, не удаётся распарсить ожидаемый JSON).
+
+Логирование:
+- в JSON‑логи пишутся `model`, `tokens_in/out`, `purpose` и `routing_reason` (почему выбрали main/heavy).
+
 ## Деплой на сервер
 
 Сценарий установки и обновления описан в `tect_deploy.md`.

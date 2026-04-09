@@ -40,15 +40,9 @@ jobs:
           ssh -p "${{ secrets.SSH_PORT }}" "${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }}" <<'SSH'
           set -euo pipefail
           cd "${DEPLOY_PATH}"
-          if docker compose version >/dev/null 2>&1; then
-            docker compose down --remove-orphans || true
-            docker compose up -d --build
-          else
-            # docker-compose v1.29.x can fail on recreate with newer Docker API (ContainerConfig KeyError),
-            # so we do a clean down/up instead of relying on implicit recreate.
-            docker-compose down --remove-orphans || true
-            docker-compose up -d --build
-          fi
+          docker compose version
+          docker compose down --remove-orphans || true
+          docker compose up -d --build
           docker image prune -f
 SSH
         env:

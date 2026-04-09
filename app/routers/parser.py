@@ -7,6 +7,7 @@ from pydantic import BaseModel, Field
 
 from app.observability import json_log
 from app.parser_agent import run_once
+from app.queue_bus import publish_parser_job
 
 
 router = APIRouter(prefix="/api/parser", tags=["parser"])
@@ -40,4 +41,18 @@ async def run_parser(request: Request, body: RunParserRequest) -> RunParserRespo
         changed=int(res["changed"]),
         change_package_path=str(res["change_package_path"]),
     )
+
+
+class EnqueueParserResponse(BaseModel):
+    ok: bool
+    request_id: str
+    job_id: str
+
+
+@router.post("/enqueue", response_model=EnqueueParserResponse)
+async def enqueue_parser(request: Request, body: RunParserRequest) -> EnqueueParserResponse:
+    rid = getattr(request.state, "request_id", uuid.uuid4().hex)
+    job_id = await publish_parser_job(payload={"limit": body.limit})
+    json_log({"type": "parser_enqueued", "request_id": rid, "job_id": job_id, "limit": body.limit})
+    return EnqueueParserResponse(ok=True, request_id=rid, job_id=job_id)
 

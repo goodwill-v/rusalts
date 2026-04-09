@@ -13,6 +13,8 @@ from app import config
 from app import kb
 from app.observability import json_log
 from app.routerai import RouterAIError, chat_completion
+from app.model_routing import backend_choice, choose_main_or_heavy, looks_legal
+from app.official_sources import search_official_sources
 from app.templates_engine import load_templates_bundle, load_triggers, match_trigger, render_template
 
 router = APIRouter(prefix="/api", tags=["api"])
@@ -102,7 +104,7 @@ async def chat(request: Request, body: ChatRequest) -> ChatResponse:
 
         reply_kb = "\n".join(lines).strip()
 
-        # 3) Optional: RouterAI for synthesis if configured and KB is ambiguous
+        # 3) Optional: RouterAI for synthesis (policy: main → heavy on legal/low-confidence)
         used_llm = False
         final_reply = reply_kb
         try:
@@ -123,12 +125,33 @@ async def chat(request: Request, body: ChatRequest) -> ChatResponse:
                     ),
                 }
             )
+
+            choice = backend_choice(
+                text=text,
+                kb_hits_count=len(kb_hits),
+                main=config.BACKEND_MODEL_MAIN or config.ROUTERAI_CHAT_MODEL,
+                heavy=config.BACKEND_MODEL_HEAVY,
+            )
             llm_text, usage, _raw = await chat_completion(
                 base_url=config.ROUTERAI_BASE_URL,
                 api_key=config.ROUTERAI_API_KEY,
-                model=config.ROUTERAI_CHAT_MODEL,
+                model=choice.model,
                 messages=messages,
             )
+            if not str(llm_text).strip() and choice.model != (config.BACKEND_MODEL_HEAVY or "").strip() and config.BACKEND_MODEL_HEAVY:
+                # Validation fallback: empty answer → retry once with heavy.
+                choice2 = choose_main_or_heavy(
+                    main=choice.model,
+                    heavy=config.BACKEND_MODEL_HEAVY,
+                    escalate=True,
+                    reason="backend_retry_empty",
+                )
+                llm_text, usage, _raw = await chat_completion(
+                    base_url=config.ROUTERAI_BASE_URL,
+                    api_key=config.ROUTERAI_API_KEY,
+                    model=choice2.model,
+                    messages=messages,
+                )
             used_llm = True
             final_reply = str(llm_text).strip() or reply_kb
             json_log(
@@ -143,6 +166,7 @@ async def chat(request: Request, body: ChatRequest) -> ChatResponse:
                     "tokens_out": usage.output_tokens,
                     "cost_usd": usage.cost_usd,
                     "purpose": "chat",
+                    "routing_reason": choice.reason,
                 }
             )
         except RouterAIError:
@@ -160,11 +184,82 @@ async def chat(request: Request, body: ChatRequest) -> ChatResponse:
             used_llm=used_llm,
         )
 
-    # 4) Absolute fallback (no KB hit and no trigger)
+    # 4) Official sources fallback: try to find excerpts and answer strictly with citations.
+    official = await search_official_sources(query=text)
+    if official:
+        excerpts_payload = [{"title": o.title, "url": o.url, "excerpt": o.excerpt} for o in official]
+        try:
+            system_prompt_path = config.BASE_DIR / "АЛЬТЕРНАТИВА_АЛТбот" / "ALT_sist.prompt.md"
+            system_prompt = system_prompt_path.read_text(encoding="utf-8").strip() if system_prompt_path.is_file() else ""
+
+            messages = []
+            if system_prompt:
+                messages.append({"role": "system", "content": system_prompt})
+            messages.append(
+                {
+                    "role": "user",
+                    "content": (
+                        "Ответь на вопрос пользователя, опираясь ТОЛЬКО на выдержки из официальных источников ниже. "
+                        "Нельзя выдумывать информацию. "
+                        "В ответе обязательно укажи ссылки на источники (URL). "
+                        "Если выдержек недостаточно — ответь: «Ответа пока нет в официальных источниках».\n\n"
+                        f"Вопрос: {text}\n\n"
+                        f"Выдержки (JSON): {json.dumps(excerpts_payload, ensure_ascii=False)}"
+                    ),
+                }
+            )
+
+            choice = backend_choice(
+                text=text,
+                kb_hits_count=0,
+                main=config.BACKEND_MODEL_MAIN or config.ROUTERAI_CHAT_MODEL,
+                heavy=config.BACKEND_MODEL_HEAVY,
+            )
+            llm_text, usage, _raw = await chat_completion(
+                base_url=config.ROUTERAI_BASE_URL,
+                api_key=config.ROUTERAI_API_KEY,
+                model=choice.model,
+                messages=messages,
+                timeout_s=30.0,
+            )
+            answer = str(llm_text).strip()
+            # Minimal validation: if model claims answer but doesn't include any URL, refuse.
+            has_url = "http://" in answer or "https://" in answer
+            if answer and ("официальных источниках" not in answer.lower()) and not has_url:
+                answer = "Ответа пока нет в официальных источниках"
+            json_log(
+                {
+                    "type": "routerai_usage",
+                    "request_id": rid,
+                    "user_id": body.user_id,
+                    "channel": body.channel,
+                    "platform": body.platform,
+                    "model": usage.model,
+                    "tokens_in": usage.input_tokens,
+                    "tokens_out": usage.output_tokens,
+                    "cost_usd": usage.cost_usd,
+                    "purpose": "chat_official_sources",
+                    "routing_reason": choice.reason,
+                }
+            )
+            return ChatResponse(
+                reply=answer or "Ответа пока нет в официальных источниках",
+                request_id=rid,
+                sources=[{"title": o.title, "url": o.url} for o in official],
+                used_llm=True,
+            )
+        except RouterAIError:
+            # If RouterAI is unavailable, still show excerpts with citations.
+            lines = ["Нашёл релевантные выдержки в официальных источниках:"]
+            for i, o in enumerate(official[:3], start=1):
+                lines.append(f"\n{i}) {o.title}\n— {o.excerpt}\nИсточник: {o.url}")
+            lines.append("\nЕсли нужно — вы можете обратиться в Поддержку, чтобы наметить решение вашего вопроса.")
+            return ChatResponse(reply="\n".join(lines).strip(), request_id=rid, sources=[{"title": o.title, "url": o.url} for o in official], used_llm=False)
+
+    # 5) Absolute fallback (no KB hit, no trigger, no official excerpts)
     fallback = (
-        "Я не нашёл точный ответ в базе знаний и шаблонах.\n\n"
-        "Попробуйте переформулировать вопрос или напишите: «переезд» / «комплаенс» / «документ».\n"
-        "Если это срочно — обратитесь в поддержку."
+        "Ответа пока нет в официальных источниках.\n\n"
+        "Вы можете обратиться в Поддержку, чтобы наметить решение вашего вопроса."
     )
     return ChatResponse(reply=fallback, request_id=rid, sources=[], used_llm=False)
 

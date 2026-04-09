@@ -477,28 +477,18 @@ code {
 .hero {
   position: relative;
   overflow: hidden;
-  min-height: 320px;
-  display: grid;
-  align-items: center;
-  color: #fff;
-}
-
-.hero__bg {
-  position: absolute;
-  inset: 0;
-  background:
-    linear-gradient(90deg, rgba(17, 24, 39, 0.72) 0%, rgba(17, 24, 39, 0.35) 55%, rgba(17, 24, 39, 0.18) 100%),
-    url("/static/img/cover.png");
-  background-size: 120% 100%;
+  display: block;
+  background: url("/static/img/cover.png");
+  background-size: cover;
   background-position: center;
-  transform: scale(1.03);
+  color: #fff;
 }
 
 .hero__content {
   position: relative;
   max-width: 1200px;
   margin: 0 auto;
-  padding: 2.55rem 1rem 2.1rem;
+  padding: 2rem 1rem 1.65rem;
 }
 
 .hero__title {
@@ -624,11 +614,23 @@ code {
   opacity: 0.95;
 }
 
-.hero__actions {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.75rem;
-  align-items: center;
+/* hero buttons removed in current layout */
+
+.hero__subtitle--nowrap {
+  margin-bottom: 0;
+}
+
+@media (min-width: 980px) {
+  .hero__subtitle--nowrap {
+    max-width: none;
+    white-space: nowrap;
+  }
+}
+
+@media (max-width: 520px) {
+  .hero__content {
+    padding: 1.5rem 1rem 1.25rem;
+  }
 }
 
 .section {

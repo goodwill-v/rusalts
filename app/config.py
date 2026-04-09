@@ -39,6 +39,26 @@ ROUTERAI_CHEAP_MODEL = os.getenv("ROUTERAI_CHEAP_MODEL", "gpt-4o-mini")
 ROUTERAI_REASONING_MODEL = os.getenv("ROUTERAI_REASONING_MODEL", "")
 ROUTERAI_EMBEDDINGS_MODEL = os.getenv("ROUTERAI_EMBEDDINGS_MODEL", "")
 
+# Agent-specific model routing (server-side services)
+# Backend (chat / synthesis)
+BACKEND_MODEL_MAIN = os.getenv("BACKEND_MODEL_MAIN", ROUTERAI_CHAT_MODEL).strip()
+BACKEND_MODEL_HEAVY = os.getenv("BACKEND_MODEL_HEAVY", "").strip()
+
+# Parser (diff/classify/KB updates) — LLM usage to be added later, currently heuristic-only
+PARSER_MODEL_MAIN = os.getenv("PARSER_MODEL_MAIN", "").strip()
+PARSER_MODEL_HEAVY = os.getenv("PARSER_MODEL_HEAVY", "").strip()
+
+# Content (news/release generation)
+CONTENT_MODEL_MAIN = os.getenv("CONTENT_MODEL_MAIN", ROUTERAI_CHAT_MODEL).strip()
+CONTENT_MODEL_HEAVY = os.getenv("CONTENT_MODEL_HEAVY", "").strip()
+
+# Queue / inter-service messaging (Redis Streams)
+QUEUE_REDIS_URL = os.getenv("QUEUE_REDIS_URL", "redis://redis:6379/0").strip()
+QUEUE_STREAM_PARSER_JOBS = os.getenv("QUEUE_STREAM_PARSER_JOBS", "alt:parser:jobs").strip()
+QUEUE_STREAM_CONTENT_JOBS = os.getenv("QUEUE_STREAM_CONTENT_JOBS", "alt:content:jobs").strip()
+QUEUE_GROUP_PARSER = os.getenv("QUEUE_GROUP_PARSER", "parser").strip()
+QUEUE_GROUP_CONTENT = os.getenv("QUEUE_GROUP_CONTENT", "content").strip()
+
 # Knowledge base + templates
 KNOWLEDGE_BASE_DIR = BASE_DIR / "knowledge_base"
 KB_ARTICLES_DIR = KNOWLEDGE_BASE_DIR / "articles"

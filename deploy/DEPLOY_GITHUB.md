@@ -8,9 +8,10 @@
 
 ## Что должно быть на сервере
 
-- Установлены Docker и docker compose plugin:
+- Установлены Docker и **Docker Compose v2** (команда `docker compose`):
   - `docker --version`
   - `docker compose version`
+- `docker-compose` (v1) **не используем** (устаревший бинарник).
 - Создан каталог деплоя, например `/opt/alt` (или другой).
 - В каталоге деплоя лежит файл `.env` (секреты **только** на сервере).
 
