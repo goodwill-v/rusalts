@@ -11,6 +11,8 @@ concurrency:
 jobs:
   deploy:
     runs-on: ubuntu-latest
+    env:
+      FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -36,15 +38,9 @@ jobs:
             ./ "${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }}:${{ secrets.DEPLOY_PATH }}/"
 
       - name: Deploy via docker compose
-        run: |
-          ssh -p "${{ secrets.SSH_PORT }}" "${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }}" <<'SSH'
-          set -euo pipefail
-          cd "${DEPLOY_PATH}"
-          docker compose version
-          docker compose down --remove-orphans || true
-          docker compose up -d --build
-          docker image prune -f
-SSH
         env:
           DEPLOY_PATH: ${{ secrets.DEPLOY_PATH }}
+        run: |
+          ssh -p "${{ secrets.SSH_PORT }}" "${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }}" \
+            "set -euo pipefail; cd \"${DEPLOY_PATH}\"; docker compose version; docker compose down --remove-orphans || true; docker compose up -d --build; docker image prune -f"
 
