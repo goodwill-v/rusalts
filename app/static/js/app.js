@@ -199,16 +199,14 @@ function initAltExpertWidget() {
   const closer = root.querySelector("[data-close-chat]");
 
   const show = () => {
-    root.hidden = false;
-    if (panel) panel.style.display = "";
+    if (panel) panel.hidden = false;
     if (input) input.focus();
   };
   const hide = () => {
-    if (panel) panel.style.display = "none";
+    if (panel) panel.hidden = true;
   };
 
-  // init hidden: плавающая кнопка — ссылка на /consultant; панель открывают кнопки data-open-chat
-  root.hidden = false;
+  // Панель по умолчанию скрыта атрибутом hidden в разметке; FAB — ссылка, видна без JS.
   hide();
 
   openers.forEach((b) => b.addEventListener("click", show));

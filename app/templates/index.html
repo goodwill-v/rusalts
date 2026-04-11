@@ -281,8 +281,9 @@
   </div>
 </footer>
 
-<div class="altbot" data-altbot hidden>
-  <div class="altbot__panel" role="dialog" aria-label="АЛТ‑Эксперт">
+<div class="altbot" data-altbot>
+  {# hidden только у панели: иначе [hidden] на обёртке скрывает и плавающую ссылку до выполнения JS (на мобильных заметнее) #}
+  <div class="altbot__panel" role="dialog" aria-label="АЛТ‑Эксперт" hidden>
     <div class="altbot__head">
       <div class="altbot__title">АЛТ‑Эксперт</div>
       <button class="altbot__close" type="button" aria-label="Закрыть" data-close-chat>×</button>
