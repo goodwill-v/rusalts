@@ -14,6 +14,8 @@
   <div class="shell">
     {% block body %}{% endblock %}
   </div>
+  {# Плавающие виджеты вне .shell — иначе position:fixed на iOS/WebKit может «теряться» внутри обёртки #}
+  {% block after_shell %}{% endblock %}
   <script>
     window.__APP__ = {
       vkAppId: {{ vk_app_id | tojson }},
