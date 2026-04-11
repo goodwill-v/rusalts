@@ -197,7 +197,6 @@ function initAltExpertWidget() {
   const input = root.querySelector("input");
   const openers = document.querySelectorAll("[data-open-chat]");
   const closer = root.querySelector("[data-close-chat]");
-  const fab = root.querySelector(".altbot__fab");
 
   const show = () => {
     root.hidden = false;
@@ -208,12 +207,11 @@ function initAltExpertWidget() {
     if (panel) panel.style.display = "none";
   };
 
-  // init hidden: keep FAB visible even if panel hidden
+  // init hidden: плавающая кнопка — ссылка на /consultant; панель открывают кнопки data-open-chat
   root.hidden = false;
   hide();
 
   openers.forEach((b) => b.addEventListener("click", show));
-  fab?.addEventListener("click", () => (panel?.style.display === "none" ? show() : hide()));
   closer?.addEventListener("click", hide);
 
   if (log) appendMessage(log, "bot", "Здравствуйте! Чем могу помочь: миграция, правовые вопросы, ИИ‑инструменты или ваш вопрос.");
