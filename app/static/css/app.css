@@ -50,6 +50,18 @@ body.layout-widget {
   color: var(--site-text);
 }
 
+/* Без горизонтального «вылезания» контента (часто из-за шапки на узкой ширине) */
+body.layout-site {
+  overflow-x: clip;
+  max-width: 100%;
+}
+
+@supports not (overflow: clip) {
+  body.layout-site {
+    overflow-x: hidden;
+  }
+}
+
 .shell {
   max-width: 1100px;
   margin: 0 auto;
@@ -57,8 +69,15 @@ body.layout-widget {
 }
 
 .layout-site .shell {
-  max-width: 1200px;
+  max-width: min(1200px, 100%);
   padding: 0;
+  overflow-x: clip;
+}
+
+@supports not (overflow: clip) {
+  .layout-site .shell {
+    overflow-x: hidden;
+  }
 }
 
 .layout-widget .shell {
@@ -462,6 +481,46 @@ code {
   }
   .site-nav {
     display: inline-flex;
+  }
+}
+
+@media (max-width: 979px) {
+  .site-header__inner {
+    grid-template-columns: 1fr auto;
+    align-items: center;
+  }
+
+  .brandmark {
+    min-width: 0;
+    max-width: 100%;
+  }
+
+  .header-actions {
+    grid-column: 1 / -1;
+    width: 100%;
+    max-width: 100%;
+    justify-content: stretch;
+  }
+
+  .header-actions__cta {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 0.5rem;
+    width: 100%;
+    min-width: 0;
+  }
+
+  .header-actions__cta > .btn-site {
+    min-width: 0;
+    white-space: normal;
+    text-align: center;
+    line-height: 1.2;
+    font-size: 0.78rem;
+    padding: 0.5rem 0.35rem;
+  }
+
+  .btn-site--expert {
+    white-space: normal;
   }
 }
 
@@ -1045,18 +1104,29 @@ code {
   text-decoration: underline;
 }
 
-/* Floating chat — вне .shell (см. base.html after_shell). Высокий z-index и safe-area для мобильных. */
-.altbot {
+/* Плавающий чат: полноэкранная обёртка + flex-end — стабильнее position:fixed у кнопки на iOS/Android */
+.altbot-root {
   position: fixed;
-  right: max(1rem, env(safe-area-inset-right, 0px));
-  bottom: calc(1rem + env(safe-area-inset-bottom, 0px));
-  left: auto;
+  inset: 0;
   z-index: 10000;
+  pointer-events: none;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+  align-items: flex-end;
+  padding: 0 max(1rem, env(safe-area-inset-right, 0px)) calc(1rem + env(safe-area-inset-bottom, 0px))
+    max(1rem, env(safe-area-inset-left, 0px));
+  box-sizing: border-box;
+}
+
+.altbot-root .altbot {
+  position: static;
   display: grid;
   gap: 0.75rem;
   justify-items: end;
   width: max-content;
-  max-width: calc(100vw - 2rem);
+  max-width: 100%;
+  pointer-events: auto;
 }
 
 .altbot__fab {

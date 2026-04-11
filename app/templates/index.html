@@ -288,7 +288,8 @@
 {% endblock %}
 
 {% block after_shell %}
-<div class="altbot" data-altbot>
+<div class="altbot-root">
+  <div class="altbot" data-altbot>
   <div class="altbot__panel" role="dialog" aria-labelledby="altbot-chat-title" aria-modal="true" hidden>
     <div class="altbot__head">
       <div id="altbot-chat-title" class="altbot__title">АЛТ‑Чат</div>
@@ -304,5 +305,6 @@
   <button class="altbot__fab" type="button" data-open-altchat aria-label="Открыть чат" aria-expanded="false">
     Чат
   </button>
+  </div>
 </div>
 {% endblock %}
