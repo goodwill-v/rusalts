@@ -23,16 +23,15 @@
     </nav>
 
     <div class="header-actions">
-      <button id="a11y-toggle" class="btn-site btn-site--ghost btn-site--compact" type="button">
-        УВЕЛИЧИТЬ
-      </button>
-      <button class="btn-site btn-site--primary" type="button" data-open-chat>
-        Бесплатная диагностика
-      </button>
-      <a class="btn-site btn-site--primary btn-site--expert" href="/consultant">
-        <img class="btn-site-expert__logo" src="/static/img/logo.png" alt="" width="28" height="28" />
-        <span class="btn-site-expert__label">АЛТ‑эксперт</span>
-      </a>
+      {# Видимая кнопка убрана по ТЗ; переключатель остаётся для JS и доступности #}
+      <button id="a11y-toggle" class="sr-only" type="button">Версия для слабовидящих</button>
+      <div class="header-actions__cta">
+        <a class="btn-site btn-site--primary" href="#contacts">Бесплатная диагностика</a>
+        <a class="btn-site btn-site--primary btn-site--expert" href="/consultant">
+          <img class="btn-site-expert__logo" src="/static/img/logo.png" alt="" width="28" height="28" />
+          <span class="btn-site-expert__label">АЛТ‑эксперт</span>
+        </a>
+      </div>
     </div>
   </div>
 </header>
@@ -128,7 +127,7 @@
       <article class="card">
         <h3 class="card__title">Бесплатная диагностика</h3>
         <p class="card__text">Быстрая оценка рисков и маршрута перехода в отечественные платформы.</p>
-        <button class="linklike" type="button" data-open-chat>Оставить заявку</button>
+        <a class="linklike" href="#contacts">Оставить заявку</a>
       </article>
       <article class="card">
         <h3 class="card__title">Миграция коммуникаций</h3>
@@ -154,7 +153,7 @@
           <p class="acc-p">Требования к сбору, хранению и обработке персональных данных граждан РФ.</p>
           <p class="acc-links">
             <a class="link" href="https://pravo.gov.ru/" target="_blank" rel="noopener noreferrer">Официальный источник</a>
-            <button class="linklike" type="button" data-open-chat>Заказать аудит соответствия</button>
+            <a class="linklike" href="#contacts">Заказать аудит соответствия</a>
           </p>
         </div>
       </details>
@@ -163,7 +162,7 @@
         <div class="acc-body">
           <p class="acc-p">Ограничения на использование иностранных слов и требования к интерфейсам/наименованиям.</p>
           <p class="acc-links">
-            <button class="linklike" type="button" data-open-chat>Проверить контент на соответствие</button>
+            <a class="linklike" href="#contacts">Проверить контент на соответствие</a>
           </p>
         </div>
       </details>
@@ -172,7 +171,7 @@
         <div class="acc-body">
           <p class="acc-p">Особенности доступа к цифровым сервисам в разных субъектах РФ и практические рекомендации.</p>
           <p class="acc-links">
-            <button class="linklike" type="button" data-open-chat>Получить консультацию по региону</button>
+            <a class="linklike" href="#contacts">Получить консультацию по региону</a>
           </p>
         </div>
       </details>
@@ -300,7 +299,7 @@
       <button class="btn-site btn-site--primary" type="submit">Отправить</button>
     </form>
   </div>
-  <button class="altbot__fab" type="button" data-toggle-chat aria-label="Открыть или закрыть чат" aria-expanded="false">
+  <button class="altbot__fab" type="button" data-open-altchat aria-label="Открыть чат" aria-expanded="false">
     Чат
   </button>
 </div>

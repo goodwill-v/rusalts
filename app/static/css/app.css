@@ -393,6 +393,13 @@ code {
   max-width: 100%;
 }
 
+.header-actions__cta {
+  display: inline-flex;
+  flex-wrap: nowrap;
+  align-items: center;
+  gap: 0.5rem;
+}
+
 .btn-site--compact {
   padding: 0.45rem 0.65rem;
   font-size: 0.82rem;
@@ -1066,7 +1073,7 @@ code {
   color: #fff;
   font: inherit;
   font-weight: 800;
-  font-size: 0.75rem;
+  font-size: 0.92rem;
   line-height: 1.05;
   text-align: center;
   letter-spacing: 0.02em;
@@ -1080,8 +1087,18 @@ code {
   .altbot__fab {
     width: 48px;
     height: 48px;
-    font-size: 0.62rem;
+    font-size: 0.8rem;
   }
+}
+
+/* Авторский display:grid иначе перебивает [hidden] в ряде браузеров — явно скрываем */
+.altbot__panel[hidden] {
+  display: none !important;
+}
+
+.altbot__panel:not([hidden]) {
+  display: grid;
+  grid-template-rows: auto 1fr auto;
 }
 
 .altbot__panel {
@@ -1092,8 +1109,6 @@ code {
   border-radius: 16px;
   box-shadow: 0 22px 60px rgba(17, 24, 39, 0.22);
   overflow: hidden;
-  display: grid;
-  grid-template-rows: auto 1fr auto;
 }
 
 .altbot__head {

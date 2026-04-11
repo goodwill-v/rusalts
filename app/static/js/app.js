@@ -195,9 +195,8 @@ function initAltExpertWidget() {
   const log = root.querySelector("[data-chat-log]");
   const form = root.querySelector("[data-chat-form]");
   const input = root.querySelector("input");
-  const openers = document.querySelectorAll("[data-open-chat]");
   const closer = root.querySelector("[data-close-chat]");
-  const fab = root.querySelector("[data-toggle-chat]");
+  const fab = root.querySelector("[data-open-altchat]");
 
   const show = () => {
     if (panel) panel.hidden = false;
@@ -209,14 +208,12 @@ function initAltExpertWidget() {
     fab?.setAttribute("aria-expanded", "false");
   };
 
-  hide();
+  if (panel) panel.hidden = true;
 
-  openers.forEach((b) => b.addEventListener("click", show));
-  closer?.addEventListener("click", hide);
   fab?.addEventListener("click", () => {
     if (panel?.hidden) show();
-    else hide();
   });
+  closer?.addEventListener("click", hide);
 
   if (log) appendMessage(log, "bot", "Здравствуйте! Чем могу помочь: миграция, правовые вопросы, ИИ‑инструменты или ваш вопрос.");
   initChatForm({ form, input, log });
