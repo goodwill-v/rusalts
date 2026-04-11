@@ -26,7 +26,7 @@ async def index(request: Request) -> HTMLResponse:
 
 @router.get("/consultant", response_class=HTMLResponse)
 async def consultant(request: Request) -> HTMLResponse:
-    """Прототип интерфейса: чат + шаблоны документов."""
+    """Полноэкранный интерфейс АЛТ‑эксперт: чат и шаблоны."""
     return templates.TemplateResponse(
         request,
         "consultant.html",
@@ -34,7 +34,7 @@ async def consultant(request: Request) -> HTMLResponse:
             "vk_app_id": config.VK_APP_ID or None,
             "is_widget": False,
             "layout_class": "layout-app",
-            "page_title": "Консультант — прототип",
+            "page_title": "АЛТ‑эксперт",
         },
     )
 

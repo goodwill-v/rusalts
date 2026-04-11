@@ -23,12 +23,16 @@
     </nav>
 
     <div class="header-actions">
-      <button id="a11y-toggle" class="btn-site btn-site--ghost" type="button">
-        Версия для слабовидящих
+      <button id="a11y-toggle" class="btn-site btn-site--ghost btn-site--compact" type="button">
+        УВЕЛИЧИТЬ
       </button>
       <button class="btn-site btn-site--primary" type="button" data-open-chat>
         Бесплатная диагностика
       </button>
+      <a class="btn-site btn-site--primary btn-site--expert" href="/consultant">
+        <img class="btn-site-expert__logo" src="/static/img/logo.png" alt="" width="28" height="28" />
+        <span class="btn-site-expert__label">АЛТ‑эксперт</span>
+      </a>
     </div>
   </div>
 </header>
@@ -185,11 +189,13 @@
         <p class="contacts__line"><strong>Email:</strong> <a class="link" href="mailto:info@rusalts.ru">info@rusalts.ru</a></p>
         <p class="contacts__line"><strong>Телефон:</strong> <a class="link" href="tel:+70000000000">+7 (___) ___‑__‑__</a></p>
         <p class="contacts__line"><strong>Адрес:</strong> г. Москва, Россия</p>
-        <button class="btn-site btn-site--primary" type="button" data-open-chat>Открыть АЛТ‑Эксперта</button>
+        <a class="btn-site btn-site--primary btn-site--expert btn-site--expert-wide" href="/consultant">
+          <img class="btn-site-expert__logo" src="/static/img/logo.png" alt="" width="28" height="28" />
+          <span class="btn-site-expert__label">АЛТ‑эксперт</span>
+        </a>
       </div>
       <div class="contacts__note">
         <p class="muted-site">Сайт готов к встраиванию в iframe (VK) и не содержит секретов на фронте.</p>
-        <p class="muted-site">Прототип “Консультант” доступен по адресу <a class="link" href="/consultant">/consultant</a>.</p>
       </div>
     </div>
   </section>
@@ -282,11 +288,10 @@
 </footer>
 
 <div class="altbot" data-altbot>
-  {# hidden только у панели: иначе [hidden] на обёртке скрывает и плавающую ссылку до выполнения JS (на мобильных заметнее) #}
-  <div class="altbot__panel" role="dialog" aria-label="АЛТ‑Эксперт" hidden>
+  <div class="altbot__panel" role="dialog" aria-labelledby="altbot-chat-title" aria-modal="true" hidden>
     <div class="altbot__head">
-      <div class="altbot__title">АЛТ‑Эксперт</div>
-      <button class="altbot__close" type="button" aria-label="Закрыть" data-close-chat>×</button>
+      <div id="altbot-chat-title" class="altbot__title">АЛТ‑Чат</div>
+      <button class="altbot__close" type="button" aria-label="Закрыть чат" data-close-chat>×</button>
     </div>
     <div class="altbot__log" data-chat-log role="log" aria-live="polite"></div>
     <form class="altbot__form" data-chat-form>
@@ -294,15 +299,9 @@
       <input id="altbot-q" name="q" type="text" autocomplete="off" placeholder="Напишите ваш вопрос…" required />
       <button class="btn-site btn-site--primary" type="submit">Отправить</button>
     </form>
-    <p class="altbot__note">Диалог может записываться для улучшения сервиса. Не отправляйте чувствительные данные.</p>
   </div>
-  <a
-    class="altbot__fab"
-    href="/consultant"
-    aria-label="АЛТ‑эксперт — открыть бота"
-  >
-    <img class="altbot__fab-logo" src="/static/img/logo.png" alt="" aria-hidden="true" />
-    <span class="altbot__fab-suffix" aria-hidden="true">-эксперт</span>
-  </a>
+  <button class="altbot__fab" type="button" data-toggle-chat aria-label="Открыть или закрыть чат" aria-expanded="false">
+    Чат
+  </button>
 </div>
 {% endblock %}

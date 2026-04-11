@@ -197,20 +197,26 @@ function initAltExpertWidget() {
   const input = root.querySelector("input");
   const openers = document.querySelectorAll("[data-open-chat]");
   const closer = root.querySelector("[data-close-chat]");
+  const fab = root.querySelector("[data-toggle-chat]");
 
   const show = () => {
     if (panel) panel.hidden = false;
+    fab?.setAttribute("aria-expanded", "true");
     if (input) input.focus();
   };
   const hide = () => {
     if (panel) panel.hidden = true;
+    fab?.setAttribute("aria-expanded", "false");
   };
 
-  // Панель по умолчанию скрыта атрибутом hidden в разметке; FAB — ссылка, видна без JS.
   hide();
 
   openers.forEach((b) => b.addEventListener("click", show));
   closer?.addEventListener("click", hide);
+  fab?.addEventListener("click", () => {
+    if (panel?.hidden) show();
+    else hide();
+  });
 
   if (log) appendMessage(log, "bot", "Здравствуйте! Чем могу помочь: миграция, правовые вопросы, ИИ‑инструменты или ваш вопрос.");
   initChatForm({ form, input, log });
