@@ -1,0 +1,85 @@
+{% extends "base.html" %}
+
+{% block body %}
+<header class="site-header" role="banner">
+  <div class="site-header__inner">
+    <a class="brandmark" href="/" aria-label="АЛТ — на главную">
+      <img class="brandmark__logo" src="/static/img/logo.png" alt="Логотип АЛТ" />
+      <span class="brandmark__text">АЛЬТЕРНАТИВА</span>
+    </a>
+
+    <button class="nav-toggle" type="button" aria-label="Открыть меню" aria-expanded="false" aria-controls="site-nav">
+      <span class="nav-toggle__bar"></span>
+      <span class="nav-toggle__bar"></span>
+      <span class="nav-toggle__bar"></span>
+    </button>
+
+    <nav id="site-nav" class="site-nav" aria-label="Основная навигация">
+      <a class="site-nav__link" href="/">Главная</a>
+      <a class="site-nav__link" href="/news/">Новости</a>
+      <a class="site-nav__link" href="/laws/">Правовая база</a>
+      <a class="site-nav__link" href="/channels/">Каналы</a>
+      <a class="site-nav__link" href="/techologis/">Услуги</a>
+      <a class="site-nav__link" href="/#contacts">Контакты</a>
+    </nav>
+
+    <div class="header-actions">
+      <button id="a11y-toggle" class="sr-only" type="button">Версия для слабовидящих</button>
+      <div class="header-actions__cta">
+        <a class="btn-site btn-site--primary" href="/diagnostics/">Бесплатная диагностика</a>
+        <a class="btn-site btn-site--primary btn-site--expert" href="/consultant">
+          <img class="btn-site-expert__logo" src="/static/img/logo.png" alt="" width="28" height="28" />
+          <span class="btn-site-expert__label">АЛТ‑эксперт</span>
+        </a>
+      </div>
+    </div>
+  </div>
+</header>
+
+<main class="site-main">
+  <section class="section page-standalone">
+    <h1 class="page-title">{{ page_h1 }}</h1>
+    <!-- {{ page_description }} -->
+    <div class="page-body">
+      <p class="muted-site">Содержимое будет добавлено позже.</p>
+      {% if page_hint %}
+        <p class="muted-site">{{ page_hint }}</p>
+      {% endif %}
+    </div>
+  </section>
+</main>
+
+<footer class="site-footer" role="contentinfo">
+  <div class="site-footer__inner">
+    <div class="footer-brand">
+      <img class="footer-brand__logo" src="/static/img/logo.png" alt="АЛТ" />
+      <div class="footer-brand__col">
+        <p class="footer-brand__text">АЛЬТЕРНАТИВА — альтернативные легальные технологии</p>
+        <div class="footer-social" aria-label="Сообщества в мессенджерах">
+          <a class="footer-social__link" href="https://vk.com/alternat777" target="_blank" rel="noopener noreferrer" aria-label="ВКонтакте — сообщество АЛЬТЕРНАТИВА">
+            <svg class="footer-social__icon footer-social__icon--vk" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+              <path fill="currentColor" d="M15.684 0H8.316C1.592 0 0 1.592 0 8.316v7.368C0 22.408 1.592 24 8.316 24h7.368C22.408 24 24 22.408 24 15.684V8.316C24 1.592 22.408 0 15.684 0zm3.692 17.123h-1.744c-.66 0-.864-.525-2.05-1.727-1.033-1-1.49-1.135-1.744-1.135-.356 0-.458.102-.458.593v1.575c0 .424-.135.678-1.253.678-1.846 0-3.896-1.118-5.335-3.202C4.624 10.857 4.03 8.57 4.03 8.096c0-.254.102-.491.593-.491h1.744c.44 0 .61.203.78.677.863 2.49 2.303 4.675 2.896 4.675.22 0 .322-.102.322-.66V9.721c-.068-1.186-.695-1.287-.695-1.71 0-.203.17-.407.44-.407h2.744c.373 0 .508.203.508.643v3.473c0 .372.17.508.271.508.22 0 .407-.136.813-.542 1.253-1.405 2.15-3.574 2.15-3.574.119-.254.322-.491.763-.491h1.744c.525 0 .644.27.525.643-.22 1.017-2.354 3.844-2.354 3.844-.203.271-.271.407 0 .678.203.254.88.847 1.338 1.355.847.948 1.507 1.744 1.676 2.303.17.542-.085.813-.627.813z" />
+            </svg>
+          </a>
+          <a class="footer-social__link" href="https://max.ru/u/f9LHodD0cOLNy_EBG9DgJAsJF63zIy6Fv3jRDrzYi-pRlM_SJ76Y3M_SoUw" target="_blank" rel="noopener noreferrer" aria-label="Мессенджер MAX — присоединяйтесь" title="Я пользуюсь мессенджером MAX. Присоединяйся!">
+            <span class="footer-social__icon footer-social__icon--max" aria-hidden="true">MAX</span>
+          </a>
+        </div>
+      </div>
+    </div>
+    <div class="footer-links">
+      <a class="footer-link" href="/">Главная</a>
+      <a class="footer-link" href="/news/">Новости</a>
+      <a class="footer-link" href="/laws/">Правовая база</a>
+      <a class="footer-link" href="/channels/">Каналы</a>
+      <a class="footer-link" href="/techologis/">Услуги</a>
+      <a class="footer-link" href="/#contacts">Контакты</a>
+    </div>
+    <div class="footer-legal">
+      <a class="footer-link" href="#">Политика конфиденциальности</a>
+      <a class="footer-link" href="#">Пользовательское соглашение</a>
+    </div>
+  </div>
+</footer>
+{% endblock %}
+

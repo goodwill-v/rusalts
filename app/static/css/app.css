@@ -743,6 +743,21 @@ code {
   padding: 3.25rem 1rem;
 }
 
+.page-standalone {
+  padding-top: 2.25rem;
+}
+
+.page-title {
+  margin: 0 0 0.85rem;
+  color: var(--site-heading);
+  font-size: clamp(1.8rem, 2.6vw, 2.6rem);
+  letter-spacing: -0.015em;
+}
+
+.page-body {
+  margin-top: 0.75rem;
+}
+
 .alt-surface {
   background: var(--site-surface-alt);
 }
