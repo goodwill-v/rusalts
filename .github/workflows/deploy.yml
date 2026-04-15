@@ -22,10 +22,64 @@ jobs:
         with:
           ssh-private-key: ${{ secrets.SSH_PRIVATE_KEY }}
 
+      - name: Diagnose SSH secrets & connectivity
+        shell: bash
+        env:
+          SSH_HOST: ${{ secrets.SSH_HOST }}
+          SSH_PORT: ${{ secrets.SSH_PORT }}
+          SSH_USER: ${{ secrets.SSH_USER }}
+          DEPLOY_PATH: ${{ secrets.DEPLOY_PATH }}
+        run: |
+          set -euo pipefail
+          echo "Diagnostics: validating deploy secrets (values masked)."
+
+          # Presence checks (do not print actual secret values)
+          for v in SSH_HOST SSH_PORT SSH_USER DEPLOY_PATH; do
+            if [ -z "${!v:-}" ]; then
+              echo "::error::Secret ${v} is empty or not set"
+              exit 1
+            fi
+            eval "val=\${$v}"
+            echo "Secret ${v}: set (len=${#val})"
+          done
+
+          # Port sanity
+          if ! [[ "${SSH_PORT}" =~ ^[0-9]+$ ]]; then
+            echo "::error::SSH_PORT is not numeric"
+            exit 1
+          fi
+          if [ "${SSH_PORT}" -lt 1 ] || [ "${SSH_PORT}" -gt 65535 ]; then
+            echo "::error::SSH_PORT out of range (1..65535)"
+            exit 1
+          fi
+          echo "SSH_PORT ok: ${SSH_PORT}"
+
+          # DNS / host resolution
+          echo "Resolving SSH_HOST..."
+          if getent hosts "${SSH_HOST}" >/dev/null; then
+            getent hosts "${SSH_HOST}" | head -n 3
+          else
+            echo "::warning::SSH_HOST did not resolve via getent hosts (may still work if it's an IP)"
+          fi
+
+          # TCP connectivity check (best-effort)
+          echo "Checking TCP connectivity to ${SSH_HOST}:${SSH_PORT}..."
+          timeout 8 bash -lc "cat < /dev/null > /dev/tcp/${SSH_HOST}/${SSH_PORT}" \
+            && echo "TCP check: reachable" \
+            || echo "::warning::TCP check failed (firewall/routing/port closed?)"
+
       - name: Add host key
         run: |
+          set -euo pipefail
           mkdir -p ~/.ssh
-          ssh-keyscan -p "${{ secrets.SSH_PORT }}" "${{ secrets.SSH_HOST }}" >> ~/.ssh/known_hosts
+          echo "Adding host key for ${SSH_HOST}:${SSH_PORT}..."
+          # Use timeout and show stderr on failure for actionable logs.
+          timeout 12 ssh-keyscan -p "${{ secrets.SSH_PORT }}" -T 10 "${{ secrets.SSH_HOST }}" >> ~/.ssh/known_hosts 2>ssh-keyscan.err || {
+            echo "::error::ssh-keyscan failed. stderr:"
+            sed -n '1,120p' ssh-keyscan.err || true
+            exit 1
+          }
+          echo "known_hosts updated (lines=$(wc -l < ~/.ssh/known_hosts))."
 
       - name: Sync repo to server
         run: |
