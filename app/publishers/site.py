@@ -48,6 +48,7 @@ def publish_to_site(item: ContentItem) -> tuple[str, str]:
         "published_at_utc": pub_at,
         "url": url_path,
         "sources": item.sources,
+        "pinned": bool(getattr(item, "pinned", False)),
     }
     replaced = False
     for i, it in enumerate(idx):
@@ -57,6 +58,19 @@ def publish_to_site(item: ContentItem) -> tuple[str, str]:
             break
     if not replaced:
         idx.insert(0, meta)
+
+    # Keep pinned items at the top; within buckets: newest first.
+    def _k(x: dict) -> tuple[int, str]:
+        return (0 if x.get("pinned") else 1, str(x.get("published_at_utc") or ""))
+
+    idx.sort(key=_k)
+    # after sort: pinned first but oldest-first; reverse within bucket
+    pinned = [x for x in idx if x.get("pinned")]
+    normal = [x for x in idx if not x.get("pinned")]
+    pinned.sort(key=lambda x: str(x.get("published_at_utc") or ""), reverse=True)
+    normal.sort(key=lambda x: str(x.get("published_at_utc") or ""), reverse=True)
+    idx = pinned + normal
+
     _save_index(idx[:500])
     return pub_at, url_path
 

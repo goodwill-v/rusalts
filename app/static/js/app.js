@@ -187,6 +187,276 @@ function initNewsFilter() {
   });
 }
 
+async function fetchJson(url, opts) {
+  const res = await fetch(url, opts);
+  const text = await res.text();
+  let data = null;
+  try {
+    data = text ? JSON.parse(text) : null;
+  } catch {
+    data = null;
+  }
+  if (!res.ok) {
+    const msg = (data && (data.detail || data.error)) || text || res.statusText;
+    throw new Error(msg);
+  }
+  return data;
+}
+
+function stripMd(md) {
+  const t = String(md || "").replace(/\r/g, "");
+  const lines = t.split("\n").map((l) => l.trim()).filter(Boolean);
+  const first = lines.find((l) => !l.startsWith("#") && !l.startsWith("- "));
+  return (first || lines[0] || "").replace(/[*_`>#-]/g, "").trim();
+}
+
+function fmtDate(iso) {
+  const d = iso ? new Date(iso) : null;
+  if (!d || Number.isNaN(d.getTime())) return "";
+  const dd = String(d.getDate()).padStart(2, "0");
+  const mm = String(d.getMonth() + 1).padStart(2, "0");
+  const yy = d.getFullYear();
+  return `${dd}.${mm}.${yy}`;
+}
+
+async function initHomeNews() {
+  const list = document.querySelector("[data-home-news-list]");
+  if (!list) return;
+  try {
+    const idx = await fetchJson("/api/content/site/index");
+    const items = Array.isArray(idx.items) ? idx.items.slice(0, 6) : [];
+    list.innerHTML = "";
+    if (!items.length) {
+      list.innerHTML = '<li class="news-item"><p class="muted-site">Пока нет новостей.</p></li>';
+      return;
+    }
+    items.forEach((it, i) => {
+      const li = document.createElement("li");
+      li.className = "news-item";
+      const dt = fmtDate(it.published_at_utc);
+      const announce = stripMd(it.title || "");
+      const href = "/news/#" + String(it.publication_id || "");
+      li.innerHTML = `
+        <div class="news-item__meta">
+          <time datetime="${String(it.published_at_utc || "")}">${dt || ""}</time>
+          <span class="news-item__no">${it.pinned ? "📎" : "№ " + String(i + 1)}</span>
+        </div>
+        <p class="news-item__announce">${escapeHtml(announce || "Новость")}</p>
+        <a class="news-item__more" href="${href}">Открыть</a>
+      `;
+      list.appendChild(li);
+    });
+  } catch (e) {
+    list.innerHTML = `<li class="news-item"><p class="muted-site">Не удалось загрузить новости: ${escapeHtml(e?.message || e)}</p></li>`;
+  }
+}
+
+function escapeHtml(s) {
+  return String(s || "")
+    .replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;")
+    .replaceAll('"', "&quot;")
+    .replaceAll("'", "&#039;");
+}
+
+async function initNewsPage() {
+  const root = document.querySelector("[data-news-page]");
+  const grid = document.querySelector("[data-news-grid]");
+  const loading = document.querySelector("[data-news-loading]");
+  if (!root || !grid) return;
+  try {
+    const idx = await fetchJson("/api/content/site/index");
+    const items = Array.isArray(idx.items) ? idx.items : [];
+    if (loading) loading.remove();
+    grid.innerHTML = "";
+    if (!items.length) {
+      grid.innerHTML = '<p class="muted-site">Пока нет новостей.</p>';
+      return;
+    }
+    items.forEach((it) => {
+      const card = document.createElement("article");
+      card.className = "news-card";
+      const pubId = String(it.publication_id || "");
+      card.id = pubId;
+      const dt = fmtDate(it.published_at_utc);
+      card.innerHTML = `
+        <div class="news-meta">
+          <span>${it.pinned ? "📎 Закреплено" : ""}</span>
+          <time datetime="${String(it.published_at_utc || "")}">${dt}</time>
+        </div>
+        <h2 class="news-title">${escapeHtml(String(it.title || "Новость"))}</h2>
+        <div class="news-text" data-news-body>Загрузка…</div>
+      `;
+      grid.appendChild(card);
+      // load body markdown as plain text (MVP)
+      const bodyEl = card.querySelector("[data-news-body]");
+      fetch(it.url || "")
+        .then((r) => r.text())
+        .then((t) => {
+          if (bodyEl) bodyEl.textContent = t || "";
+        })
+        .catch(() => {
+          if (bodyEl) bodyEl.textContent = "Не удалось загрузить текст.";
+        });
+    });
+  } catch (e) {
+    grid.innerHTML = `<p class="muted-site">Не удалось загрузить новости: ${escapeHtml(e?.message || e)}</p>`;
+  }
+}
+
+function buildApprovalsItem(it) {
+  const wrap = document.createElement("div");
+  wrap.className = "approv-item";
+  wrap.dataset.pubId = String(it.publication_id || "");
+  wrap.dataset.pinned = it.pinned ? "1" : "0";
+  wrap.innerHTML = `
+    <div class="approv-item__head">
+      <div class="approv-item__meta">
+        <div class="approv-item__id">ID: ${escapeHtml(String(it.publication_id || ""))} ${it.pinned ? "📎" : ""}</div>
+        <div class="approv-item__time">${escapeHtml(fmtDate(it.created_at_utc) || "")}</div>
+      </div>
+      <div class="approv-item__flags">
+        <label class="approv-flag"><input type="checkbox" data-flag-approve> Одобрить</label>
+        <label class="approv-flag"><input type="checkbox" data-flag-pin ${it.pinned ? "checked" : ""}> Закрепить</label>
+        <label class="approv-flag"><input type="checkbox" data-flag-cancel> Отмена</label>
+      </div>
+    </div>
+
+    <label class="approv-label">Заголовок</label>
+    <input class="approv-input" type="text" data-edit-title value="${escapeHtml(String(it.title || ""))}">
+
+    <div class="approv-grid">
+      <div class="approv-col">
+        <div class="approv-col__title">Сайт</div>
+        <textarea class="approv-textarea" rows="10" data-edit-site>${escapeHtml(String(it.site_text || ""))}</textarea>
+      </div>
+      <div class="approv-col">
+        <div class="approv-col__title">ВКонтакте</div>
+        <textarea class="approv-textarea" rows="10" data-edit-vk>${escapeHtml(String(it.vk_text || ""))}</textarea>
+      </div>
+    </div>
+
+    <div class="approv-actions">
+      <button class="btn-site btn-site--primary" type="button" data-action-save>Сохранить</button>
+      <button class="btn-site" type="button" data-action-publish>Опубликовать</button>
+      <span class="muted-site" data-action-status></span>
+    </div>
+  `;
+  const err = String(it.last_publish_error || "").trim();
+  if (err) {
+    const st = document.createElement("div");
+    st.className = "muted-site";
+    st.style.marginTop = "0.35rem";
+    st.textContent = `Ошибка публикации: ${err}`;
+    wrap.appendChild(st);
+  }
+  return wrap;
+}
+
+async function initPublApprov() {
+  const root = document.querySelector("[data-publapprov]");
+  if (!root) return;
+  const list = root.querySelector("[data-approv-list]");
+  const status = root.querySelector("[data-approv-status]");
+  const refreshBtn = root.querySelector("[data-approv-refresh]");
+  const approveAllBtn = root.querySelector("[data-approv-approve-all]");
+  if (!list) return;
+
+  const load = async () => {
+    if (status) status.textContent = "Загрузка…";
+    const data = await fetchJson("/api/content/queue");
+    const items = Array.isArray(data.items) ? data.items : [];
+    list.innerHTML = "";
+    if (!items.length) {
+      list.innerHTML = '<p class="muted-site">Очередь пуста.</p>';
+      if (status) status.textContent = "";
+      return;
+    }
+    items.forEach((it) => list.appendChild(buildApprovalsItem(it)));
+    if (status) status.textContent = `Материалов: ${items.length}`;
+  };
+
+  refreshBtn?.addEventListener("click", () => load().catch((e) => (status.textContent = `Ошибка: ${e?.message || e}`)));
+  approveAllBtn?.addEventListener("click", async () => {
+    try {
+      if (status) status.textContent = "Одобряем все…";
+      const res = await fetchJson("/api/content/queue/approve-all", { method: "POST" });
+      const failed = Number(res.failed || 0);
+      const approved = Number(res.approved || 0);
+      if (status) status.textContent = failed ? `Готово: ок=${approved}, с ошибками=${failed}` : `Готово: ок=${approved}`;
+      await load();
+    } catch (e) {
+      if (status) status.textContent = `Ошибка: ${e?.message || e}`;
+    }
+  });
+
+  list.addEventListener("click", async (ev) => {
+    const btn = ev.target?.closest?.("button");
+    if (!btn) return;
+    const item = btn.closest("[data-pub-id]");
+    if (!item) return;
+    const pubId = item.dataset.pubId;
+    const st = item.querySelector("[data-action-status]");
+    const title = item.querySelector("[data-edit-title]")?.value || "";
+    const site = item.querySelector("[data-edit-site]")?.value || "";
+    const vk = item.querySelector("[data-edit-vk]")?.value || "";
+
+    try {
+      if (st) st.textContent = "…";
+      if (btn.hasAttribute("data-action-save")) {
+        await fetchJson(`/api/content/queue/${encodeURIComponent(pubId)}`, {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ title, site_text: site, vk_text: vk }),
+        });
+        if (st) st.textContent = "Сохранено";
+      }
+      if (btn.hasAttribute("data-action-publish")) {
+        // interpret checkboxes
+        const approve = Boolean(item.querySelector("[data-flag-approve]")?.checked);
+        const cancel = Boolean(item.querySelector("[data-flag-cancel]")?.checked);
+        const pinBox = item.querySelector("[data-flag-pin]");
+        const pinChecked = Boolean(pinBox?.checked);
+        const wasPinned = item.dataset.pinned === "1";
+
+        await fetchJson(`/api/content/queue/${encodeURIComponent(pubId)}`, {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ title, site_text: site, vk_text: vk }),
+        });
+        // pin toggle if changed
+        if (pinBox && pinChecked !== wasPinned) {
+          await fetchJson(`/api/content/queue/${encodeURIComponent(pubId)}/pin`, { method: "POST" });
+        }
+        if (cancel) {
+          await fetchJson(`/api/content/queue/${encodeURIComponent(pubId)}/cancel`, { method: "POST" });
+          if (st) st.textContent = "Отменено";
+          await load();
+          return;
+        }
+        if (approve) {
+          const ares = await fetchJson(`/api/content/queue/${encodeURIComponent(pubId)}/approve`, { method: "POST" });
+          if (ares.last_publish_error) {
+            if (st) st.textContent = `Опубликовано с ошибкой: ${ares.last_publish_error}`;
+          } else if (ares.vk_post_url) {
+            if (st) st.textContent = `Опубликовано. VK: ${ares.vk_post_url}`;
+          } else {
+            if (st) st.textContent = "Опубликовано";
+          }
+          await load();
+          return;
+        }
+        if (st) st.textContent = "Сохранено (без публикации)";
+      }
+    } catch (e) {
+      if (st) st.textContent = `Ошибка: ${e?.message || e}`;
+    }
+  });
+
+  await load();
+}
+
 function initAltExpertWidget() {
   const root = document.querySelector("[data-altbot]");
   if (!root) return;
@@ -227,5 +497,8 @@ initConsultantUi();
 initA11yToggle();
 initNavToggle();
 initNewsFilter();
+initHomeNews();
+initNewsPage();
+initPublApprov();
 initAltExpertWidget();
 initVkBridge();

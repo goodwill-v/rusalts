@@ -758,6 +758,122 @@ code {
   margin-top: 0.75rem;
 }
 
+.approv__toolbar {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  margin-bottom: 1rem;
+}
+
+.approv__list {
+  display: grid;
+  gap: 1rem;
+}
+
+.approv-item {
+  background: rgba(255, 255, 255, 0.92);
+  border: 1px solid rgba(17, 24, 39, 0.1);
+  border-radius: 16px;
+  box-shadow: 0 16px 38px rgba(17, 24, 39, 0.08);
+  padding: 1rem;
+}
+
+.approv-item__head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1rem;
+  flex-wrap: wrap;
+  margin-bottom: 0.75rem;
+}
+
+.approv-item__meta {
+  display: grid;
+  gap: 0.2rem;
+}
+
+.approv-item__id {
+  font-weight: 700;
+  color: var(--site-heading);
+}
+
+.approv-item__time {
+  color: var(--site-text);
+  opacity: 0.75;
+  font-size: 0.9rem;
+}
+
+.approv-item__flags {
+  display: flex;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+}
+
+.approv-flag {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  font-size: 0.92rem;
+  color: var(--site-heading);
+}
+
+.approv-label {
+  display: block;
+  margin: 0.5rem 0 0.35rem;
+  color: var(--site-text);
+  opacity: 0.8;
+  font-size: 0.9rem;
+}
+
+.approv-input {
+  width: 100%;
+  border: 1px solid rgba(17, 24, 39, 0.12);
+  border-radius: 12px;
+  padding: 0.65rem 0.75rem;
+  font: inherit;
+}
+
+.approv-grid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 0.75rem;
+  margin-top: 0.75rem;
+}
+
+@media (min-width: 920px) {
+  .approv-grid {
+    grid-template-columns: 1fr 1fr;
+  }
+}
+
+.approv-col {
+  display: grid;
+  gap: 0.35rem;
+}
+
+.approv-col__title {
+  font-weight: 700;
+  color: var(--site-heading);
+}
+
+.approv-textarea {
+  width: 100%;
+  border: 1px solid rgba(17, 24, 39, 0.12);
+  border-radius: 12px;
+  padding: 0.65rem 0.75rem;
+  font: inherit;
+  min-height: 14rem;
+  resize: vertical;
+}
+
+.approv-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+  margin-top: 0.75rem;
+}
+
 .alt-surface {
   background: var(--site-surface-alt);
 }

@@ -32,6 +32,7 @@ class ContentItem:
     vk_post_id: int | None = None
     vk_post_url: str | None = None
     last_publish_error: str | None = None
+    pinned: bool = False
 
 
 def _now_utc_iso() -> str:
@@ -127,4 +128,35 @@ def purge_archived_older_than_days(days: int = 30) -> int:
         except Exception:
             continue
     return removed
+
+
+def list_items(*, statuses: set[ContentStatus] | None = None) -> list[ContentItem]:
+    """
+    Lists current (non-archived) items from CONTENT_ITEMS_DIR.
+    Default: all statuses.
+    Sort: pinned first, then created_at_utc desc (newest first).
+    """
+    config.ensure_data_dirs()
+    out: list[ContentItem] = []
+    for p in config.CONTENT_ITEMS_DIR.glob("*.json"):
+        try:
+            data = json.loads(p.read_text(encoding="utf-8"))
+            it = ContentItem(**data)
+            if statuses and it.status not in statuses:
+                continue
+            out.append(it)
+        except Exception:
+            continue
+
+    def _key(it: ContentItem) -> tuple[int, str]:
+        return (0 if it.pinned else 1, str(it.created_at_utc or ""))
+
+    out.sort(key=_key, reverse=False)
+    # within same pinned bucket, newest first
+    # created_at_utc is ISO, string order works for UTC ISO; reverse there.
+    pinned = [it for it in out if it.pinned]
+    normal = [it for it in out if not it.pinned]
+    pinned.sort(key=lambda it: str(it.created_at_utc or ""), reverse=True)
+    normal.sort(key=lambda it: str(it.created_at_utc or ""), reverse=True)
+    return pinned + normal
 

@@ -76,10 +76,15 @@ async def laws(request: Request) -> HTMLResponse:
 
 @router.get("/news/", response_class=HTMLResponse)
 async def news(request: Request) -> HTMLResponse:
-    return _site_page(
+    return templates.TemplateResponse(
         request,
-        h1="Новости",
-        description="Публичная страница: новости и обновления проекта.",
+        "news.html",
+        {
+            "vk_app_id": config.VK_APP_ID or None,
+            "is_widget": False,
+            "layout_class": "layout-site",
+            "page_title": "Новости",
+        },
     )
 
 
@@ -122,14 +127,15 @@ async def admin(request: Request) -> HTMLResponse:
 
 @router.get("/publapprov/", response_class=HTMLResponse, dependencies=[Depends(_require_admin_auth)])
 async def publapprov(request: Request) -> HTMLResponse:
-    return _site_page(
+    return templates.TemplateResponse(
         request,
-        h1="Публикации",
-        description=(
-            "Страница с авторизацией: публикации от Контента. "
-            "Требования: список материалов, редактор, чекбоксы Одобрить/Закрепить/Отмена, отправка на публикацию."
-        ),
-        hint="Доступ ограничен. Здесь появится очередь материалов и интерфейс согласования.",
+        "publapprov.html",
+        {
+            "vk_app_id": config.VK_APP_ID or None,
+            "is_widget": False,
+            "layout_class": "layout-site",
+            "page_title": "Публикации — согласование",
+        },
     )
 
 

@@ -98,9 +98,9 @@ IMAP_PASSWORD = os.getenv("IMAP_PASSWORD", "").strip()
 IMAP_FOLDER = os.getenv("IMAP_FOLDER", "INBOX").strip()
 
 # Content approvals mode:
-# - "email" (default): отправка на согласование Chief + poll inbox
-# - "local_autoapprove": для локального MVP/демо без почты (auto approve + publish to site)
-CONTENT_APPROVAL_MODE = os.getenv("CONTENT_APPROVAL_MODE", "email").strip().lower()
+# - "web" (default): очередь на /publapprov/ (без почты)
+# - "local_autoapprove": для локального MVP/демо (auto approve + publish to site)
+CONTENT_APPROVAL_MODE = os.getenv("CONTENT_APPROVAL_MODE", "web").strip().lower()
 
 def ensure_data_dirs() -> None:
     DOCUMENT_TEMPLATES_DIR.mkdir(parents=True, exist_ok=True)

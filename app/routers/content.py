@@ -1,21 +1,25 @@
 from __future__ import annotations
 
+import json
 import re
+import secrets
 import uuid
 from datetime import date
 from datetime import datetime, timezone
+from pathlib import Path
 
-from fastapi import APIRouter, HTTPException, Request
+from fastapi import APIRouter, Depends, HTTPException, Request, status
 from fastapi.responses import PlainTextResponse
+from fastapi.security import HTTPBasic, HTTPBasicCredentials
 from pydantic import BaseModel, Field
 
 from app import config
-from app.chief_mail import poll_chief_inbox, send_to_chief
 from app.content_store import (
     ContentItem,
     archive_item,
     item_exists,
     load_item,
+    list_items,
     next_publication_id,
     purge_archived_older_than_days,
     save_item,
@@ -30,6 +34,20 @@ from app.publishers.vk import publish_to_vk
 router = APIRouter(prefix="/api/content", tags=["content"])
 
 _ID_RE = re.compile(r"^\d{5}$")
+
+_basic = HTTPBasic()
+
+
+def _require_admin_auth(credentials: HTTPBasicCredentials = Depends(_basic)) -> str:
+    ok_user = secrets.compare_digest(credentials.username or "", "admin")
+    ok_pass = secrets.compare_digest(credentials.password or "", "20rusalt13")
+    if not (ok_user and ok_pass):
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Unauthorized",
+            headers={"WWW-Authenticate": "Basic"},
+        )
+    return credentials.username
 
 
 class SubmitContentRequest(BaseModel):
@@ -79,155 +97,238 @@ async def submit_content(request: Request, body: SubmitContentRequest) -> Submit
         json_log({"type": "content_autoapproved_local", "request_id": rid, "publication_id": pub_id})
         return SubmitContentResponse(ok=True, publication_id=pub_id, status="approved", request_id=rid)
 
-    human_date = (body.publish_date.isoformat() if body.publish_date else "сегодня")
-    sources_block = "\n".join(f"- {s}" for s in item.sources) if item.sources else "- (нет)"
-
-    mail_subject = f"Публикация {human_date} ({pub_id}) — на согласование"
-    mail_body = (
-        "Нужна проверка публикации по ТЗ.\n\n"
-        "Ответьте письмом в формате:\n"
-        "- ДА: «Текст публикации»\n"
-        "- НЕТ: «Текст публикации»\n"
-        "- РЕДАКТИРОВАТЬ, пояснение: «Текст публикации»\n\n"
-        f"ID публикации: ({pub_id})\n"
-        f"Заголовок: {item.title}\n\n"
-        "=== САЙТ ===\n"
-        f"{item.site_text}\n\n"
-        "=== VK ===\n"
-        f"{item.vk_text}\n\n"
-        "=== ВНУТРЕННЯЯ ЗАМЕТКА ===\n"
-        f"{item.internal_note or '(нет)'}\n\n"
-        "=== ИСТОЧНИКИ ===\n"
-        f"{sources_block}\n"
-    )
-    try:
-        send_to_chief(subject=mail_subject, body=mail_body)
-    except Exception as e:
-        json_log({"type": "chief_mail_send_failed", "request_id": rid, "publication_id": pub_id, "error": str(e)})
-        raise HTTPException(status_code=500, detail=f"Не удалось отправить письмо Chief: {e}") from e
-
-    json_log({"type": "content_submitted", "request_id": rid, "publication_id": pub_id, "to": config.CHIEF_EMAIL_TO})
+    # Web approvals (no email): item stays pending and is reviewed on /publapprov/.
+    json_log({"type": "content_submitted_pending_web", "request_id": rid, "publication_id": pub_id})
     return SubmitContentResponse(ok=True, publication_id=pub_id, status=item.status, request_id=rid)
 
 
-class PollChiefResponseItem(BaseModel):
+class QueueItem(BaseModel):
     publication_id: str
-    applied: bool
-    new_status: str | None = None
-    site_published: bool = False
-    vk_published: bool = False
-    errors: list[str] = []
+    created_at_utc: str
+    status: str
+    title: str
+    site_text: str
+    vk_text: str
+    sources: list[str] = []
+    pinned: bool = False
+    site_published_at_utc: str | None = None
+    vk_published_at_utc: str | None = None
+    last_publish_error: str | None = None
+    vk_post_url: str | None = None
 
 
-class PollChiefResponse(BaseModel):
+class QueueResponse(BaseModel):
     ok: bool
     request_id: str
-    processed: int
-    applied: int
-    items: list[PollChiefResponseItem]
+    items: list[QueueItem]
 
 
-@router.post("/poll-chief", response_model=PollChiefResponse)
-async def poll_chief(request: Request, limit: int = 20) -> PollChiefResponse:
+@router.get("/queue", response_model=QueueResponse, dependencies=[Depends(_require_admin_auth)])
+async def queue(request: Request) -> QueueResponse:
     rid = getattr(request.state, "request_id", uuid.uuid4().hex)
-    decisions = poll_chief_inbox(limit=limit)
+    items = list_items(statuses={"pending", "needs_edit"})
+    return QueueResponse(
+        ok=True,
+        request_id=rid,
+        items=[
+            QueueItem(
+                publication_id=it.publication_id,
+                created_at_utc=it.created_at_utc,
+                status=it.status,
+                title=it.title,
+                site_text=it.site_text,
+                vk_text=it.vk_text,
+                sources=it.sources or [],
+                pinned=bool(getattr(it, "pinned", False)),
+                site_published_at_utc=it.site_published_at_utc,
+                vk_published_at_utc=it.vk_published_at_utc,
+                last_publish_error=it.last_publish_error,
+                vk_post_url=it.vk_post_url,
+            )
+            for it in items
+        ],
+    )
 
-    applied = 0
-    items: list[PollChiefResponseItem] = []
-    for d in decisions:
-        if not _ID_RE.match(d.publication_id):
-            items.append(PollChiefResponseItem(publication_id=d.publication_id, applied=False))
-            continue
-        if not item_exists(d.publication_id):
-            items.append(PollChiefResponseItem(publication_id=d.publication_id, applied=False))
-            continue
 
-        errs: list[str] = []
-        site_pub = False
-        vk_pub = False
+class UpdateQueueItemRequest(BaseModel):
+    title: str | None = Field(default=None, min_length=3, max_length=200)
+    site_text: str | None = Field(default=None, min_length=20, max_length=50_000)
+    vk_text: str | None = Field(default=None, min_length=10, max_length=20_000)
 
-        if d.kind == "approve":
-            set_status(d.publication_id, status="approved", message_id=d.message_id)
-            item = load_item(d.publication_id)
 
-            # Publish to "site" storage + API (idempotent)
-            if not item.site_published_at_utc:
-                try:
-                    pub_at, url_path = publish_to_site(item)
-                    update_item(d.publication_id, site_published_at_utc=pub_at, site_url=url_path, last_publish_error=None)
-                    site_pub = True
-                except Exception as e:
-                    errs.append(f"site_publish_failed: {e}")
-                    update_item(d.publication_id, last_publish_error=str(e))
+class SimpleOkResponse(BaseModel):
+    ok: bool
+    request_id: str
 
-            # Publish to VK if configured (idempotent)
-            item = load_item(d.publication_id)
-            if not item.vk_published_at_utc:
-                try:
-                    pub_at, post_id, post_url = await publish_to_vk(item)
-                    update_item(
-                        d.publication_id,
-                        vk_published_at_utc=pub_at,
-                        vk_post_id=post_id,
-                        vk_post_url=post_url,
-                        last_publish_error=None,
-                    )
-                    vk_pub = True
-                except Exception as e:
-                    # If VK isn't configured, keep it as a soft failure.
-                    errs.append(f"vk_publish_failed: {e}")
-                    update_item(d.publication_id, last_publish_error=str(e))
 
-            applied += 1
-            items.append(
-                PollChiefResponseItem(
-                    publication_id=d.publication_id,
-                    applied=True,
-                    new_status="approved",
-                    site_published=site_pub,
-                    vk_published=vk_pub,
-                    errors=errs,
+class ApproveResponse(SimpleOkResponse):
+    publication_id: str
+    site_published: bool
+    vk_published: bool
+    vk_post_url: str | None = None
+    last_publish_error: str | None = None
+
+
+@router.put("/queue/{publication_id}", response_model=SimpleOkResponse, dependencies=[Depends(_require_admin_auth)])
+async def update_queue_item(request: Request, publication_id: str, body: UpdateQueueItemRequest) -> SimpleOkResponse:
+    rid = getattr(request.state, "request_id", uuid.uuid4().hex)
+    if not _ID_RE.match(publication_id):
+        raise HTTPException(status_code=400, detail="Некорректный ID")
+    if not item_exists(publication_id):
+        raise HTTPException(status_code=404, detail="Не найдено")
+    fields = {}
+    if body.title is not None:
+        fields["title"] = body.title.strip()
+    if body.site_text is not None:
+        fields["site_text"] = body.site_text.strip()
+    if body.vk_text is not None:
+        fields["vk_text"] = body.vk_text.strip()
+    if fields:
+        update_item(publication_id, **fields)
+        json_log({"type": "content_queue_item_updated", "request_id": rid, "publication_id": publication_id, "fields": sorted(fields.keys())})
+    return SimpleOkResponse(ok=True, request_id=rid)
+
+
+@router.post("/queue/{publication_id}/pin", response_model=SimpleOkResponse, dependencies=[Depends(_require_admin_auth)])
+async def toggle_pin(request: Request, publication_id: str) -> SimpleOkResponse:
+    rid = getattr(request.state, "request_id", uuid.uuid4().hex)
+    if not _ID_RE.match(publication_id):
+        raise HTTPException(status_code=400, detail="Некорректный ID")
+    if not item_exists(publication_id):
+        raise HTTPException(status_code=404, detail="Не найдено")
+    it = load_item(publication_id)
+    update_item(publication_id, pinned=(not bool(getattr(it, "pinned", False))))
+    json_log({"type": "content_queue_item_pinned_toggled", "request_id": rid, "publication_id": publication_id})
+    return SimpleOkResponse(ok=True, request_id=rid)
+
+
+def _append_feedback(*, publication_id: str, payload: dict) -> None:
+    try:
+        config.ensure_data_dirs()
+        path = (config.MONITORING_DIR / "content_approvals_feedback.jsonl").resolve()
+        line = json.dumps({"publication_id": publication_id, **payload}, ensure_ascii=False)
+        path.parent.mkdir(parents=True, exist_ok=True)
+        with path.open("a", encoding="utf-8") as f:
+            f.write(line + "\n")
+    except Exception:
+        # best-effort only
+        pass
+
+
+@router.post("/queue/{publication_id}/approve", response_model=ApproveResponse, dependencies=[Depends(_require_admin_auth)])
+async def approve(request: Request, publication_id: str) -> ApproveResponse:
+    rid = getattr(request.state, "request_id", uuid.uuid4().hex)
+    if not _ID_RE.match(publication_id):
+        raise HTTPException(status_code=400, detail="Некорректный ID")
+    if not item_exists(publication_id):
+        raise HTTPException(status_code=404, detail="Не найдено")
+
+    # Approve + publish to site (and VK if configured)
+    set_status(publication_id, status="approved", message_id="web_approved")
+    it = load_item(publication_id)
+
+    # feedback for Content learning (best-effort)
+    _append_feedback(
+        publication_id=publication_id,
+        payload={
+            "approved_at_utc": datetime.now(timezone.utc).replace(microsecond=0).isoformat(),
+            "title": it.title,
+            "site_text": it.site_text,
+            "vk_text": it.vk_text,
+            "sources": it.sources,
+            "pinned": bool(getattr(it, "pinned", False)),
+        },
+    )
+
+    site_published = False
+    vk_published = False
+    if not it.site_published_at_utc:
+        pub_at, url_path = publish_to_site(it)
+        update_item(publication_id, site_published_at_utc=pub_at, site_url=url_path, last_publish_error=None)
+        site_published = True
+
+    it = load_item(publication_id)
+    if not it.vk_published_at_utc:
+        try:
+            pub_at, post_id, post_url = await publish_to_vk(it)
+            update_item(publication_id, vk_published_at_utc=pub_at, vk_post_id=post_id, vk_post_url=post_url, last_publish_error=None)
+            vk_published = True
+        except Exception as e:
+            update_item(publication_id, last_publish_error=str(e))
+
+    it2 = load_item(publication_id)
+    json_log(
+        {
+            "type": "content_approved_web",
+            "request_id": rid,
+            "publication_id": publication_id,
+            "site_published": site_published,
+            "vk_published": vk_published,
+            "last_publish_error": it2.last_publish_error,
+        }
+    )
+    return ApproveResponse(
+        ok=True,
+        request_id=rid,
+        publication_id=publication_id,
+        site_published=site_published or bool(it2.site_published_at_utc),
+        vk_published=vk_published or bool(it2.vk_published_at_utc),
+        vk_post_url=it2.vk_post_url,
+        last_publish_error=it2.last_publish_error,
+    )
+
+
+class ApproveAllResponse(SimpleOkResponse):
+    approved: int
+    failed: int
+    items: list[ApproveResponse]
+
+
+@router.post("/queue/approve-all", response_model=ApproveAllResponse, dependencies=[Depends(_require_admin_auth)])
+async def approve_all(request: Request) -> ApproveAllResponse:
+    rid = getattr(request.state, "request_id", uuid.uuid4().hex)
+    pending = list_items(statuses={"pending", "needs_edit"})
+    out: list[ApproveResponse] = []
+    approved = 0
+    failed = 0
+    for it in pending:
+        try:
+            res = await approve(request, it.publication_id)
+            out.append(res)
+            if res.last_publish_error:
+                failed += 1
+            else:
+                approved += 1
+        except Exception as e:  # noqa: BLE001
+            failed += 1
+            out.append(
+                ApproveResponse(
+                    ok=False,
+                    request_id=rid,
+                    publication_id=it.publication_id,
+                    site_published=False,
+                    vk_published=False,
+                    last_publish_error=str(e),
                 )
             )
-        elif d.kind == "reject":
-            set_status(d.publication_id, status="rejected", message_id=d.message_id)
-            # Move to archive immediately; purge keeps 30 days.
-            try:
-                archive_item(d.publication_id)
-            except Exception as e:
-                errs.append(f"archive_failed: {e}")
-            applied += 1
-            items.append(
-                PollChiefResponseItem(
-                    publication_id=d.publication_id,
-                    applied=True,
-                    new_status="rejected",
-                    errors=errs,
-                )
-            )
-        elif d.kind == "edit":
-            set_status(d.publication_id, status="needs_edit", explanation=d.explanation, message_id=d.message_id)
-            applied += 1
-            items.append(PollChiefResponseItem(publication_id=d.publication_id, applied=True, new_status="needs_edit", errors=errs))
-        else:
-            items.append(PollChiefResponseItem(publication_id=d.publication_id, applied=False))
 
-        json_log(
-            {
-                "type": "chief_decision_applied",
-                "request_id": rid,
-                "publication_id": d.publication_id,
-                "kind": d.kind,
-                "message_id": d.message_id,
-            }
-        )
+    return ApproveAllResponse(ok=True, request_id=rid, approved=approved, failed=failed, items=out)
 
-    # housekeeping: archive cleanup (matches “30 дней” из ТЗ, на уровне архива)
+
+@router.post("/queue/{publication_id}/cancel", response_model=SimpleOkResponse, dependencies=[Depends(_require_admin_auth)])
+async def cancel(request: Request, publication_id: str) -> SimpleOkResponse:
+    rid = getattr(request.state, "request_id", uuid.uuid4().hex)
+    if not _ID_RE.match(publication_id):
+        raise HTTPException(status_code=400, detail="Некорректный ID")
+    if not item_exists(publication_id):
+        raise HTTPException(status_code=404, detail="Не найдено")
+    set_status(publication_id, status="rejected", message_id="web_cancelled")
+    archive_item(publication_id)
     purged = purge_archived_older_than_days(30)
     if purged:
         json_log({"type": "content_archive_purged", "request_id": rid, "removed": purged})
-
-    return PollChiefResponse(ok=True, request_id=rid, processed=len(decisions), applied=applied, items=items)
+    json_log({"type": "content_cancelled_web", "request_id": rid, "publication_id": publication_id})
+    return SimpleOkResponse(ok=True, request_id=rid)
 
 
 @router.get("/site/index")

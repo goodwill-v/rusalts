@@ -1,0 +1,69 @@
+{% extends "base.html" %}
+{% block body %}
+<header class="site-header" role="banner">
+  <div class="site-header__inner">
+    <a class="brandmark" href="/" aria-label="АЛТ — на главную">
+      <img class="brandmark__logo" src="/static/img/logo.png" alt="Логотип АЛТ" />
+      <span class="brandmark__text">АЛЬТЕРНАТИВА</span>
+    </a>
+
+    <button class="nav-toggle" type="button" aria-label="Открыть меню" aria-expanded="false" aria-controls="site-nav">
+      <span class="nav-toggle__bar"></span>
+      <span class="nav-toggle__bar"></span>
+      <span class="nav-toggle__bar"></span>
+    </button>
+
+    <nav id="site-nav" class="site-nav" aria-label="Основная навигация">
+      <a class="site-nav__link" href="/">Главная</a>
+      <a class="site-nav__link is-active" href="/news/">Новости</a>
+      <a class="site-nav__link" href="/laws/">Правовая база</a>
+      <a class="site-nav__link" href="/channels/">Каналы</a>
+      <a class="site-nav__link" href="/techologis/">Услуги</a>
+      <a class="site-nav__link" href="/#contacts">Контакты</a>
+    </nav>
+
+    <div class="header-actions">
+      <button id="a11y-toggle" class="sr-only" type="button">Версия для слабовидящих</button>
+      <div class="header-actions__cta">
+        <a class="btn-site btn-site--primary" href="/diagnostics/">Бесплатная диагностика</a>
+        <a class="btn-site btn-site--primary btn-site--expert" href="/consultant">
+          <img class="btn-site-expert__logo" src="/static/img/logo.png" alt="" width="28" height="28" />
+          <span class="btn-site-expert__label">АЛТ‑эксперт</span>
+        </a>
+      </div>
+    </div>
+  </div>
+</header>
+
+<main class="site-main">
+  <section class="section page-standalone">
+    <h1 class="page-title">Новости</h1>
+    <div class="page-body">
+      <div class="news-page" data-news-page>
+        <div class="muted-site" data-news-loading>Загрузка…</div>
+        <div class="news-grid" data-news-grid></div>
+      </div>
+    </div>
+  </section>
+</main>
+
+<footer class="site-footer" role="contentinfo">
+  <div class="site-footer__inner">
+    <div class="footer-brand">
+      <img class="footer-brand__logo" src="/static/img/logo.png" alt="АЛТ" />
+      <div class="footer-brand__col">
+        <p class="footer-brand__text">АЛЬТЕРНАТИВА — альтернативные легальные технологии</p>
+      </div>
+    </div>
+    <div class="footer-links">
+      <a class="footer-link" href="/">Главная</a>
+      <a class="footer-link" href="/news/">Новости</a>
+      <a class="footer-link" href="/laws/">Правовая база</a>
+      <a class="footer-link" href="/channels/">Каналы</a>
+      <a class="footer-link" href="/techologis/">Услуги</a>
+      <a class="footer-link" href="/#contacts">Контакты</a>
+    </div>
+  </div>
+</footer>
+{% endblock %}
+
