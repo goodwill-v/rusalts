@@ -91,13 +91,24 @@ jobs:
             --exclude '.env.*' \
             --exclude '.venv' \
             --exclude 'data' \
-            -e "ssh -p ${{ secrets.SSH_PORT }}" \
+            -e "ssh -p ${{ secrets.SSH_PORT }} -o ServerAliveInterval=20 -o ServerAliveCountMax=10 -o TCPKeepAlive=yes -o ConnectTimeout=15" \
             ./ "${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }}:${{ secrets.DEPLOY_PATH }}/"
 
       - name: Deploy via docker compose
         env:
           DEPLOY_PATH: ${{ secrets.DEPLOY_PATH }}
         run: |
-          ssh -p "${{ secrets.SSH_PORT }}" "${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }}" \
-            "set -euo pipefail; cd \"${DEPLOY_PATH}\"; docker compose version; docker compose down --remove-orphans || true; docker compose up -d --build; docker image prune -f"
+          ssh -p "${{ secrets.SSH_PORT }}" \
+            -o ServerAliveInterval=20 \
+            -o ServerAliveCountMax=10 \
+            -o TCPKeepAlive=yes \
+            -o ConnectTimeout=15 \
+            "${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }}" \
+            "bash -lc 'set -euo pipefail; cd \"${DEPLOY_PATH}\"; \
+              echo \"==== deploy $(date -Is) ====\" >> deploy.log; \
+              docker compose version >> deploy.log 2>&1; \
+              docker compose down --remove-orphans >> deploy.log 2>&1 || true; \
+              docker compose up -d --build >> deploy.log 2>&1; \
+              docker image prune -f >> deploy.log 2>&1; \
+              echo \"==== deploy done $(date -Is) ====\" >> deploy.log'"
 
