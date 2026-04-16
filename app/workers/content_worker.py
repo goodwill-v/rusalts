@@ -26,6 +26,48 @@ def _now_utc_iso() -> str:
     return datetime.now(timezone.utc).replace(microsecond=0).isoformat()
 
 
+def _fallback_publication(*, change_package_path: str, items: list[dict], error: str) -> tuple[str, str, str, list[str], str]:
+    """
+    Если RouterAI недоступен, всё равно создаём черновик в очереди одобрения.
+    Это важно для автоматической работы: система продолжает “жить”, а редактор
+    может одобрить/исправить вручную.
+    """
+    sources = sorted({str(it.get("source_url") or "").strip() for it in items if it.get("source_url")})
+    sources = [s for s in sources if s]
+    # Заголовок (без фантазии, но понятный)
+    title = f"Черновик новости: найдено изменений — {len(items or [])}"
+
+    def _one_line(it: dict) -> str:
+        src = str(it.get("source_id") or "").strip()
+        url = str(it.get("source_url") or "").strip()
+        summary = str(it.get("summary") or it.get("title") or it.get("change") or "").strip()
+        cls = str(it.get("classification") or "").strip()
+        parts = [p for p in [summary, cls] if p]
+        core = " — ".join(parts) if parts else (src or "изменение")
+        if url:
+            return f"- {core}\n  - {url}"
+        return f"- {core}"
+
+    body_lines = ["### Общий формат публикаций", "", f"Источник пакета: `{change_package_path}`", ""]
+    if error:
+        body_lines += ["**Примечание:** автогенерация не удалась (RouterAI). Черновик создан автоматически.", f"Ошибка: `{error}`", ""]
+    if items:
+        body_lines += ["#### Найденные изменения", ""]
+        body_lines += [_one_line(it) for it in items[:50]]
+        body_lines += [""]
+    if sources:
+        body_lines += ["#### Официальные источники", ""]
+        body_lines += [f"- {s}" for s in sources[:50]]
+        body_lines += [""]
+
+    site_text = "\n".join(body_lines).strip() + "\n"
+    vk_text = (f"{title}\n\n" + "\n".join([str(it.get("summary") or it.get("title") or "").strip() for it in (items or [])[:10] if (it.get('summary') or it.get('title'))])).strip()
+    if sources:
+        vk_text += "\n\nИсточники:\n" + "\n".join(sources[:5])
+    used_model = "fallback(no_routerai)"
+    return title, site_text, vk_text, sources, used_model
+
+
 async def _generate_texts(*, change_package_path: str, items: list[dict]) -> tuple[str, str, str, list[str], str]:
     sources = sorted({str(it.get("source_url") or "").strip() for it in items if it.get("source_url")})
     sources = [s for s in sources if s]
@@ -140,7 +182,16 @@ async def handle_content_from_change_package(*, payload: dict) -> None:
     if not isinstance(items, list):
         items = []
 
-    title, site_text, vk_text, sources, used_model = await _generate_texts(change_package_path=change_package_path, items=items)
+    used_model = ""
+    err_s = ""
+    try:
+        title, site_text, vk_text, sources, used_model = await _generate_texts(change_package_path=change_package_path, items=items)
+    except RouterAIError as e:
+        err_s = str(e) or "RouterAI request failed"
+        title, site_text, vk_text, sources, used_model = _fallback_publication(change_package_path=change_package_path, items=items, error=err_s)
+    except Exception as e:  # noqa: BLE001
+        err_s = str(e) or "content generation failed"
+        title, site_text, vk_text, sources, used_model = _fallback_publication(change_package_path=change_package_path, items=items, error=err_s)
 
     pub_id = next_publication_id()
     item = ContentItem(
@@ -152,6 +203,7 @@ async def handle_content_from_change_package(*, payload: dict) -> None:
         vk_text=vk_text,
         internal_note=(f"{payload.get('ts_utc') or ''} | model={used_model}\n" + (payload.get("internal_note") or "")).strip(),
         sources=sources,
+        last_publish_error=(err_s or None),
     )
     save_item(item)
 
@@ -188,12 +240,14 @@ async def main() -> None:
             else:
                 json_log({"type": "worker_unknown_msg", "worker": "content", "request_id": rid, "msg_type": msg.type})
             await r.xack(STREAM_CONTENT_JOBS, GROUP_CONTENT, msg_id)
-        except RouterAIError as e:
-            json_log({"type": "worker_failed", "worker": "content", "request_id": rid, "msg_id": msg_id, "error": str(e)})
-            await asyncio.sleep(3.0)
         except Exception as e:  # noqa: BLE001
-            json_log({"type": "worker_failed", "worker": "content", "request_id": rid, "msg_id": msg_id, "error": str(e)})
-            await asyncio.sleep(2.0)
+            # Poison message protection: log and ACK so queue doesn't stall forever.
+            json_log({"type": "worker_failed", "worker": "content", "request_id": rid, "msg_id": msg_id, "msg_type": msg.type, "error": str(e)})
+            try:
+                await r.xack(STREAM_CONTENT_JOBS, GROUP_CONTENT, msg_id)
+            except Exception:
+                pass
+            await asyncio.sleep(1.0)
 
 
 if __name__ == "__main__":

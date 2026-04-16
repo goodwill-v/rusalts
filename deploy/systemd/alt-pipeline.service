@@ -1,0 +1,18 @@
+[Unit]
+Description=ALT daily pipeline (enqueue Parser -> Content via Redis queue)
+After=network.target docker.service
+Requires=docker.service
+
+[Service]
+Type=oneshot
+User=root
+Group=root
+WorkingDirectory=/opt/alt
+EnvironmentFile=/opt/alt/.env
+
+# Ставим задачу в очередь (Redis Streams) внутри docker-сети.
+# Дальше parser-worker выполнит парсинг, а content-worker подготовит материалы для /publapprov/.
+ExecStart=/usr/bin/docker compose exec -T web python /app/scripts/enqueue_parser_content_once.py
+
+NoNewPrivileges=true
+

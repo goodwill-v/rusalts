@@ -54,10 +54,14 @@ async def chat_completion(
         try:
             r = await client.post(url, headers=headers, json=payload)
         except Exception as e:  # noqa: BLE001
-            raise RouterAIError(f"RouterAI request failed: {e}") from e
+            # Some httpx exceptions stringify to empty string; keep type + repr for diagnostics.
+            raise RouterAIError(
+                f"RouterAI request failed ({type(e).__name__}) to {url}: {e!r}"
+            ) from e
 
     if r.status_code >= 400:
-        raise RouterAIError(f"RouterAI HTTP {r.status_code}: {r.text[:500]}")
+        body = (r.text or "").strip()
+        raise RouterAIError(f"RouterAI HTTP {r.status_code} from {url}: {body[:2000]}")
 
     data = r.json()
     content = ""

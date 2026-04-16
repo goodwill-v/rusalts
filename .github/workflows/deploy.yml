@@ -105,10 +105,10 @@ jobs:
             -o ConnectTimeout=15 \
             "${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }}" \
             "bash -lc 'set -euo pipefail; cd \"${DEPLOY_PATH}\"; \
-              echo \"==== deploy $(date -Is) ====\" >> deploy.log; \
+              echo \"==== deploy \$(date -Is) ====\" >> deploy.log; \
               docker compose version >> deploy.log 2>&1; \
               docker compose down --remove-orphans >> deploy.log 2>&1 || true; \
               docker compose up -d --build >> deploy.log 2>&1; \
               docker image prune -f >> deploy.log 2>&1; \
-              echo \"==== deploy done $(date -Is) ====\" >> deploy.log'"
+              echo \"==== deploy done \$(date -Is) ====\" >> deploy.log'"
 

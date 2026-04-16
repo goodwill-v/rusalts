@@ -1,0 +1,10 @@
+[Unit]
+Description=Run ALT pipeline daily at 05:00 UTC (enqueue job)
+
+[Timer]
+OnCalendar=*-*-* 05:00:00 UTC
+Persistent=true
+
+[Install]
+WantedBy=timers.target
+
