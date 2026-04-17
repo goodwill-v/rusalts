@@ -230,16 +230,17 @@ async function initHomeNews() {
       list.innerHTML = '<li class="news-item"><p class="muted-site">Пока нет новостей.</p></li>';
       return;
     }
-    items.forEach((it, i) => {
+    items.forEach((it) => {
       const li = document.createElement("li");
       li.className = "news-item";
       const dt = fmtDate(it.published_at_utc);
+      const pubId = String(it.publication_id || "").padStart(5, "0");
       const announce = stripMd(it.title || "");
       const href = "/news/#" + String(it.publication_id || "");
       li.innerHTML = `
         <div class="news-item__meta">
-          <time datetime="${String(it.published_at_utc || "")}">${dt || ""}</time>
-          <span class="news-item__no">${it.pinned ? "📎" : "№ " + String(i + 1)}</span>
+          <time datetime="${String(it.published_at_utc || "")}">${dt || ""} (${escapeHtml(pubId)})</time>
+          ${it.pinned ? '<span class="news-item__pin" title="Закреплено" aria-label="Закреплено">📎</span>' : ""}
         </div>
         <p class="news-item__announce">${escapeHtml(announce || "Новость")}</p>
         <a class="news-item__more" href="${href}">Открыть</a>
@@ -280,21 +281,48 @@ async function initNewsPage() {
       const pubId = String(it.publication_id || "");
       card.id = pubId;
       const dt = fmtDate(it.published_at_utc);
+      const pubFmt = String(pubId || "").padStart(5, "0");
+      const sources = Array.isArray(it.sources) ? it.sources : [];
       card.innerHTML = `
         <div class="news-meta">
-          <span>${it.pinned ? "📎 Закреплено" : ""}</span>
-          <time datetime="${String(it.published_at_utc || "")}">${dt}</time>
+          <span class="news-meta__left">${it.pinned ? "📎 Закреплено" : ""}</span>
+          <time datetime="${String(it.published_at_utc || "")}">${dt} (${escapeHtml(pubFmt)})</time>
         </div>
         <h2 class="news-title">${escapeHtml(String(it.title || "Новость"))}</h2>
+        <p class="news-announce" data-news-announce hidden></p>
         <div class="news-text" data-news-body>Загрузка…</div>
+        ${
+          sources.length
+            ? `<div class="news-sources">
+                 <div class="news-sources__label">Источник:</div>
+                 <ul class="news-sources__list">
+                   ${sources
+                     .slice(0, 5)
+                     .map((u) => `<li><a class="news-source-link" href="${escapeHtml(u)}" target="_blank" rel="noopener noreferrer">${escapeHtml(u)}</a></li>`)
+                     .join("")}
+                 </ul>
+               </div>`
+            : ""
+        }
       `;
       grid.appendChild(card);
       // load body markdown as plain text (MVP)
       const bodyEl = card.querySelector("[data-news-body]");
+      const annEl = card.querySelector("[data-news-announce]");
       fetch(it.url || "")
         .then((r) => r.text())
         .then((t) => {
-          if (bodyEl) bodyEl.textContent = t || "";
+          const raw = String(t || "").trim();
+          const clean = raw.replace(/\s+/g, " ").trim();
+          if (annEl) {
+            const ann = clean.slice(0, 200).trim();
+            annEl.textContent = ann ? `Анонс: ${ann}` : "";
+            annEl.hidden = !ann;
+          }
+          if (bodyEl) {
+            const shown = raw.slice(0, 1000);
+            bodyEl.textContent = raw.length > 1000 ? shown + "…" : shown;
+          }
         })
         .catch(() => {
           if (bodyEl) bodyEl.textContent = "Не удалось загрузить текст.";
