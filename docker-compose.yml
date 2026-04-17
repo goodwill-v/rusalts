@@ -17,6 +17,9 @@ services:
       - "8000:8000"
     depends_on:
       - redis
+    dns:
+      - 1.1.1.1
+      - 8.8.8.8
     volumes:
       # persist runtime artifacts (KB updates, snapshots, published content)
       - ./data:/app/data
@@ -30,6 +33,9 @@ services:
       - .env
     depends_on:
       - redis
+    dns:
+      - 1.1.1.1
+      - 8.8.8.8
     volumes:
       - ./data:/app/data
       - ./knowledge_base:/app/knowledge_base
@@ -43,6 +49,9 @@ services:
       - .env
     depends_on:
       - redis
+    dns:
+      - 1.1.1.1
+      - 8.8.8.8
     volumes:
       - ./data:/app/data
       - ./knowledge_base:/app/knowledge_base
@@ -55,6 +64,9 @@ services:
     image: alt-expert-web:latest
     env_file:
       - .env
+    dns:
+      - 1.1.1.1
+      - 8.8.8.8
     volumes:
       - ./data:/app/data
       - ./knowledge_base:/app/knowledge_base

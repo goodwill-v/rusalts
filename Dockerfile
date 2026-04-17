@@ -8,7 +8,11 @@ WORKDIR /app
 # System deps (minimal)
 RUN apt-get update && apt-get install -y --no-install-recommends \
     ca-certificates \
+    netbase \
   && rm -rf /var/lib/apt/lists/*
+
+# Ensure CA bundle is generated (some slim images rely on postinst).
+RUN update-ca-certificates
 
 COPY requirements.txt /app/requirements.txt
 RUN pip install --no-cache-dir -r /app/requirements.txt

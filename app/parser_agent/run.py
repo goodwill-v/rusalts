@@ -357,12 +357,13 @@ async def run_once(*, limit: int | None = None) -> dict[str, Any]:
     today = datetime.now(timezone.utc).date()
 
     changed_items: list[ChangeItem] = []
-    fetched = 0
+    fetch_attempted = 0
+    fetched_ok = 0
     changed = 0
 
     async with httpx.AsyncClient(timeout=25.0) as client:
         for src in sources:
-            fetched += 1
+            fetch_attempted += 1
             state_path, snap_path = _state_paths(src.id)
             st = _read_state(state_path)
 
@@ -374,16 +375,33 @@ async def run_once(*, limit: int | None = None) -> dict[str, Any]:
 
             if fr.status == 304:
                 continue
-            if fr.status >= 400 or not fr.text:
+            if fr.status >= 400:
                 json_log(
                     {
                         "type": "parser_fetch_http_error",
                         "source_id": src.id,
                         "url": src.url,
                         "status": fr.status,
+                        "final_url": fr.final_url,
+                        "content_type": fr.content_type,
                     }
                 )
                 continue
+            if not fr.text:
+                # HTTP OK, но извлечённый текст пустой/не извлёкся (часто из‑за JS/нестандартной разметки).
+                json_log(
+                    {
+                        "type": "parser_extract_empty",
+                        "source_id": src.id,
+                        "url": src.url,
+                        "status": fr.status,
+                        "final_url": fr.final_url,
+                        "content_type": fr.content_type,
+                    }
+                )
+                continue
+
+            fetched_ok += 1
 
             prev_text = snap_path.read_text(encoding="utf-8") if snap_path.is_file() else ""
             cur_text = fr.text.strip()
@@ -466,7 +484,9 @@ async def run_once(*, limit: int | None = None) -> dict[str, Any]:
             "type": "parser_run_complete",
             "ts_utc": ts,
             "sources_total": len(sources),
-            "fetched": fetched,
+            # fetched = успешно извлечено (не просто попытка)
+            "fetched": fetched_ok,
+            "fetch_attempted": fetch_attempted,
             "changed": changed,
             "change_package_path": str(pkg_path),
         }
@@ -475,7 +495,8 @@ async def run_once(*, limit: int | None = None) -> dict[str, Any]:
         "ok": True,
         "ts_utc": ts,
         "sources_total": len(sources),
-        "fetched": fetched,
+        "fetched": fetched_ok,
+        "fetch_attempted": fetch_attempted,
         "changed": changed,
         "change_package_path": str(pkg_path),
         "items": [asdict(x) for x in changed_items],
