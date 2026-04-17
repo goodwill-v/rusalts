@@ -4,6 +4,7 @@ import asyncio
 import json
 import uuid
 from datetime import datetime, timezone
+from pathlib import Path
 
 from app import config
 from app.content_store import ContentItem, load_item, next_publication_id, save_item, set_status, update_item
@@ -26,6 +27,43 @@ def _now_utc_iso() -> str:
     return datetime.now(timezone.utc).replace(microsecond=0).isoformat()
 
 
+def _extract_article_excerpt(article_path: str, *, max_chars: int = 900) -> str:
+    """
+    ChangeItem сам по себе содержит только summary + ссылки.
+    Для осмысленного черновика читаем соответствующую KB-статью, которую создал парсер,
+    и берём короткий фрагмент «извлечённого текста».
+    """
+    p = Path(str(article_path or "").strip())
+    if not p.is_file():
+        return ""
+    try:
+        raw = p.read_text(encoding="utf-8")
+    except Exception:
+        return ""
+    # Парсер пишет в body блок: "Извлечённый текст (автоматически):"
+    marker = "Извлечённый текст (автоматически):"
+    i = raw.find(marker)
+    if i != -1:
+        raw = raw[i + len(marker) :]
+    raw = " ".join((raw or "").split()).strip()
+    if not raw:
+        return ""
+    return (raw[: max_chars - 1] + "…") if len(raw) > max_chars else raw
+
+
+def _augment_items(items: list[dict], *, max_items: int = 40) -> list[dict]:
+    out: list[dict] = []
+    for it in (items or [])[:max_items]:
+        if not isinstance(it, dict):
+            continue
+        excerpt = _extract_article_excerpt(str(it.get("article_path") or ""))
+        it2 = dict(it)
+        if excerpt:
+            it2["excerpt"] = excerpt
+        out.append(it2)
+    return out
+
+
 def _fallback_publication(*, change_package_path: str, items: list[dict], error: str) -> tuple[str, str, str, list[str], str]:
     """
     Если RouterAI недоступен, всё равно создаём черновик в очереди одобрения.
@@ -38,12 +76,15 @@ def _fallback_publication(*, change_package_path: str, items: list[dict], error:
     title = f"Черновик новости: найдено изменений — {len(items or [])}"
 
     def _one_line(it: dict) -> str:
-        src = str(it.get("source_id") or "").strip()
+        src = str(it.get("source_title") or it.get("source_id") or "").strip()
         url = str(it.get("source_url") or "").strip()
         summary = str(it.get("summary") or it.get("title") or it.get("change") or "").strip()
         cls = str(it.get("classification") or "").strip()
+        excerpt = str(it.get("excerpt") or "").strip()
         parts = [p for p in [summary, cls] if p]
         core = " — ".join(parts) if parts else (src or "изменение")
+        if excerpt:
+            core = f"{core}\n  - Фрагмент: {excerpt}"
         if url:
             return f"- {core}\n  - {url}"
         return f"- {core}"
@@ -61,7 +102,20 @@ def _fallback_publication(*, change_package_path: str, items: list[dict], error:
         body_lines += [""]
 
     site_text = "\n".join(body_lines).strip() + "\n"
-    vk_text = (f"{title}\n\n" + "\n".join([str(it.get("summary") or it.get("title") or "").strip() for it in (items or [])[:10] if (it.get('summary') or it.get('title'))])).strip()
+    vk_lines = [title, ""]
+    for it in (items or [])[:8]:
+        s = str(it.get("summary") or "").strip()
+        src = str(it.get("source_title") or it.get("source_id") or "").strip()
+        u = str(it.get("source_url") or "").strip()
+        if not (s or src):
+            continue
+        line = f"- {s or 'Изменение'}"
+        if src:
+            line += f" ({src})"
+        vk_lines.append(line)
+        if u:
+            vk_lines.append(u)
+    vk_text = "\n".join(vk_lines).strip()
     if sources:
         vk_text += "\n\nИсточники:\n" + "\n".join(sources[:5])
     used_model = "fallback(no_routerai)"
@@ -69,16 +123,18 @@ def _fallback_publication(*, change_package_path: str, items: list[dict], error:
 
 
 async def _generate_texts(*, change_package_path: str, items: list[dict]) -> tuple[str, str, str, list[str], str]:
-    sources = sorted({str(it.get("source_url") or "").strip() for it in items if it.get("source_url")})
+    # Enrich items with short excerpts from KB articles, so RouterAI can produce a meaningful summary.
+    items_aug = _augment_items(items)
+    sources = sorted({str(it.get("source_url") or "").strip() for it in items_aug if it.get("source_url")})
     sources = [s for s in sources if s]
 
-    has_legal = _is_legal(items)
+    has_legal = _is_legal(items_aug)
     choice = content_choice(has_legal=has_legal, main=config.CONTENT_MODEL_MAIN, heavy=config.CONTENT_MODEL_HEAVY)
     model = choice.model
 
     prompt = {
         "change_package_path": change_package_path,
-        "items": items[:50],
+        "items": items_aug[:40],
         "rules": {
             "no_legal_advice": True,
             "must_cite_sources": True,
@@ -110,7 +166,7 @@ async def _generate_texts(*, change_package_path: str, items: list[dict]) -> tup
         api_key=config.ROUTERAI_API_KEY,
         model=model,
         messages=messages,
-        timeout_s=35.0,
+        timeout_s=60.0,
     )
     json_log(
         {
@@ -146,7 +202,7 @@ async def _generate_texts(*, change_package_path: str, items: list[dict]) -> tup
                 api_key=config.ROUTERAI_API_KEY,
                 model=choice2.model,
                 messages=messages,
-                timeout_s=45.0,
+                timeout_s=90.0,
             )
             json_log(
                 {
@@ -184,20 +240,49 @@ async def handle_content_from_change_package(*, payload: dict) -> None:
 
     used_model = ""
     err_s = ""
-    try:
-        title, site_text, vk_text, sources, used_model = await _generate_texts(change_package_path=change_package_path, items=items)
-    except RouterAIError as e:
-        err_s = str(e) or "RouterAI request failed"
-        title, site_text, vk_text, sources, used_model = _fallback_publication(change_package_path=change_package_path, items=items, error=err_s)
-    except Exception as e:  # noqa: BLE001
-        err_s = str(e) or "content generation failed"
-        title, site_text, vk_text, sources, used_model = _fallback_publication(change_package_path=change_package_path, items=items, error=err_s)
+    # LLM should be mandatory for content generation (channels expansion); we retry on transient RouterAI failures.
+    max_attempts = 4 if config.CONTENT_LLM_REQUIRED else 1
+    for attempt in range(1, max_attempts + 1):
+        try:
+            title, site_text, vk_text, sources, used_model = await _generate_texts(
+                change_package_path=change_package_path, items=items
+            )
+            err_s = ""
+            break
+        except RouterAIError as e:
+            err_s = str(e) or "RouterAI request failed"
+            json_log(
+                {
+                    "type": "content_routerai_failed",
+                    "attempt": attempt,
+                    "max_attempts": max_attempts,
+                    "change_package_path": change_package_path,
+                    "error": err_s,
+                }
+            )
+            if attempt < max_attempts:
+                await asyncio.sleep(2.0**attempt)
+                continue
+            # If we still fail and LLM is required: do NOT pretend we generated; create a draft marked needs_edit.
+            title, site_text, vk_text, sources, used_model = _fallback_publication(
+                change_package_path=change_package_path, items=_augment_items(items, max_items=50), error=err_s
+            )
+        except Exception as e:  # noqa: BLE001
+            err_s = str(e) or "content generation failed"
+            title, site_text, vk_text, sources, used_model = _fallback_publication(
+                change_package_path=change_package_path, items=_augment_items(items, max_items=50), error=err_s
+            )
+            break
 
     pub_id = next_publication_id()
+    status = "pending"
+    if config.CONTENT_LLM_REQUIRED and err_s:
+        # Signal in UI that auto-generation failed and needs manual action; do not autoapprove/publish.
+        status = "needs_edit"
     item = ContentItem(
         publication_id=pub_id,
         created_at_utc=_now_utc_iso(),
-        status="pending",
+        status=status,
         title=title,
         site_text=site_text,
         vk_text=vk_text,
@@ -208,7 +293,7 @@ async def handle_content_from_change_package(*, payload: dict) -> None:
     save_item(item)
 
     # For server automation we default to local_autoapprove; can be switched to email later.
-    if config.CONTENT_APPROVAL_MODE == "local_autoapprove":
+    if config.CONTENT_APPROVAL_MODE == "local_autoapprove" and not (config.CONTENT_LLM_REQUIRED and err_s):
         set_status(pub_id, status="approved", message_id="queue_autoapprove")
         item = load_item(pub_id)
         try:

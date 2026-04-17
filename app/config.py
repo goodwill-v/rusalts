@@ -51,6 +51,7 @@ PARSER_MODEL_HEAVY = os.getenv("PARSER_MODEL_HEAVY", "").strip()
 # Content (news/release generation)
 CONTENT_MODEL_MAIN = os.getenv("CONTENT_MODEL_MAIN", ROUTERAI_CHAT_MODEL).strip()
 CONTENT_MODEL_HEAVY = os.getenv("CONTENT_MODEL_HEAVY", "").strip()
+CONTENT_LLM_REQUIRED = os.getenv("CONTENT_LLM_REQUIRED", "true").lower() in ("1", "true", "yes")
 
 # Queue / inter-service messaging (Redis Streams)
 QUEUE_REDIS_URL = os.getenv("QUEUE_REDIS_URL", "redis://redis:6379/0").strip()

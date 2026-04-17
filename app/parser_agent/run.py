@@ -18,6 +18,13 @@ from app.parser_agent.models import ChangeItem, FetchResult, Source
 
 
 _FRONT_MATTER_RE = re.compile(r"\A---\s*\n(.*?)\n---\s*\n", re.DOTALL)
+_SPACE_RE = re.compile(r"\s+")
+_DATE_ISO_RE = re.compile(r"\b(20\d{2}-[01]\d-[0-3]\d)\b")
+_DATE_DMY_RE = re.compile(r"\b([0-3]?\d\.[01]?\d\.20\d{2})\b")
+_DATE_RU_RE = re.compile(
+    r"\b([0-3]?\d)\s+(января|февраля|марта|апреля|мая|июня|июля|августа|сентября|октября|ноября|декабря)\s+(20\d{2})\b",
+    re.IGNORECASE,
+)
 
 
 def _utc_now_iso() -> str:
@@ -274,6 +281,66 @@ def _summarize_diff(prev: str, cur: str, *, max_len: int = 300) -> str:
     return (base[: max_len - 1] + "…") if len(base) > max_len else base
 
 
+def _extract_pub_date(text: str) -> str:
+    """
+    Извлекаем дату публикации из извлечённого текста.
+    Это эвристика: для разных сайтов формат отличается.
+    """
+    t = _SPACE_RE.sub(" ", (text or "")).strip()
+    if not t:
+        return ""
+    m = _DATE_ISO_RE.search(t)
+    if m:
+        return m.group(1)
+    m = _DATE_DMY_RE.search(t)
+    if m:
+        return m.group(1)
+    m = _DATE_RU_RE.search(t)
+    if m:
+        d, mon, y = m.group(1), m.group(2), m.group(3)
+        return f"{int(d):02d} {mon.lower()} {y}"
+    return ""
+
+
+def _extract_topic(text: str, *, max_words: int = 18, max_chars: int = 140) -> str:
+    """
+    Пытаемся извлечь «ключевую тему» из первых строк текста.
+    Если HTML не содержит явного заголовка, берём первые слова, отсекая шум.
+    """
+    t = _SPACE_RE.sub(" ", (text or "")).strip()
+    if not t:
+        return ""
+
+    # Частые "шапки/меню" в извлечённом тексте (минимально).
+    t = re.sub(r"\b(главная|новости|контакты|войти|регистрация|поиск)\b", " ", t, flags=re.IGNORECASE)
+    t = _SPACE_RE.sub(" ", t).strip()
+
+    # Срез до первого "естественного" разделителя.
+    cut_pos = len(t)
+    for sep in (". ", " | ", " — ", "\n"):
+        p = t.find(sep)
+        if 20 <= p < cut_pos:
+            cut_pos = p
+    head = t[:cut_pos].strip()
+
+    words = [w for w in re.split(r"[^\w\dа-яё\-]+", head, flags=re.IGNORECASE) if w]
+    if not words:
+        return ""
+    topic = " ".join(words[:max_words]).strip()
+    if len(topic) > max_chars:
+        topic = topic[: max_chars - 1].rstrip() + "…"
+    return topic
+
+
+def _human_summary(*, source_title: str, prev_text: str, cur_text: str) -> str:
+    pub_date = _extract_pub_date(cur_text)
+    topic = _extract_topic(cur_text)
+    prefix = "Новая публикация" if not prev_text else "Обновление"
+    date_part = pub_date or "дата не найдена"
+    topic_part = topic or "тема не распознана"
+    return f"{source_title}: {date_part} — {topic_part} ({prefix})"
+
+
 async def run_once(*, limit: int | None = None) -> dict[str, Any]:
     """
     One-off run: fetch sources, detect changes, update KB and emit change_package.
@@ -354,7 +421,9 @@ async def run_once(*, limit: int | None = None) -> dict[str, Any]:
                 legal_fields=legal_fields,
             )
 
-            summary = _summarize_diff(prev_text, cur_text)
+            # Более полезное для новостей резюме: источник + дата (если найдена) + тема.
+            # При необходимости технический Δ сохраняется в KB-чейнджлог/статьях.
+            summary = _human_summary(source_title=src.title, prev_text=prev_text, cur_text=cur_text)
             item = ChangeItem(
                 item_id=_stable_id("chg", f"{src.id}:{ts}"),
                 ts_utc=ts,
