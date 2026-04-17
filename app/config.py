@@ -59,6 +59,9 @@ QUEUE_STREAM_CONTENT_JOBS = os.getenv("QUEUE_STREAM_CONTENT_JOBS", "alt:content:
 QUEUE_GROUP_PARSER = os.getenv("QUEUE_GROUP_PARSER", "parser").strip()
 QUEUE_GROUP_CONTENT = os.getenv("QUEUE_GROUP_CONTENT", "content").strip()
 
+# Веб-поиск (DuckDuckGo API) — только как fallback для вопросов в тематике АЛТ, если БЗ и whitelist пусты
+WEB_SEARCH_ENABLED = os.getenv("WEB_SEARCH_ENABLED", "true").lower() in ("1", "true", "yes")
+
 # Knowledge base + templates
 KNOWLEDGE_BASE_DIR = BASE_DIR / "knowledge_base"
 KB_ARTICLES_DIR = KNOWLEDGE_BASE_DIR / "articles"

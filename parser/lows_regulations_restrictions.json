@@ -1,0 +1,190 @@
+{
+ "meta": {
+  "version": "0.2",
+  "generated_from": "АЛЬТЕРНАТИВА_АЛТбот/Ресурсы_по_правовым_разделам",
+  "generated_at_utc": "2026-04-16T12:00:00Z",
+  "category": "legal_compliance"
+ },
+ "sources": [
+  {
+   "id": "pravo.gov.ru/152fz",
+   "title": "Официальный интернет-портал правовой информации: 152-ФЗ",
+   "url": "http://pravo.gov.ru/proxy/ips/?docbody=&nd=102081964",
+   "priority": "high",
+   "level": 1,
+   "content_type": "Полный текст 152-ФЗ, редакции, даты вступления изменений в силу",
+   "frequency": "По факту принятия актов",
+   "tech_notes": "Статическая страница; возможна выгрузка по реквизитам акта; юридическая сила с момента публикации",
+   "status": "✅ Активен",
+   "category": "152-FZ"
+  },
+  {
+   "id": "pd.rkn.gov.ru",
+   "title": "Роскомнадзор: Персональные данные",
+   "url": "https://pd.rkn.gov.ru",
+   "priority": "high",
+   "level": 1,
+   "content_type": "Методические рекомендации, разъяснения, реестр операторов ПДн, формы уведомлений",
+   "frequency": "По мере публикации",
+   "tech_notes": "HTML-страницы со стабильной структурой; возможен парсинг по разделам",
+   "status": "✅ Активен",
+   "category": "152-FZ"
+  },
+  {
+   "id": "rkn.gov.ru/violations",
+   "title": "Роскомнадзор: Реестр нарушений 152-ФЗ",
+   "url": "https://rkn.gov.ru/treatment/statistics/violations/",
+   "priority": "high",
+   "level": 1,
+   "content_type": "Статистика и реестры нарушений 152-ФЗ, решения о блокировках",
+   "frequency": "Еженедельно / по событиям",
+   "tech_notes": "Табличные данные; возможна выгрузка в формате таблицы",
+   "status": "✅ Активен",
+   "category": "152-FZ"
+  },
+  {
+   "id": "fstec.ru/pd",
+   "title": "ФСТЭК: Защита персональных данных",
+   "url": "https://fstec.ru/napravleniya-deyatelnosti/zashchita-personalnykh-dannykh",
+   "priority": "high",
+   "level": 1,
+   "content_type": "Приказы, методички, требования к СЗПДн, сертификация",
+   "frequency": "По мере обновления",
+   "tech_notes": "Статические страницы с документами; возможен парсинг по датам публикации",
+   "status": "✅ Активен",
+   "category": "152-FZ"
+  },
+  {
+   "id": "regulation.gov.ru/152fz",
+   "title": "Портал проектов НПА: 152-ФЗ",
+   "url": "https://regulation.gov.ru/projects#npa=152-%D1%84%D0%B7",
+   "priority": "medium",
+   "level": 2,
+   "content_type": "Проекты поправок к 152-ФЗ, общественные обсуждения, экспертиза",
+   "frequency": "По мере размещения проектов",
+   "tech_notes": "API для проектов НПА; фильтры по тематике и статусу",
+   "status": "✅ Активен",
+   "category": "152-FZ"
+  },
+  {
+   "id": "pravo.gov.ru/168fz",
+   "title": "Официальный интернет-портал правовой информации: 168-ФЗ",
+   "url": "http://pravo.gov.ru/proxy/ips/?docbody=&nd=102158964",
+   "priority": "high",
+   "level": 1,
+   "content_type": "Текст 168-ФЗ, редакции, сопутствующие нормативные акты",
+   "frequency": "По факту принятия",
+   "tech_notes": "Статическая страница; юридическая сила с момента публикации",
+   "status": "✅ Активен",
+   "category": "168-FZ"
+  },
+  {
+   "id": "mkrf.ru/language",
+   "title": "Минкультуры России: Языковая политика",
+   "url": "https://mkrf.ru/priority/language/",
+   "priority": "high",
+   "level": 1,
+   "content_type": "Методические рекомендации, разъяснения по применению 168-ФЗ, перечень исключений",
+   "frequency": "По мере публикации",
+   "tech_notes": "HTML-страницы со стабильной структурой; возможен парсинг по разделам",
+   "status": "✅ Активен",
+   "category": "168-FZ"
+  },
+  {
+   "id": "minjust.ru/law-education",
+   "title": "Минюст России: Правовое просвещение",
+   "url": "https://minjust.ru/ru/activity/law-education",
+   "priority": "medium",
+   "level": 2,
+   "content_type": "Разъяснения законодательства, ответы на частые вопросы по 168-ФЗ",
+   "frequency": "По мере публикации",
+   "tech_notes": "Статьи в формате вопрос-ответ; возможен парсинг по ключевым словам",
+   "status": "✅ Активен",
+   "category": "168-FZ"
+  },
+  {
+   "id": "rkn.gov.ru/media-language",
+   "title": "Роскомнадзор: Контроль в сфере СМИ и языка",
+   "url": "https://rkn.gov.ru/mass-communications/",
+   "priority": "medium",
+   "level": 2,
+   "content_type": "Требования к использованию языка в медиа, цифровых сервисах, прецеденты",
+   "frequency": "По событиям",
+   "tech_notes": "Новости и пресс-релизы; возможен парсинг по дате и тегам",
+   "status": "✅ Активен",
+   "category": "168-FZ"
+  },
+  {
+   "id": "regulation.gov.ru/language",
+   "title": "Портал проектов НПА: Языковая политика",
+   "url": "https://regulation.gov.ru/projects#themes=language",
+   "priority": "medium",
+   "level": 2,
+   "content_type": "Проекты подзаконных актов, уточняющих применение 168-ФЗ к ИТ-продуктам",
+   "frequency": "По мере размещения",
+   "tech_notes": "API для проектов НПА; фильтры по тематике",
+   "status": "✅ Активен",
+   "category": "168-FZ"
+  },
+  {
+   "id": "eais.rkn.gov.ru",
+   "title": "Роскомнадзор: Единый реестр запрещённых сайтов",
+   "url": "https://eais.rkn.gov.ru",
+   "priority": "high",
+   "level": 1,
+   "content_type": "Реестр доменных имён и страниц, доступ к которым ограничен в РФ",
+   "frequency": "В реальном времени / ежедневно",
+   "tech_notes": "Поиск по реестру; возможна выгрузка данных по регионам и основаниям блокировки",
+   "status": "✅ Активен",
+   "category": "regional-restrictions"
+  },
+  {
+   "id": "rkn.gov.ru/opendata",
+   "title": "Роскомнадзор: Open Data",
+   "url": "https://rkn.gov.ru/opendata/",
+   "priority": "high",
+   "level": 1,
+   "content_type": "Машиночитаемые наборы данных по реестрам, блокировкам, решениям",
+   "frequency": "По мере обновления",
+   "tech_notes": "Форматы CSV/JSON/XML; подходит для автоматизированного анализа",
+   "status": "✅ Активен",
+   "category": "regional-restrictions"
+  },
+  {
+   "id": "digital.gov.ru/regions",
+   "title": "Минцифры: Региональная цифровизация",
+   "url": "https://digital.gov.ru/ru/activity/regions/",
+   "priority": "medium",
+   "level": 2,
+   "content_type": "Программы развития цифровой инфраструктуры в субъектах РФ, ограничения доступа",
+   "frequency": "Квартально / по обновлению программ",
+   "tech_notes": "Статические страницы программ; обновления по кварталам",
+   "status": "✅ Активен",
+   "category": "regional-restrictions"
+  },
+  {
+   "id": "region.pravo.gov.ru",
+   "title": "Правовые порталы субъектов РФ",
+   "url": "http://region.pravo.gov.ru",
+   "priority": "medium",
+   "level": 2,
+   "content_type": "Региональные нормативные акты, ограничивающие доступ к интернет-ресурсам",
+   "frequency": "По факту принятия",
+   "tech_notes": "Единый интерфейс для всех регионов; возможен парсинг по субъекту РФ",
+   "status": "✅ Активен",
+   "category": "regional-restrictions"
+  },
+  {
+   "id": "duma.gov.ru/cominfo",
+   "title": "Госдума: Комитет по информационной политике",
+   "url": "https://duma.gov.ru/committee/cominfo/",
+   "priority": "medium",
+   "level": 2,
+   "content_type": "Законодательные инициативы по регулированию интернета, региональные аспекты",
+   "frequency": "По мере внесения законопроектов",
+   "tech_notes": "HTML-лента новостей; возможен парсинг по дате и тематике",
+   "status": "✅ Активен",
+   "category": "regional-restrictions"
+  }
+ ]
+}

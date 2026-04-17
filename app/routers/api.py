@@ -13,8 +13,9 @@ from app import config
 from app import kb
 from app.observability import json_log
 from app.routerai import RouterAIError, chat_completion
-from app.model_routing import backend_choice, choose_main_or_heavy, looks_legal
+from app.model_routing import backend_choice, choose_main_or_heavy, is_alt_project_topic
 from app.official_sources import search_official_sources
+from app.web_search import search_web_snippets
 from app.templates_engine import load_templates_bundle, load_triggers, match_trigger, render_template
 
 router = APIRouter(prefix="/api", tags=["api"])
@@ -222,6 +223,24 @@ async def chat(request: Request, body: ChatRequest) -> ChatResponse:
                 messages=messages,
                 timeout_s=30.0,
             )
+            if (
+                not str(llm_text).strip()
+                and (config.BACKEND_MODEL_HEAVY or "").strip()
+                and choice.model != (config.BACKEND_MODEL_HEAVY or "").strip()
+            ):
+                choice2 = choose_main_or_heavy(
+                    main=choice.model,
+                    heavy=config.BACKEND_MODEL_HEAVY,
+                    escalate=True,
+                    reason="backend_retry_empty_official",
+                )
+                llm_text, usage, _raw = await chat_completion(
+                    base_url=config.ROUTERAI_BASE_URL,
+                    api_key=config.ROUTERAI_API_KEY,
+                    model=choice2.model,
+                    messages=messages,
+                    timeout_s=30.0,
+                )
             answer = str(llm_text).strip()
             # Minimal validation: if model claims answer but doesn't include any URL, refuse.
             has_url = "http://" in answer or "https://" in answer
@@ -255,6 +274,103 @@ async def chat(request: Request, body: ChatRequest) -> ChatResponse:
                 lines.append(f"\n{i}) {o.title}\n— {o.excerpt}\nИсточник: {o.url}")
             lines.append("\nЕсли нужно — вы можете обратиться в Поддержку, чтобы наметить решение вашего вопроса.")
             return ChatResponse(reply="\n".join(lines).strip(), request_id=rid, sources=[{"title": o.title, "url": o.url} for o in official], used_llm=False)
+
+    # 4b) Открытый веб (только тематика АЛТ): короткий ответ по выдержкам, если БЗ и whitelist не дали материала
+    if config.WEB_SEARCH_ENABLED and is_alt_project_topic(text):
+        web_hits = await search_web_snippets(query=text)
+        if web_hits:
+            web_payload = [{"title": w.title, "url": w.url, "excerpt": w.excerpt} for w in web_hits]
+            try:
+                system_prompt_path = config.BASE_DIR / "АЛЬТЕРНАТИВА_АЛТбот" / "ALT_sist.prompt.md"
+                system_prompt = system_prompt_path.read_text(encoding="utf-8").strip() if system_prompt_path.is_file() else ""
+
+                messages = []
+                if system_prompt:
+                    messages.append({"role": "system", "content": system_prompt})
+                messages.append(
+                    {
+                        "role": "user",
+                        "content": (
+                            "В базе знаний проекта ответа не нашлось. Ниже — краткие выдержки из открытого веба (DuckDuckGo). "
+                            "Дай короткий релевантный ответ пользователю (до ~900 символов), без выдуманных фактов. "
+                            "Обязательно укажи 1–3 ссылки (URL) из выдержек. "
+                            "Явно предупреди, что это не официальная БЗ АЛТ и данные нужно перепроверить.\n\n"
+                            f"Вопрос: {text}\n\n"
+                            f"Выдержки (JSON): {json.dumps(web_payload, ensure_ascii=False)}"
+                        ),
+                    }
+                )
+
+                choice = backend_choice(
+                    text=text,
+                    kb_hits_count=0,
+                    main=config.BACKEND_MODEL_MAIN or config.ROUTERAI_CHAT_MODEL,
+                    heavy=config.BACKEND_MODEL_HEAVY,
+                )
+                llm_text, usage, _raw = await chat_completion(
+                    base_url=config.ROUTERAI_BASE_URL,
+                    api_key=config.ROUTERAI_API_KEY,
+                    model=choice.model,
+                    messages=messages,
+                    timeout_s=35.0,
+                )
+                if (
+                    not str(llm_text).strip()
+                    and (config.BACKEND_MODEL_HEAVY or "").strip()
+                    and choice.model != (config.BACKEND_MODEL_HEAVY or "").strip()
+                ):
+                    choice2 = choose_main_or_heavy(
+                        main=choice.model,
+                        heavy=config.BACKEND_MODEL_HEAVY,
+                        escalate=True,
+                        reason="backend_retry_empty_web",
+                    )
+                    llm_text, usage, _raw = await chat_completion(
+                        base_url=config.ROUTERAI_BASE_URL,
+                        api_key=config.ROUTERAI_API_KEY,
+                        model=choice2.model,
+                        messages=messages,
+                        timeout_s=35.0,
+                    )
+                answer = str(llm_text).strip()
+                has_url = "http://" in answer or "https://" in answer
+                if answer and not has_url:
+                    answer = (
+                        "По открытым источникам удалось найти только фрагменты; перепроверьте ссылки вручную:\n"
+                        + "\n".join(f"- {w.title}: {w.url}" for w in web_hits[:4])
+                    )
+                json_log(
+                    {
+                        "type": "routerai_usage",
+                        "request_id": rid,
+                        "user_id": body.user_id,
+                        "channel": body.channel,
+                        "platform": body.platform,
+                        "model": usage.model,
+                        "tokens_in": usage.input_tokens,
+                        "tokens_out": usage.output_tokens,
+                        "cost_usd": usage.cost_usd,
+                        "purpose": "chat_web_fallback",
+                        "routing_reason": choice.reason,
+                    }
+                )
+                return ChatResponse(
+                    reply=answer,
+                    request_id=rid,
+                    sources=[{"title": w.title, "url": w.url} for w in web_hits],
+                    used_llm=True,
+                )
+            except RouterAIError:
+                lines = ["Краткие материалы из открытого веба (не база знаний АЛТ, перепроверьте):"]
+                for i, w in enumerate(web_hits[:4], start=1):
+                    lines.append(f"\n{i}) {w.title}\n— {w.excerpt}\nИсточник: {w.url}")
+                lines.append("\nПри необходимости обратитесь в поддержку для уточнения.")
+                return ChatResponse(
+                    reply="\n".join(lines).strip(),
+                    request_id=rid,
+                    sources=[{"title": w.title, "url": w.url} for w in web_hits],
+                    used_llm=False,
+                )
 
     # 5) Absolute fallback (no KB hit, no trigger, no official excerpts)
     fallback = (
