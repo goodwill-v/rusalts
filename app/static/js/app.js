@@ -261,6 +261,15 @@ function escapeHtml(s) {
     .replaceAll("'", "&#039;");
 }
 
+function hostLabel(url) {
+  try {
+    const u = new URL(String(url));
+    return String(u.hostname || "").replace(/^www\./i, "") || String(url);
+  } catch {
+    return String(url || "");
+  }
+}
+
 async function initNewsPage() {
   const root = document.querySelector("[data-news-page]");
   const grid = document.querySelector("[data-news-grid]");
@@ -283,6 +292,8 @@ async function initNewsPage() {
       const dt = fmtDate(it.published_at_utc);
       const pubFmt = String(pubId || "").padStart(5, "0");
       const sources = Array.isArray(it.sources) ? it.sources : [];
+      const src = sources.find((u) => String(u || "").trim()) || "";
+      const srcLabel = src ? hostLabel(src) : "";
       card.innerHTML = `
         <div class="news-meta">
           <span class="news-meta__left">${it.pinned ? "📎 Закреплено" : ""}</span>
@@ -292,15 +303,10 @@ async function initNewsPage() {
         <p class="news-announce" data-news-announce hidden></p>
         <div class="news-text" data-news-body>Загрузка…</div>
         ${
-          sources.length
+          src
             ? `<div class="news-sources">
                  <div class="news-sources__label">Источник:</div>
-                 <ul class="news-sources__list">
-                   ${sources
-                     .slice(0, 5)
-                     .map((u) => `<li><a class="news-source-link" href="${escapeHtml(u)}" target="_blank" rel="noopener noreferrer">${escapeHtml(u)}</a></li>`)
-                     .join("")}
-                 </ul>
+                 <a class="news-source-link" href="${escapeHtml(src)}" target="_blank" rel="noopener noreferrer">${escapeHtml(srcLabel)}</a>
                </div>`
             : ""
         }
