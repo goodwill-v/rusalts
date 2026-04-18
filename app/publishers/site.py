@@ -5,6 +5,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 from app import config
+from app.content_excerpt import excerpt_for_list
 from app.content_store import ContentItem
 
 
@@ -99,9 +100,11 @@ def publish_to_site(item: ContentItem) -> tuple[str, str]:
 
     idx = _load_index()
     # upsert by publication_id
+    excerpt = excerpt_for_list(item.site_text or "", max_chars=200)
     meta = {
         "publication_id": item.publication_id,
         "title": item.title,
+        "excerpt": excerpt,
         "published_at_utc": pub_at,
         "url": url_path,
         "sources": item.sources,

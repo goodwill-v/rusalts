@@ -254,14 +254,15 @@ async function initHomeNews() {
       li.className = "news-item";
       const dt = fmtDate(it.published_at_utc);
       const pubId = String(it.publication_id || "").padStart(5, "0");
-      const announce = stripMd(it.title || "");
+      const exIdx = (it.excerpt && String(it.excerpt).trim()) || "";
+      const lead = exIdx || excerptForList(stripMd(it.title || "")) || "Новость";
       const href = "/news/#" + String(it.publication_id || "");
       li.innerHTML = `
         <div class="news-item__meta">
           <time datetime="${String(it.published_at_utc || "")}">${dt || ""} (${escapeHtml(pubId)})</time>
           ${it.pinned ? '<span class="news-item__pin" title="Закреплено" aria-label="Закреплено">📎</span>' : ""}
         </div>
-        <p class="news-item__announce">${escapeHtml(announce || "Новость")}</p>
+        <p class="news-item__announce">${escapeHtml(lead)}</p>
         <a class="news-item__more" href="${href}">Открыть</a>
       `;
       list.appendChild(li);
@@ -280,13 +281,33 @@ function escapeHtml(s) {
     .replaceAll("'", "&#039;");
 }
 
-function hostLabel(url) {
-  try {
-    const u = new URL(String(url));
-    return String(u.hostname || "").replace(/^www\./i, "") || String(url);
-  } catch {
-    return String(url || "");
-  }
+/** Первый абзац текста новости (для превью в ленте; согласовано с app.content_excerpt). */
+function firstParagraphPlain(text) {
+  const t = String(text || "").trim();
+  if (!t) return "";
+  const block = t.split(/\n\n/)[0].trim();
+  const line = block.split("\n")[0].trim();
+  const core = line || block;
+  return core.replace(/\s+/g, " ").trim();
+}
+
+function excerptForList(text, maxC = 200) {
+  const para = firstParagraphPlain(text);
+  if (!para) return "";
+  if (para.length <= maxC) return para;
+  let cut = para.slice(0, maxC - 1);
+  const sp = cut.lastIndexOf(" ");
+  if (sp > maxC * 0.55) cut = cut.slice(0, sp);
+  return cut.replace(/\s+$/, "") + "…";
+}
+
+/** Служебное поле title в API — из начала текста сайта. */
+function leadTitleFromSite(site) {
+  const p = firstParagraphPlain(site);
+  if (!p) return "Новость";
+  const one = p.replace(/\s+/g, " ").trim();
+  if (one.length <= 100) return one;
+  return `${one.slice(0, 97)}…`;
 }
 
 async function initNewsPage() {
@@ -310,44 +331,20 @@ async function initNewsPage() {
       card.id = pubId;
       const dt = fmtDate(it.published_at_utc);
       const pubFmt = String(pubId || "").padStart(5, "0");
-      const sources = Array.isArray(it.sources) ? it.sources : [];
-      const src = sources.find((u) => String(u || "").trim()) || "";
-      const srcLabel = src ? hostLabel(src) : "";
       card.innerHTML = `
         <div class="news-meta">
           <span class="news-meta__left">${it.pinned ? "📎 Закреплено" : ""}</span>
           <time datetime="${String(it.published_at_utc || "")}">${dt} (${escapeHtml(pubFmt)})</time>
         </div>
-        <h2 class="news-title">${escapeHtml(String(it.title || "Новость"))}</h2>
-        <p class="news-announce" data-news-announce hidden></p>
         <div class="news-text" data-news-body>Загрузка…</div>
-        ${
-          src
-            ? `<div class="news-sources">
-                 <div class="news-sources__label">Источник:</div>
-                 <a class="news-source-link" href="${escapeHtml(src)}" target="_blank" rel="noopener noreferrer">${escapeHtml(srcLabel)}</a>
-               </div>`
-            : ""
-        }
       `;
       grid.appendChild(card);
-      // load body markdown as plain text (MVP)
       const bodyEl = card.querySelector("[data-news-body]");
-      const annEl = card.querySelector("[data-news-announce]");
       fetch(it.url || "")
         .then((r) => r.text())
         .then((t) => {
           const raw = String(t || "").trim();
-          const clean = raw.replace(/\s+/g, " ").trim();
-          if (annEl) {
-            const ann = clean.slice(0, 200).trim();
-            annEl.textContent = ann ? `Анонс: ${ann}` : "";
-            annEl.hidden = !ann;
-          }
-          if (bodyEl) {
-            const shown = raw.slice(0, 1000);
-            bodyEl.textContent = raw.length > 1000 ? shown + "…" : shown;
-          }
+          if (bodyEl) bodyEl.textContent = raw;
         })
         .catch(() => {
           if (bodyEl) bodyEl.textContent = "Не удалось загрузить текст.";
@@ -376,8 +373,7 @@ function buildApprovalsItem(it) {
       </div>
     </div>
 
-    <label class="approv-label">Заголовок</label>
-    <input class="approv-input" type="text" data-edit-title value="${escapeHtml(String(it.title || ""))}">
+    <div class="approv-item__preview">${escapeHtml(excerptForList(String(it.site_text || ""), 180) || "—")}</div>
 
     <div class="approv-grid">
       <div class="approv-col">
@@ -419,7 +415,6 @@ function clearCorpForm(root) {
     const el = root.querySelector(sel);
     if (el) el.value = v;
   };
-  setv("[data-corp-title]", "");
   setv("[data-corp-site]", "");
   setv("[data-corp-vk]", "");
   setv("[data-corp-sources]", "");
@@ -548,8 +543,8 @@ async function initPublApprov() {
   });
 
   root.querySelector("[data-corp-save]")?.addEventListener("click", async () => {
-    const title = root.querySelector("[data-corp-title]")?.value?.trim() || "";
     const site_text = root.querySelector("[data-corp-site]")?.value?.trim() || "";
+    const title = leadTitleFromSite(site_text);
     const vk_text = root.querySelector("[data-corp-vk]")?.value?.trim() || "";
     const internal_note = root.querySelector("[data-corp-note]")?.value?.trim() || "";
     const sources = parseCorpSources(root.querySelector("[data-corp-sources]")?.value);
@@ -570,8 +565,8 @@ async function initPublApprov() {
   });
 
   root.querySelector("[data-corp-publish]")?.addEventListener("click", async () => {
-    const title = root.querySelector("[data-corp-title]")?.value?.trim() || "";
     const site_text = root.querySelector("[data-corp-site]")?.value?.trim() || "";
+    const title = leadTitleFromSite(site_text);
     const vk_text = root.querySelector("[data-corp-vk]")?.value?.trim() || "";
     const internal_note = root.querySelector("[data-corp-note]")?.value?.trim() || "";
     const sources = parseCorpSources(root.querySelector("[data-corp-sources]")?.value);
@@ -616,9 +611,9 @@ async function initPublApprov() {
     if (!item) return;
     const pubId = item.dataset.pubId;
     const st = item.querySelector("[data-action-status]");
-    const title = item.querySelector("[data-edit-title]")?.value || "";
     const site = item.querySelector("[data-edit-site]")?.value || "";
     const vk = item.querySelector("[data-edit-vk]")?.value || "";
+    const title = leadTitleFromSite(site);
 
     try {
       if (st) st.textContent = "…";

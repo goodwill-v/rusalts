@@ -9,6 +9,7 @@ from pathlib import Path
 from urllib.parse import urlparse
 
 from app import config
+from app.content_excerpt import title_fallback_from_site_text
 from app.content_store import (
     ContentItem,
     item_exists,
@@ -197,7 +198,7 @@ async def refine_corporate_publication(it: ContentItem) -> tuple[str, str, str, 
             "tone_vk": "живой, вовлекающий, короткие абзацы, умеренные эмодзи, призыв и хэштеги в конце",
         },
         "output": {
-            "title": "string (3..120)",
+            "title": "string (служебное, см. ниже — дублирует начало site_text_plain)",
             "site_text_plain": "string (plain text only, no # ** ` []() markdown)",
             "vk_text_plain": "string (plain text only)",
             "internal_note": "string (PRIVATE, факты для редактора, без фраз про «тон выдержан»)",
@@ -218,15 +219,19 @@ async def refine_corporate_publication(it: ContentItem) -> tuple[str, str, str, 
             "role": "user",
             "content": (
                 "Сгенерируй результат строго как ОДИН JSON-объект, без ```json``` и без текста вокруг.\n"
+                "Ключевое: отдельного заголовка на сайте нет — первый абзац `site_text_plain` одновременно задаёт тон и суть; "
+                "он же попадёт в ленту как превью (до ~200 знаков). Сформулируй первый абзац максимально цепко и интересно, "
+                "без префиксов «Анонс:», без дублирования отдельной «шапки» новости.\n"
                 "Требования:\n"
-                "- Заголовок `title`: информативный, без кавычек-ёлочек вокруг всей строки, можно короткое уточнение в кавычках внутри.\n"
-                "- `site_text_plain`: статья для сайта, абзацы, без эмодзи. Убери префиксы вроде «Анонс:», «##», технические заголовки-шаблоны. "
-                "Не копируй дословно канцелярит инструкций; перескажи для читателя.\n"
-                "  - Если ровно один URL в sources: последняя отдельная строка «Источник: <label> — <url>».\n"
-                "  - Если несколько: вплети ссылки естественно: «<label> — https://...» по ходу или в конце списком строками.\n"
-                "- `vk_text_plain`: версия для ВКонтакте: динамично, 2–3 строки на абзац, умеренные эмодзи (🔹✅⚠️), "
-                "первый абзац — цепляющий анонс (до ~220 знаков), в конце призыв и хэштеги #АЛТ #МАХ #ЗаконыИТ.\n"
-                "- `internal_note`: только факты/ограничения для редакции; не дублируй публичный текст.\n\n"
+                "- `site_text_plain`: статья для сайта, абзацы, без эмодзи. Первый абзац — один связный абзац, ~100–200 знаков, "
+                "вызывает интерес продолжить чтение; дальше развёрнутый текст.\n"
+                "- Источники: не используй подписи вроде «Источник:» или «Источники:». "
+                "Если в sources ровно один URL — в конце текста естественно впиши строку вида «<краткое имя домена> — https://...».\n"
+                "Если URL несколько — вплети каждый в предложения по ходу или коротким списком строк без служебных заголовков.\n"
+                "- `vk_text_plain`: для ВКонтакте; первый абзац = тот же по смыслу крючок, до ~200 знаков, один абзац; "
+                "далее короткие абзацы по 2–3 строки, умеренные эмодзи (🔹✅⚠️), в конце призыв и хэштеги #АЛТ #МАХ #ЗаконыИТ.\n"
+                "- `title`: одна строка, совпадает с началом первого абзаца `site_text_plain` (до 100 знаков), для служебного поля БД.\n"
+                "- `internal_note`: только факты для редакции.\n\n"
                 f"Входные данные:\n{json.dumps(payload, ensure_ascii=False)}"
             ),
         },
@@ -284,17 +289,17 @@ async def refine_corporate_publication(it: ContentItem) -> tuple[str, str, str, 
     if not isinstance(obj, dict):
         raise ValueError("LLM output is not a JSON object")
 
-    title = _strip_residual_markdown(str(obj.get("title") or it.title or "").strip())
     site_plain = _strip_residual_markdown(str(obj.get("site_text_plain") or "")).strip()
     vk_plain = _strip_residual_markdown(str(obj.get("vk_text_plain") or "")).strip()
     internal_note = str(obj.get("internal_note") or "").strip()
     internal_note = _clean_public_text(internal_note)
 
-    if not title or not site_plain or not vk_plain:
+    if not site_plain or not vk_plain:
         raise ValueError("LLM returned empty public text fields")
     if site_plain.lstrip().startswith("{") or vk_plain.lstrip().startswith("{"):
         raise ValueError("LLM returned JSON-like public text")
 
+    title = title_fallback_from_site_text(site_plain)
     return title, site_plain, vk_plain, internal_note, model
 
 
@@ -380,9 +385,9 @@ async def _generate_texts(*, change_package_path: str, items: list[dict]) -> tup
             "no_technical_notes_in_public_text": True,
         },
         "output": {
-            "title": "string (3..120)",
-            "site_text_md": "string (markdown)",
-            "vk_text": "string",
+            "title": "string (служебное: начало первого абзаца site_text_md, до 100 знаков)",
+            "site_text_md": "string (обычный текст для сайта: без Markdown # ** [](); абзацы через пустую строку)",
+            "vk_text": "string (plain text)",
             "internal_note": "string (PRIVATE, not for publication)",
         },
     }
@@ -402,20 +407,18 @@ async def _generate_texts(*, change_package_path: str, items: list[dict]) -> tup
             "role": "user",
             "content": (
                 "Сгенерируй публикацию строго в виде ОДНОГО JSON-объекта, без ```json``` и без любого текста вокруг.\n"
+                "На сайте отдельного заголовка и блока «Анонс:» нет: первый абзац `site_text_md` сразу цепляет читателя и передаёт суть (~100–200 знаков в одном абзаце), "
+                "затем основной текст. Не дублируй отдельной строкой тему первого абзаца.\n"
                 "Требования к результату:\n"
-                "- Определи: это один «Релиз» (если много мелких равнозначных пунктов) или одна «Новость» (если есть существенная тема).\n"
-                "- Заголовок:\n"
-                "  - для релиза начинается с: «Релиз \\\"...\\\"»\n"
-                "  - для новости: коротко отражает суть.\n"
-                "- САЙТ (`site_text_md`): официально-деловой экспертный стиль, без эмодзи. Текст как статья/новость.\n"
-                "  - Если источник один: в конце отдельной строкой «Источник: <label> — <url>».\n"
-                "  - Если источников несколько: ссылки в тексте упакуй в названия ресурсов (Markdown-ссылки вида [rustore.ru](URL)).\n"
-                "  - Для официальных регуляторных тем обязателен хотя бы один официальный источник (pravo.gov.ru, rkn.gov.ru и т.п.), если он есть во входных данных.\n"
-                "- ВК (`vk_text`): динамично, абзацы по 2–3 строки, эмодзи-акценты умеренно (🔹✅⚠️), главное — в первом абзаце.\n"
-                "  - Первый абзац — это анонс до 200 знаков.\n"
-                "  - В конце: призыв к действию и хэштеги #АЛТ #МАХ #ЗаконыИТ.\n"
-                "  - Ссылки упаковывай в название ресурса: «rustore.ru — https://...», без голых ссылок посреди текста.\n"
-                "- `internal_note`: только для редактора/аналитики, НЕ писать сюда инструкций вроде «тон выдержан…», только факты о том, что обобщалось.\n\n"
+                "- Определи: один «Релиз» или одна «Новость» по смыслу пакета.\n"
+                "- `title`: одна строка = дословное начало первого абзаца `site_text_md` (до 100 знаков), только для служебного поля.\n"
+                "- САЙТ (`site_text_md`): официально-деловой стиль, без эмодзи, обычный текст (не Markdown).\n"
+                "  - Ссылки на первоисточники: без подписи «Источник:». Если официальный URL один — в конце текста естественная строка «<домен> — https://...».\n"
+                "  - Если источников несколько — впиши каждый URL в фразы по ходу или коротким списком строк, без Markdown-скобок []( ).\n"
+                "  - Для регуляторных тем сохрани ссылку на официальный ресурс из входных данных, если он есть.\n"
+                "- ВК (`vk_text`): первый абзац — тот же крючок по смыслу, до ~200 знаков; далее абзацы по 2–3 строки, эмодзи умеренно (🔹✅⚠️); "
+                "в конце призыв и хэштеги #АЛТ #МАХ #ЗаконыИТ; ссылки как «домен — https://...».\n"
+                "- `internal_note`: только факты для редактора, без мета-комментариев про стиль.\n\n"
                 f"Входные данные:\n{json.dumps(prompt, ensure_ascii=False)}"
             ),
         },
@@ -479,10 +482,12 @@ async def _generate_texts(*, change_package_path: str, items: list[dict]) -> tup
     if not isinstance(obj, dict):
         raise ValueError("LLM output is not a JSON object")
 
-    title = str(obj.get("title") or title).strip()
     site_text = _clean_public_text(str(obj.get("site_text_md") or "")).strip()
     vk_text = _clean_public_text(str(obj.get("vk_text") or "")).strip()
     internal_note = str(obj.get("internal_note") or internal_note).strip()
+    site_text = _strip_residual_markdown(site_text)
+    vk_text = _strip_residual_markdown(vk_text)
+    title = title_fallback_from_site_text(site_text)
 
     # Minimal validation: public texts must not be empty and must not contain JSON braces-only dumps.
     if not site_text or not vk_text:

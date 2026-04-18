@@ -14,6 +14,7 @@ from fastapi.security import HTTPBasic, HTTPBasicCredentials
 from pydantic import BaseModel, Field
 
 from app import config
+from app.content_excerpt import title_fallback_from_site_text
 from app.content_store import (
     ContentItem,
     archive_item,
@@ -153,7 +154,7 @@ async def queue(request: Request) -> QueueResponse:
 
 
 class UpdateQueueItemRequest(BaseModel):
-    title: str | None = Field(default=None, min_length=3, max_length=200)
+    title: str | None = Field(default=None, max_length=200)
     site_text: str | None = Field(default=None, min_length=20, max_length=50_000)
     vk_text: str | None = Field(default=None, min_length=10, max_length=20_000)
 
@@ -198,13 +199,19 @@ async def update_queue_item(request: Request, publication_id: str, body: UpdateQ
         raise HTTPException(status_code=400, detail="Некорректный ID")
     if not item_exists(publication_id):
         raise HTTPException(status_code=404, detail="Не найдено")
-    fields = {}
+    fields: dict = {}
+    it = load_item(publication_id)
+    new_site = body.site_text.strip() if body.site_text is not None else None
+    new_vk = body.vk_text.strip() if body.vk_text is not None else None
+    if new_site is not None:
+        fields["site_text"] = new_site
+    if new_vk is not None:
+        fields["vk_text"] = new_vk
     if body.title is not None:
-        fields["title"] = body.title.strip()
-    if body.site_text is not None:
-        fields["site_text"] = body.site_text.strip()
-    if body.vk_text is not None:
-        fields["vk_text"] = body.vk_text.strip()
+        t = body.title.strip()
+        fields["title"] = t or title_fallback_from_site_text(new_site or it.site_text)
+    elif new_site is not None:
+        fields["title"] = title_fallback_from_site_text(new_site)
     if fields:
         update_item(publication_id, **fields)
         json_log({"type": "content_queue_item_updated", "request_id": rid, "publication_id": publication_id, "fields": sorted(fields.keys())})
@@ -323,7 +330,7 @@ async def site_batch_pin(request: Request, body: SiteBatchPinRequest) -> SiteBat
 
 
 class CorporateNewsRequest(BaseModel):
-    title: str = Field(..., min_length=3, max_length=200)
+    title: str = Field(default="", max_length=200)
     site_text: str = Field(..., min_length=20, max_length=50_000)
     vk_text: str = Field(default="", max_length=20_000)
     internal_note: str = Field(default="", max_length=50_000)
@@ -341,12 +348,14 @@ async def corporate_save(request: Request, body: CorporateNewsRequest) -> Corpor
     rid = getattr(request.state, "request_id", uuid.uuid4().hex)
     config.ensure_data_dirs()
     pub_id = next_publication_id()
+    site_s = body.site_text.strip()
+    title_e = (body.title or "").strip() or title_fallback_from_site_text(site_s)
     item = ContentItem(
         publication_id=pub_id,
         created_at_utc=datetime.now(timezone.utc).replace(microsecond=0).isoformat(),
         status="pending",
-        title=body.title.strip(),
-        site_text=body.site_text.strip(),
+        title=title_e,
+        site_text=site_s,
         vk_text=(body.vk_text or "").strip(),
         internal_note=("corporate_portal\n" + (body.internal_note or "").strip()).strip(),
         sources=[s.strip() for s in body.sources if s and str(s).strip()],
@@ -367,12 +376,14 @@ async def corporate_publish(request: Request, body: CorporateNewsRequest) -> App
     if len(vk) < 10:
         raise HTTPException(status_code=400, detail="Текст для публикации слишком короткий")
     pub_id = next_publication_id()
+    site_s = body.site_text.strip()
+    title_e = (body.title or "").strip() or title_fallback_from_site_text(site_s)
     item = ContentItem(
         publication_id=pub_id,
         created_at_utc=datetime.now(timezone.utc).replace(microsecond=0).isoformat(),
         status="pending",
-        title=body.title.strip(),
-        site_text=body.site_text.strip(),
+        title=title_e,
+        site_text=site_s,
         vk_text=vk,
         internal_note=("corporate_portal_publish\n" + (body.internal_note or "").strip()).strip(),
         sources=[s.strip() for s in body.sources if s and str(s).strip()],
