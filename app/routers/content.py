@@ -30,7 +30,6 @@ from app.content_store import (
 from app.content_publish_flow import approve_publication_by_id
 from app.observability import json_log
 from app.publishers.site import get_site_markdown, publish_to_site, remove_site_publications, set_site_publications_pinned
-from app.queue_bus import publish_content_job
 from app.workers.content_worker import refine_corporate_item_by_id
 
 
@@ -220,6 +219,25 @@ async def update_queue_item(request: Request, publication_id: str, body: UpdateQ
     return SimpleOkResponse(ok=True, request_id=rid)
 
 
+@router.post(
+    "/queue/{publication_id}/reprocess",
+    response_model=SimpleOkResponse,
+    dependencies=[Depends(_require_admin_auth)],
+)
+async def reprocess_queue_item(request: Request, publication_id: str) -> SimpleOkResponse:
+    """Повторно прогнать корпоративный/ручной материал через refine (LLM + снятие md). Для уже сохранённых ID в очереди."""
+    rid = getattr(request.state, "request_id", uuid.uuid4().hex)
+    if not _ID_RE.match(publication_id):
+        raise HTTPException(status_code=400, detail="Некорректный ID")
+    if not item_exists(publication_id):
+        raise HTTPException(status_code=404, detail="Не найдено")
+    ok, err = await refine_corporate_item_by_id(publication_id)
+    if not ok:
+        raise HTTPException(status_code=502, detail=f"Переработка не удалась: {err}")
+    json_log({"type": "content_queue_reprocessed", "request_id": rid, "publication_id": publication_id})
+    return SimpleOkResponse(ok=True, request_id=rid)
+
+
 @router.post("/queue/{publication_id}/pin", response_model=SimpleOkResponse, dependencies=[Depends(_require_admin_auth)])
 async def toggle_pin(request: Request, publication_id: str) -> SimpleOkResponse:
     rid = getattr(request.state, "request_id", uuid.uuid4().hex)
@@ -346,7 +364,7 @@ class CorporateSaveResponse(SimpleOkResponse):
 
 @router.post("/corporate/save", response_model=CorporateSaveResponse, dependencies=[Depends(_require_admin_auth)])
 async def corporate_save(request: Request, body: CorporateNewsRequest) -> CorporateSaveResponse:
-    """Черновик в очередь согласования + задача content-worker (нормализация полей)."""
+    """Черновик в очередь согласования; refine (LLM + плоский текст) выполняется сразу в этом запросе."""
     rid = getattr(request.state, "request_id", uuid.uuid4().hex)
     config.ensure_data_dirs()
     pub_id = next_publication_id()
@@ -365,7 +383,8 @@ async def corporate_save(request: Request, body: CorporateNewsRequest) -> Corpor
         pinned=bool(body.pinned),
     )
     save_item(item)
-    await publish_content_job(job_type="content.corporate_draft", payload={"publication_id": pub_id})
+    # Обработка сразу в web-процессе: не зависим от Redis/content-worker (иначе в очереди остаётся сырой md).
+    await refine_corporate_item_by_id(pub_id)
     json_log({"type": "content_corporate_saved", "request_id": rid, "publication_id": pub_id})
     return CorporateSaveResponse(ok=True, request_id=rid, publication_id=pub_id)
 

@@ -54,3 +54,12 @@ def test_strip_residual_markdown_link() -> None:
     assert "пример" in out
     assert "https://a.ru/b" in out
 
+
+def test_strip_residual_markdown_multiline_headers() -> None:
+    raw = "## Заголовок\n\nТекст.\n\n### Подзаг\n- пункт"
+    out = _strip_residual_markdown(raw)
+    assert "##" not in out
+    assert "###" not in out
+    assert "Заголовок" in out
+    assert "пункт" in out
+

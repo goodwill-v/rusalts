@@ -158,15 +158,20 @@ def _clean_public_text(s: str) -> str:
 def _strip_residual_markdown(s: str) -> str:
     """
     Публичные поля корпоративных новостей — обычный текст (сайт и ВК не рендерят Markdown).
-    Снимаем типичные остатки разметки, если модель их вернула.
+    Снимаем типичные остатки разметки (в т.ч. если LLM недоступен и остаётся черновик в md).
     """
     t = _clean_public_text(s)
     if not t:
         return ""
-    t = re.sub(r"(?m)^#{1,6}\s+", "", t)
-    t = re.sub(r"\*\*([^*]+)\*\*", r"\1", t)
-    t = re.sub(r"`([^`]+)`", r"\1", t)
-    t = re.sub(r"\[([^\]]+)\]\((https?://[^)\s]+)\)", r"\1 — \2", t)
+    for _ in range(16):
+        prev = t
+        t = re.sub(r"(?m)^#{1,6}\s+", "", t)
+        t = re.sub(r"\*\*([^*]+)\*\*", r"\1", t)
+        t = re.sub(r"`([^`]+)`", r"\1", t)
+        t = re.sub(r"\[([^\]]+)\]\((https?://[^)\s]+)\)", r"\1 — \2", t)
+        t = re.sub(r"(?m)^\s*[-*]\s+", "", t)
+        if t == prev:
+            break
     t = "\n".join(line.rstrip() for line in t.splitlines()).strip()
     t = re.sub(r"\n{3,}", "\n\n", t).strip()
     return t
@@ -581,7 +586,9 @@ async def refine_corporate_item_by_id(publication_id: str) -> tuple[bool, str]:
             last_publish_error=(err_s[:4000] if err_s else "refine failed"),
         )
         set_status(publication_id, status="needs_edit", message_id="corporate_refine_failed")
-        return False, err_s
+        json_log({"type": "content_corporate_refine_degraded", "publication_id": publication_id, "error": err_s})
+        # Текст уже нормализован (strip + ВК), очередь можно сохранять и править.
+        return True, ""
 
     it = load_item(publication_id)
     site_f = _strip_residual_markdown(it.site_text or "")

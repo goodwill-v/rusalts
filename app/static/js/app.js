@@ -389,6 +389,7 @@ function buildApprovalsItem(it) {
     <div class="approv-actions">
       <button class="btn-site btn-site--primary" type="button" data-action-save>Сохранить</button>
       <button class="btn-site" type="button" data-action-publish>Опубликовать</button>
+      <button class="btn-site" type="button" data-action-reprocess title="Снова через контент-воркер (LLM и снятие Markdown)">Переработать</button>
       <span class="muted-site" data-action-status></span>
     </div>
   `;
@@ -617,6 +618,12 @@ async function initPublApprov() {
 
     try {
       if (st) st.textContent = "…";
+      if (btn.hasAttribute("data-action-reprocess")) {
+        await fetchJson(`/api/content/queue/${encodeURIComponent(pubId)}/reprocess`, { method: "POST" });
+        if (st) st.textContent = "Переработано.";
+        await load();
+        return;
+      }
       if (btn.hasAttribute("data-action-save")) {
         await fetchJson(`/api/content/queue/${encodeURIComponent(pubId)}`, {
           method: "PUT",
@@ -626,8 +633,6 @@ async function initPublApprov() {
         if (st) st.textContent = "Сохранено";
       }
       if (btn.hasAttribute("data-action-publish")) {
-        // interpret checkboxes
-        const approve = Boolean(item.querySelector("[data-flag-approve]")?.checked);
         const cancel = Boolean(item.querySelector("[data-flag-cancel]")?.checked);
         const pinBox = item.querySelector("[data-flag-pin]");
         const pinChecked = Boolean(pinBox?.checked);
@@ -648,19 +653,17 @@ async function initPublApprov() {
           await load();
           return;
         }
-        if (approve) {
-          const ares = await fetchJson(`/api/content/queue/${encodeURIComponent(pubId)}/approve`, { method: "POST" });
-          if (ares.last_publish_error) {
-            if (st) st.textContent = `Опубликовано с ошибкой: ${ares.last_publish_error}`;
-          } else if (ares.vk_post_url) {
-            if (st) st.textContent = `Опубликовано. VK: ${ares.vk_post_url}`;
-          } else {
-            if (st) st.textContent = "Опубликовано";
-          }
-          await load();
-          return;
+        // «Опубликовать» = сохранить и выгрузить на сайт/ВК (чекбокс «Одобрить» не обязателен).
+        const ares = await fetchJson(`/api/content/queue/${encodeURIComponent(pubId)}/approve`, { method: "POST" });
+        if (ares.last_publish_error) {
+          if (st) st.textContent = `Опубликовано с ошибкой: ${ares.last_publish_error}`;
+        } else if (ares.vk_post_url) {
+          if (st) st.textContent = `Опубликовано. VK: ${ares.vk_post_url}`;
+        } else {
+          if (st) st.textContent = "Опубликовано";
         }
-        if (st) st.textContent = "Сохранено (без публикации)";
+        await load();
+        return;
       }
     } catch (e) {
       if (st) st.textContent = `Ошибка: ${errText(e)}`;
