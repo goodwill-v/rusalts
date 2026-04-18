@@ -20,6 +20,7 @@ from app.content_store import (
     update_item,
 )
 from app.content_publish_flow import approve_publication_by_id
+from app.markdown_plain import clean_public_text_fragment, strip_markdown_public
 from app.observability import json_log
 from app.publishers.site import publish_to_site
 from app.queue_bus import CONSUMER_NAME, GROUP_CONTENT, STREAM_CONTENT_JOBS, consume_one, ensure_groups, get_redis
@@ -137,44 +138,13 @@ def _extract_json_object(text: str) -> dict:
 
 
 def _clean_public_text(s: str) -> str:
-    """
-    Публичные поля не должны содержать JSON/служебные инструкции.
-    Убираем fenced-json куски и тройные кавычки, нормализуем пробелы.
-    """
-    t = (s or "").strip()
-    if not t:
-        return ""
-    # Remove fenced json blocks entirely
-    t = _FENCED_JSON_RE.sub("", t)
-    # Remove accidental codefence leftovers
-    t = t.replace("```", "").strip()
-    # Drop obvious internal-note markers
-    t = re.sub(r"(?im)^\s*internal_note\s*[:=].*$", "", t).strip()
-    # Normalize whitespace
-    t = "\n".join(line.rstrip() for line in t.splitlines()).strip()
-    return t
+    """Совместимость: см. app.markdown_plain.clean_public_text_fragment."""
+    return clean_public_text_fragment(s)
 
 
 def _strip_residual_markdown(s: str) -> str:
-    """
-    Публичные поля корпоративных новостей — обычный текст (сайт и ВК не рендерят Markdown).
-    Снимаем типичные остатки разметки (в т.ч. если LLM недоступен и остаётся черновик в md).
-    """
-    t = _clean_public_text(s)
-    if not t:
-        return ""
-    for _ in range(16):
-        prev = t
-        t = re.sub(r"(?m)^#{1,6}\s+", "", t)
-        t = re.sub(r"\*\*([^*]+)\*\*", r"\1", t)
-        t = re.sub(r"`([^`]+)`", r"\1", t)
-        t = re.sub(r"\[([^\]]+)\]\((https?://[^)\s]+)\)", r"\1 — \2", t)
-        t = re.sub(r"(?m)^\s*[-*]\s+", "", t)
-        if t == prev:
-            break
-    t = "\n".join(line.rstrip() for line in t.splitlines()).strip()
-    t = re.sub(r"\n{3,}", "\n\n", t).strip()
-    return t
+    """Совместимость: см. app.markdown_plain.strip_markdown_public."""
+    return strip_markdown_public(s)
 
 
 async def refine_corporate_publication(it: ContentItem) -> tuple[str, str, str, str, str]:

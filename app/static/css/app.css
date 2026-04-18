@@ -758,6 +758,21 @@ code {
   margin-top: 0.75rem;
 }
 
+.approv-processing-banner {
+  margin: 0 0 1rem;
+  padding: 0.75rem 1rem;
+  border-radius: 12px;
+  border: 1px solid rgba(139, 92, 246, 0.4);
+  background: rgba(139, 92, 246, 0.1);
+  color: var(--site-heading);
+  font-size: 0.95rem;
+  line-height: 1.45;
+}
+
+.approv-processing-banner[hidden] {
+  display: none !important;
+}
+
 .approv__toolbar {
   display: flex;
   align-items: center;

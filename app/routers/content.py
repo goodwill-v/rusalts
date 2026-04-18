@@ -8,13 +8,14 @@ from datetime import date
 from datetime import datetime, timezone
 from pathlib import Path
 
-from fastapi import APIRouter, Depends, HTTPException, Request, status
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Request, status
 from fastapi.responses import PlainTextResponse
 from fastapi.security import HTTPBasic, HTTPBasicCredentials
 from pydantic import BaseModel, Field
 
 from app import config
 from app.content_excerpt import title_fallback_from_site_text
+from app.markdown_plain import strip_markdown_public
 from app.content_store import (
     ContentItem,
     archive_item,
@@ -36,6 +37,14 @@ from app.workers.content_worker import refine_corporate_item_by_id
 router = APIRouter(prefix="/api/content", tags=["content"])
 
 _ID_RE = re.compile(r"^\d{5}$")
+
+
+async def _corporate_refine_bg(publication_id: str) -> None:
+    """Фоновый LLM-refine после «Сохранить», чтобы запрос не упирался в nginx 504."""
+    try:
+        await refine_corporate_item_by_id(publication_id)
+    except Exception as e:  # noqa: BLE001
+        json_log({"type": "content_corporate_refine_bg_failed", "publication_id": publication_id, "error": str(e)})
 
 _basic = HTTPBasic()
 
@@ -224,17 +233,19 @@ async def update_queue_item(request: Request, publication_id: str, body: UpdateQ
     response_model=SimpleOkResponse,
     dependencies=[Depends(_require_admin_auth)],
 )
-async def reprocess_queue_item(request: Request, publication_id: str) -> SimpleOkResponse:
-    """Повторно прогнать корпоративный/ручной материал через refine (LLM + снятие md). Для уже сохранённых ID в очереди."""
+async def reprocess_queue_item(
+    request: Request,
+    publication_id: str,
+    background_tasks: BackgroundTasks,
+) -> SimpleOkResponse:
+    """Запуск refine в фоне (LLM + снятие md), без ожидания — иначе 504 у nginx."""
     rid = getattr(request.state, "request_id", uuid.uuid4().hex)
     if not _ID_RE.match(publication_id):
         raise HTTPException(status_code=400, detail="Некорректный ID")
     if not item_exists(publication_id):
         raise HTTPException(status_code=404, detail="Не найдено")
-    ok, err = await refine_corporate_item_by_id(publication_id)
-    if not ok:
-        raise HTTPException(status_code=502, detail=f"Переработка не удалась: {err}")
-    json_log({"type": "content_queue_reprocessed", "request_id": rid, "publication_id": publication_id})
+    background_tasks.add_task(_corporate_refine_bg, publication_id)
+    json_log({"type": "content_queue_reprocess_queued", "request_id": rid, "publication_id": publication_id})
     return SimpleOkResponse(ok=True, request_id=rid)
 
 
@@ -363,8 +374,12 @@ class CorporateSaveResponse(SimpleOkResponse):
 
 
 @router.post("/corporate/save", response_model=CorporateSaveResponse, dependencies=[Depends(_require_admin_auth)])
-async def corporate_save(request: Request, body: CorporateNewsRequest) -> CorporateSaveResponse:
-    """Черновик в очередь согласования; refine (LLM + плоский текст) выполняется сразу в этом запросе."""
+async def corporate_save(
+    request: Request,
+    body: CorporateNewsRequest,
+    background_tasks: BackgroundTasks,
+) -> CorporateSaveResponse:
+    """Черновик в очередь; LLM-refine в фоне (иначе nginx отдаёт 504 на длинном RouterAI)."""
     rid = getattr(request.state, "request_id", uuid.uuid4().hex)
     config.ensure_data_dirs()
     pub_id = next_publication_id()
@@ -383,39 +398,39 @@ async def corporate_save(request: Request, body: CorporateNewsRequest) -> Corpor
         pinned=bool(body.pinned),
     )
     save_item(item)
-    # Обработка сразу в web-процессе: не зависим от Redis/content-worker (иначе в очереди остаётся сырой md).
-    await refine_corporate_item_by_id(pub_id)
+    background_tasks.add_task(_corporate_refine_bg, pub_id)
     json_log({"type": "content_corporate_saved", "request_id": rid, "publication_id": pub_id})
     return CorporateSaveResponse(ok=True, request_id=rid, publication_id=pub_id)
 
 
 @router.post("/corporate/publish", response_model=ApproveResponse, dependencies=[Depends(_require_admin_auth)])
 async def corporate_publish(request: Request, body: CorporateNewsRequest) -> ApproveResponse:
-    """Сразу на сайт и ВК; при пустом vk_text используется текст сайта для обоих каналов."""
+    """Сразу на сайт и ВК: синхронно снимаем Markdown (без LLM), чтобы не было 504; тон ВК можно доработать в очереди."""
     rid = getattr(request.state, "request_id", uuid.uuid4().hex)
     config.ensure_data_dirs()
-    vk = (body.vk_text or "").strip() or body.site_text.strip()
-    if len(vk) < 10:
+    site_raw = body.site_text.strip()
+    vk_raw = (body.vk_text or "").strip() or site_raw
+    if len(vk_raw) < 10:
         raise HTTPException(status_code=400, detail="Текст для публикации слишком короткий")
-    pub_id = next_publication_id()
-    site_s = body.site_text.strip()
+    site_s = strip_markdown_public(site_raw)
+    vk_s = strip_markdown_public(vk_raw)
+    if len(vk_s) < 10:
+        vk_s = site_s
     title_e = (body.title or "").strip() or title_fallback_from_site_text(site_s)
+    pub_id = next_publication_id()
     item = ContentItem(
         publication_id=pub_id,
         created_at_utc=datetime.now(timezone.utc).replace(microsecond=0).isoformat(),
         status="pending",
         title=title_e,
         site_text=site_s,
-        vk_text=vk,
+        vk_text=vk_s,
         internal_note=("corporate_portal_publish\n" + (body.internal_note or "").strip()).strip(),
         sources=[s.strip() for s in body.sources if s and str(s).strip()],
         pinned=bool(body.pinned),
     )
     save_item(item)
     json_log({"type": "content_corporate_publish", "request_id": rid, "publication_id": pub_id})
-    ok, err = await refine_corporate_item_by_id(pub_id)
-    if not ok:
-        raise HTTPException(status_code=502, detail=f"Не удалось подготовить текст для публикации: {err}")
     data = await approve_publication_by_id(request_id=rid, publication_id=pub_id)
     json_log({"type": "content_corporate_publish_done", "request_id": rid, "publication_id": pub_id})
     return ApproveResponse(**data)

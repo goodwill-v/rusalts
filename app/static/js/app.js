@@ -444,7 +444,35 @@ async function initPublApprov() {
   const approveAllBtn = root.querySelector("[data-approv-approve-all]");
   const pubList = root.querySelector("[data-published-list]");
   const corpStatus = root.querySelector("[data-corp-status]");
+  const processingBanner = root.querySelector("[data-approv-processing-banner]");
+  let processingBannerTimer = null;
   if (!list) return;
+
+  const hideProcessingWait = () => {
+    if (processingBannerTimer) {
+      clearTimeout(processingBannerTimer);
+      processingBannerTimer = null;
+    }
+    if (processingBanner) {
+      processingBanner.textContent = "";
+      processingBanner.hidden = true;
+    }
+  };
+
+  const showProcessingWait = () => {
+    if (!processingBanner) return;
+    processingBanner.textContent =
+      "Дождитесь завершения обработки (обычно 15–40 с). Не сохраняйте и не публикуйте материал в очереди, пока текст не обновится после нажатия «Обновить» — иначе можно прервать цепочку согласования.";
+    processingBanner.hidden = false;
+    if (processingBannerTimer) clearTimeout(processingBannerTimer);
+    processingBannerTimer = setTimeout(() => {
+      processingBannerTimer = null;
+      if (processingBanner) {
+        processingBanner.hidden = true;
+        processingBanner.textContent = "";
+      }
+    }, 120000);
+  };
 
   const loadPublished = async () => {
     if (!pubList) return;
@@ -467,7 +495,9 @@ async function initPublApprov() {
     return Array.from(pubList.querySelectorAll('input[type="checkbox"][name="pub"]:checked')).map((el) => el.value);
   };
 
-  const load = async () => {
+  const load = async (opts = {}) => {
+    const clearProcessingBanner = opts.clearProcessingBanner !== false;
+    if (clearProcessingBanner) hideProcessingWait();
     if (status) status.textContent = "Загрузка…";
     const data = await fetchJson("/api/content/queue");
     const items = Array.isArray(data.items) ? data.items : [];
@@ -559,7 +589,8 @@ async function initPublApprov() {
       });
       clearCorpForm(root);
       if (corpStatus) corpStatus.textContent = "Отправлено в очередь согласования.";
-      await load();
+      showProcessingWait();
+      await load({ clearProcessingBanner: false });
     } catch (e) {
       if (corpStatus) corpStatus.textContent = `Ошибка: ${errText(e)}`;
     }
@@ -591,7 +622,11 @@ async function initPublApprov() {
     }
   });
 
-  refreshBtn?.addEventListener("click", () => load().catch((e) => (status.textContent = `Ошибка: ${errText(e)}`)));
+  refreshBtn?.addEventListener("click", () =>
+    load().catch((e) => {
+      if (status) status.textContent = `Ошибка: ${errText(e)}`;
+    }),
+  );
   approveAllBtn?.addEventListener("click", async () => {
     try {
       if (status) status.textContent = "Одобряем все…";
@@ -620,8 +655,9 @@ async function initPublApprov() {
       if (st) st.textContent = "…";
       if (btn.hasAttribute("data-action-reprocess")) {
         await fetchJson(`/api/content/queue/${encodeURIComponent(pubId)}/reprocess`, { method: "POST" });
-        if (st) st.textContent = "Переработано.";
-        await load();
+        if (st) st.textContent = "Запущено. Обновите список через 15–40 с.";
+        showProcessingWait();
+        await load({ clearProcessingBanner: false });
         return;
       }
       if (btn.hasAttribute("data-action-save")) {

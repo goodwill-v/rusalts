@@ -4,7 +4,9 @@ import json
 from datetime import datetime, timezone
 
 from app import config
+from app.content_excerpt import title_fallback_from_site_text
 from app.content_store import load_item, set_status, update_item
+from app.markdown_plain import strip_markdown_public
 from app.observability import json_log
 from app.publishers.site import publish_to_site
 from app.publishers.vk import publish_to_vk
@@ -29,6 +31,19 @@ async def approve_publication_by_id(*, request_id: str, publication_id: str) -> 
     """
     set_status(publication_id, status="approved", message_id="web_approved")
     it = load_item(publication_id)
+
+    site_c = strip_markdown_public(it.site_text or "")
+    vk_c = strip_markdown_public((it.vk_text or "").strip() or site_c)
+    if len(vk_c) < 10:
+        vk_c = site_c
+    title_c = title_fallback_from_site_text(site_c)
+    if (
+        site_c != (it.site_text or "").strip()
+        or vk_c != (it.vk_text or "").strip()
+        or title_c != (it.title or "").strip()
+    ):
+        update_item(publication_id, site_text=site_c, vk_text=vk_c, title=title_c)
+        it = load_item(publication_id)
 
     _append_feedback(
         publication_id=publication_id,
