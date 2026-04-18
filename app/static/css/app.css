@@ -874,6 +874,49 @@ code {
   margin-top: 0.75rem;
 }
 
+.approv-section-title {
+  font-size: 1.1rem;
+  font-weight: 700;
+  color: var(--site-heading);
+  margin: 0 0 0.75rem;
+}
+
+.approv--corporate {
+  margin-bottom: 1.5rem;
+}
+
+.approv__published-tools {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  margin: 0.75rem 0 1rem;
+}
+
+.approv__published {
+  display: grid;
+  gap: 0.35rem;
+  margin-bottom: 1.25rem;
+  max-height: 22rem;
+  overflow: auto;
+  padding: 0.35rem 0;
+}
+
+.approv-published-row {
+  display: flex;
+  align-items: center;
+  gap: 0.65rem;
+  padding: 0.45rem 0.6rem;
+  border-radius: 10px;
+  border: 1px solid rgba(17, 24, 39, 0.08);
+  background: rgba(255, 255, 255, 0.65);
+  font-size: 0.95rem;
+  cursor: pointer;
+}
+
+.approv-published-row input {
+  flex-shrink: 0;
+}
+
 .alt-surface {
   background: var(--site-surface-alt);
 }

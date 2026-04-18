@@ -27,8 +27,9 @@ from app.content_store import (
     update_item,
 )
 from app.observability import json_log
-from app.publishers.site import get_site_markdown, publish_to_site
+from app.publishers.site import get_site_markdown, publish_to_site, remove_site_publications, set_site_publications_pinned
 from app.publishers.vk import publish_to_vk
+from app.queue_bus import publish_content_job
 
 
 router = APIRouter(prefix="/api/content", tags=["content"])
@@ -169,6 +170,66 @@ class ApproveResponse(SimpleOkResponse):
     last_publish_error: str | None = None
 
 
+async def _approve_and_publish_item(*, rid: str, publication_id: str) -> ApproveResponse:
+    """Общая логика кнопки «Опубликовать» в веб-очереди и мгновенной публикации с /publapprov."""
+    if not _ID_RE.match(publication_id):
+        raise HTTPException(status_code=400, detail="Некорректный ID")
+    if not item_exists(publication_id):
+        raise HTTPException(status_code=404, detail="Не найдено")
+
+    set_status(publication_id, status="approved", message_id="web_approved")
+    it = load_item(publication_id)
+
+    _append_feedback(
+        publication_id=publication_id,
+        payload={
+            "approved_at_utc": datetime.now(timezone.utc).replace(microsecond=0).isoformat(),
+            "title": it.title,
+            "site_text": it.site_text,
+            "vk_text": it.vk_text,
+            "sources": it.sources,
+            "pinned": bool(getattr(it, "pinned", False)),
+        },
+    )
+
+    site_published = False
+    vk_published = False
+    if not it.site_published_at_utc:
+        pub_at, url_path = publish_to_site(it)
+        update_item(publication_id, site_published_at_utc=pub_at, site_url=url_path, last_publish_error=None)
+        site_published = True
+
+    it = load_item(publication_id)
+    if not it.vk_published_at_utc:
+        try:
+            pub_at, post_id, post_url = await publish_to_vk(it)
+            update_item(publication_id, vk_published_at_utc=pub_at, vk_post_id=post_id, vk_post_url=post_url, last_publish_error=None)
+            vk_published = True
+        except Exception as e:  # noqa: BLE001
+            update_item(publication_id, last_publish_error=str(e))
+
+    it2 = load_item(publication_id)
+    json_log(
+        {
+            "type": "content_approved_web",
+            "request_id": rid,
+            "publication_id": publication_id,
+            "site_published": site_published,
+            "vk_published": vk_published,
+            "last_publish_error": it2.last_publish_error,
+        }
+    )
+    return ApproveResponse(
+        ok=True,
+        request_id=rid,
+        publication_id=publication_id,
+        site_published=site_published or bool(it2.site_published_at_utc),
+        vk_published=vk_published or bool(it2.vk_published_at_utc),
+        vk_post_url=it2.vk_post_url,
+        last_publish_error=it2.last_publish_error,
+    )
+
+
 @router.put("/queue/{publication_id}", response_model=SimpleOkResponse, dependencies=[Depends(_require_admin_auth)])
 async def update_queue_item(request: Request, publication_id: str, body: UpdateQueueItemRequest) -> SimpleOkResponse:
     rid = getattr(request.state, "request_id", uuid.uuid4().hex)
@@ -218,64 +279,7 @@ def _append_feedback(*, publication_id: str, payload: dict) -> None:
 @router.post("/queue/{publication_id}/approve", response_model=ApproveResponse, dependencies=[Depends(_require_admin_auth)])
 async def approve(request: Request, publication_id: str) -> ApproveResponse:
     rid = getattr(request.state, "request_id", uuid.uuid4().hex)
-    if not _ID_RE.match(publication_id):
-        raise HTTPException(status_code=400, detail="Некорректный ID")
-    if not item_exists(publication_id):
-        raise HTTPException(status_code=404, detail="Не найдено")
-
-    # Approve + publish to site (and VK if configured)
-    set_status(publication_id, status="approved", message_id="web_approved")
-    it = load_item(publication_id)
-
-    # feedback for Content learning (best-effort)
-    _append_feedback(
-        publication_id=publication_id,
-        payload={
-            "approved_at_utc": datetime.now(timezone.utc).replace(microsecond=0).isoformat(),
-            "title": it.title,
-            "site_text": it.site_text,
-            "vk_text": it.vk_text,
-            "sources": it.sources,
-            "pinned": bool(getattr(it, "pinned", False)),
-        },
-    )
-
-    site_published = False
-    vk_published = False
-    if not it.site_published_at_utc:
-        pub_at, url_path = publish_to_site(it)
-        update_item(publication_id, site_published_at_utc=pub_at, site_url=url_path, last_publish_error=None)
-        site_published = True
-
-    it = load_item(publication_id)
-    if not it.vk_published_at_utc:
-        try:
-            pub_at, post_id, post_url = await publish_to_vk(it)
-            update_item(publication_id, vk_published_at_utc=pub_at, vk_post_id=post_id, vk_post_url=post_url, last_publish_error=None)
-            vk_published = True
-        except Exception as e:
-            update_item(publication_id, last_publish_error=str(e))
-
-    it2 = load_item(publication_id)
-    json_log(
-        {
-            "type": "content_approved_web",
-            "request_id": rid,
-            "publication_id": publication_id,
-            "site_published": site_published,
-            "vk_published": vk_published,
-            "last_publish_error": it2.last_publish_error,
-        }
-    )
-    return ApproveResponse(
-        ok=True,
-        request_id=rid,
-        publication_id=publication_id,
-        site_published=site_published or bool(it2.site_published_at_utc),
-        vk_published=vk_published or bool(it2.vk_published_at_utc),
-        vk_post_url=it2.vk_post_url,
-        last_publish_error=it2.last_publish_error,
-    )
+    return await _approve_and_publish_item(rid=rid, publication_id=publication_id)
 
 
 class ApproveAllResponse(SimpleOkResponse):
@@ -329,6 +333,106 @@ async def cancel(request: Request, publication_id: str) -> SimpleOkResponse:
         json_log({"type": "content_archive_purged", "request_id": rid, "removed": purged})
     json_log({"type": "content_cancelled_web", "request_id": rid, "publication_id": publication_id})
     return SimpleOkResponse(ok=True, request_id=rid)
+
+
+def _normalize_pub_ids(raw: list[str]) -> list[str]:
+    out: list[str] = []
+    for x in raw or []:
+        s = str(x or "").strip()
+        if _ID_RE.match(s):
+            out.append(s)
+    return out
+
+
+class SiteBatchIdsRequest(BaseModel):
+    publication_ids: list[str] = Field(default_factory=list, max_length=500)
+
+
+class SiteBatchPinRequest(SiteBatchIdsRequest):
+    pinned: bool = True
+
+
+class SiteBatchOpResponse(SimpleOkResponse):
+    affected: int
+
+
+@router.post("/site/batch-delete", response_model=SiteBatchOpResponse, dependencies=[Depends(_require_admin_auth)])
+async def site_batch_delete(request: Request, body: SiteBatchIdsRequest) -> SiteBatchOpResponse:
+    rid = getattr(request.state, "request_id", uuid.uuid4().hex)
+    ids = _normalize_pub_ids(body.publication_ids)
+    removed_count, _ = remove_site_publications(ids)
+    json_log({"type": "content_site_batch_delete", "request_id": rid, "removed": removed_count, "ids": ids})
+    return SiteBatchOpResponse(ok=True, request_id=rid, affected=removed_count)
+
+
+@router.post("/site/batch-pin", response_model=SiteBatchOpResponse, dependencies=[Depends(_require_admin_auth)])
+async def site_batch_pin(request: Request, body: SiteBatchPinRequest) -> SiteBatchOpResponse:
+    rid = getattr(request.state, "request_id", uuid.uuid4().hex)
+    ids = _normalize_pub_ids(body.publication_ids)
+    n = set_site_publications_pinned(ids, pinned=body.pinned)
+    json_log({"type": "content_site_batch_pin", "request_id": rid, "updated": n, "pinned": body.pinned, "ids": ids})
+    return SiteBatchOpResponse(ok=True, request_id=rid, affected=n)
+
+
+class CorporateNewsRequest(BaseModel):
+    title: str = Field(..., min_length=3, max_length=200)
+    site_text: str = Field(..., min_length=20, max_length=50_000)
+    vk_text: str = Field(default="", max_length=20_000)
+    internal_note: str = Field(default="", max_length=50_000)
+    sources: list[str] = Field(default_factory=list, max_length=50)
+    pinned: bool = False
+
+
+class CorporateSaveResponse(SimpleOkResponse):
+    publication_id: str
+
+
+@router.post("/corporate/save", response_model=CorporateSaveResponse, dependencies=[Depends(_require_admin_auth)])
+async def corporate_save(request: Request, body: CorporateNewsRequest) -> CorporateSaveResponse:
+    """Черновик в очередь согласования + задача content-worker (нормализация полей)."""
+    rid = getattr(request.state, "request_id", uuid.uuid4().hex)
+    config.ensure_data_dirs()
+    pub_id = next_publication_id()
+    item = ContentItem(
+        publication_id=pub_id,
+        created_at_utc=datetime.now(timezone.utc).replace(microsecond=0).isoformat(),
+        status="pending",
+        title=body.title.strip(),
+        site_text=body.site_text.strip(),
+        vk_text=(body.vk_text or "").strip(),
+        internal_note=("corporate_portal\n" + (body.internal_note or "").strip()).strip(),
+        sources=[s.strip() for s in body.sources if s and str(s).strip()],
+        pinned=bool(body.pinned),
+    )
+    save_item(item)
+    await publish_content_job(job_type="content.corporate_draft", payload={"publication_id": pub_id})
+    json_log({"type": "content_corporate_saved", "request_id": rid, "publication_id": pub_id})
+    return CorporateSaveResponse(ok=True, request_id=rid, publication_id=pub_id)
+
+
+@router.post("/corporate/publish", response_model=ApproveResponse, dependencies=[Depends(_require_admin_auth)])
+async def corporate_publish(request: Request, body: CorporateNewsRequest) -> ApproveResponse:
+    """Сразу на сайт и ВК; при пустом vk_text используется текст сайта для обоих каналов."""
+    rid = getattr(request.state, "request_id", uuid.uuid4().hex)
+    config.ensure_data_dirs()
+    vk = (body.vk_text or "").strip() or body.site_text.strip()
+    if len(vk) < 10:
+        raise HTTPException(status_code=400, detail="Текст для публикации слишком короткий")
+    pub_id = next_publication_id()
+    item = ContentItem(
+        publication_id=pub_id,
+        created_at_utc=datetime.now(timezone.utc).replace(microsecond=0).isoformat(),
+        status="pending",
+        title=body.title.strip(),
+        site_text=body.site_text.strip(),
+        vk_text=vk,
+        internal_note=("corporate_portal_publish\n" + (body.internal_note or "").strip()).strip(),
+        sources=[s.strip() for s in body.sources if s and str(s).strip()],
+        pinned=bool(body.pinned),
+    )
+    save_item(item)
+    json_log({"type": "content_corporate_publish", "request_id": rid, "publication_id": pub_id})
+    return await _approve_and_publish_item(rid=rid, publication_id=pub_id)
 
 
 @router.get("/site/index")

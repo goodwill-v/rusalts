@@ -40,11 +40,50 @@
     <h1 class="page-title">Публикации — согласование</h1>
     <div class="page-body">
       <div class="approv" data-publapprov>
+        <div class="approv-item approv--corporate" data-corp-panel>
+          <h2 class="approv-section-title">Публикация корпоративной новости</h2>
+          <div class="approv-item__head">
+            <div class="approv-item__flags">
+              <label class="approv-flag"><input type="checkbox" data-corp-pin /> Закрепить</label>
+            </div>
+          </div>
+          <label class="approv-label">Заголовок</label>
+          <input class="approv-input" type="text" data-corp-title placeholder="Заголовок" />
+          <div class="approv-grid">
+            <div class="approv-col">
+              <div class="approv-col__title">Сайт</div>
+              <textarea class="approv-textarea" rows="10" data-corp-site placeholder="Текст для сайта (Markdown)"></textarea>
+            </div>
+            <div class="approv-col">
+              <div class="approv-col__title">ВКонтакте</div>
+              <textarea class="approv-textarea" rows="10" data-corp-vk placeholder="Текст для ВК (если пусто — при «Сохранить» подставит воркер из текста сайта; при «Опубликовать» используется текст сайта)"></textarea>
+            </div>
+          </div>
+          <label class="approv-label">Источники (URL, по одному в строке)</label>
+          <textarea class="approv-textarea" rows="3" data-corp-sources style="min-height: 4.5rem"></textarea>
+          <label class="approv-label">Внутренняя заметка</label>
+          <textarea class="approv-textarea" rows="2" data-corp-note style="min-height: 3.5rem"></textarea>
+          <div class="approv-actions">
+            <button class="btn-site btn-site--primary" type="button" data-corp-save>Сохранить</button>
+            <button class="btn-site" type="button" data-corp-publish>Опубликовать</button>
+            <span class="muted-site" data-corp-status></span>
+          </div>
+        </div>
+
         <div class="approv__toolbar">
           <button class="btn-site btn-site--primary" type="button" data-approv-refresh>Обновить</button>
           <button class="btn-site" type="button" data-approv-approve-all>Одобрить всё</button>
           <span class="muted-site" data-approv-status></span>
         </div>
+
+        <p class="muted-site" style="margin: 0 0 0.35rem">Опубликованные новости на сайте: отметьте галочкой и нажмите «Удалить» или «Закрепить» / «Снять закрепление».</p>
+        <div class="approv__published-tools">
+          <button class="btn-site" type="button" data-site-batch-delete>Удалить</button>
+          <button class="btn-site" type="button" data-site-batch-pin>Закрепить</button>
+          <button class="btn-site" type="button" data-site-batch-unpin>Снять закрепление</button>
+        </div>
+        <div class="approv__published" data-published-list></div>
+
         <div class="approv__list" data-approv-list></div>
       </div>
     </div>

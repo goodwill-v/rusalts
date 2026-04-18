@@ -28,6 +28,63 @@ def _save_index(items: list[dict]) -> None:
     path.write_text(json.dumps(items, ensure_ascii=False, indent=2), encoding="utf-8")
 
 
+def _reorder_index(idx: list[dict]) -> list[dict]:
+    """Pinned first (newest first), then normal (newest first)."""
+    pinned = [x for x in idx if x.get("pinned")]
+    normal = [x for x in idx if not x.get("pinned")]
+    pinned.sort(key=lambda x: str(x.get("published_at_utc") or ""), reverse=True)
+    normal.sort(key=lambda x: str(x.get("published_at_utc") or ""), reverse=True)
+    return pinned + normal
+
+
+def remove_site_publications(publication_ids: list[str]) -> tuple[int, list[str]]:
+    """
+    Remove entries from site index and delete markdown files.
+    Returns (removed_index_entries_count, list of ids that had an index row removed).
+    """
+    idset = {str(x).strip() for x in publication_ids if str(x).strip()}
+    if not idset:
+        return 0, []
+    idx = _load_index()
+    removed_rows: list[str] = []
+    kept: list[dict] = []
+    for row in idx:
+        pid = str(row.get("publication_id") or "").strip()
+        if pid in idset:
+            removed_rows.append(pid)
+        else:
+            kept.append(row)
+
+    base = config.CONTENT_PUBLISHED_SITE_DIR.resolve()
+    for pid in idset:
+        md = (config.CONTENT_PUBLISHED_SITE_DIR / f"{pid}.md").resolve()
+        try:
+            md.relative_to(base)
+        except ValueError:
+            continue
+        if md.is_file():
+            md.unlink(missing_ok=True)
+
+    _save_index(_reorder_index(kept)[:500])
+    return len(removed_rows), removed_rows
+
+
+def set_site_publications_pinned(publication_ids: list[str], pinned: bool) -> int:
+    """Update pinned flag for given publication ids in site index. Returns count updated."""
+    idset = {str(x).strip() for x in publication_ids if str(x).strip()}
+    if not idset:
+        return 0
+    idx = _load_index()
+    n = 0
+    for row in idx:
+        pid = str(row.get("publication_id") or "").strip()
+        if pid in idset:
+            row["pinned"] = bool(pinned)
+            n += 1
+    _save_index(_reorder_index(idx)[:500])
+    return n
+
+
 def publish_to_site(item: ContentItem) -> tuple[str, str]:
     """
     Publishes item to local storage and returns (published_at_utc, url_path).
@@ -59,17 +116,7 @@ def publish_to_site(item: ContentItem) -> tuple[str, str]:
     if not replaced:
         idx.insert(0, meta)
 
-    # Keep pinned items at the top; within buckets: newest first.
-    def _k(x: dict) -> tuple[int, str]:
-        return (0 if x.get("pinned") else 1, str(x.get("published_at_utc") or ""))
-
-    idx.sort(key=_k)
-    # after sort: pinned first but oldest-first; reverse within bucket
-    pinned = [x for x in idx if x.get("pinned")]
-    normal = [x for x in idx if not x.get("pinned")]
-    pinned.sort(key=lambda x: str(x.get("published_at_utc") or ""), reverse=True)
-    normal.sort(key=lambda x: str(x.get("published_at_utc") or ""), reverse=True)
-    idx = pinned + normal
+    idx = _reorder_index(idx)
 
     _save_index(idx[:500])
     return pub_at, url_path

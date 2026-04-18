@@ -9,7 +9,15 @@ from pathlib import Path
 from urllib.parse import urlparse
 
 from app import config
-from app.content_store import ContentItem, load_item, next_publication_id, save_item, set_status, update_item
+from app.content_store import (
+    ContentItem,
+    item_exists,
+    load_item,
+    next_publication_id,
+    save_item,
+    set_status,
+    update_item,
+)
 from app.observability import json_log
 from app.publishers.site import publish_to_site
 from app.queue_bus import CONSUMER_NAME, GROUP_CONTENT, STREAM_CONTENT_JOBS, consume_one, ensure_groups, get_redis
@@ -340,6 +348,26 @@ async def _generate_texts(*, change_package_path: str, items: list[dict]) -> tup
     return title, site_text, vk_text, sources, model
 
 
+_ID5 = re.compile(r"^\d{5}$")
+
+
+async def handle_content_corporate_draft(*, payload: dict) -> None:
+    """Post-process ручной черновик с /publapprov: нормализация и лог (очередь согласования)."""
+    pub_id = str(payload.get("publication_id") or "").strip()
+    if not _ID5.match(pub_id) or not item_exists(pub_id):
+        json_log({"type": "content_corporate_draft_skip", "publication_id": pub_id, "reason": "missing_or_bad_id"})
+        return
+    it = load_item(pub_id)
+    if it.status not in ("pending", "needs_edit"):
+        json_log({"type": "content_corporate_draft_skip", "publication_id": pub_id, "reason": "not_in_queue"})
+        return
+    vk = (it.vk_text or "").strip()
+    site = (it.site_text or "").strip()
+    if not vk and site:
+        update_item(pub_id, vk_text=site)
+    json_log({"type": "content_corporate_draft_ok", "publication_id": pub_id})
+
+
 async def handle_content_from_change_package(*, payload: dict) -> None:
     config.ensure_data_dirs()
     change_package_path = str(payload.get("change_package_path") or "").strip()
@@ -431,6 +459,8 @@ async def main() -> None:
         try:
             if msg.type == "content.from_change_package":
                 await handle_content_from_change_package(payload=msg.payload)
+            elif msg.type == "content.corporate_draft":
+                await handle_content_corporate_draft(payload=msg.payload)
             else:
                 json_log({"type": "worker_unknown_msg", "worker": "content", "request_id": rid, "msg_type": msg.type})
             await r.xack(STREAM_CONTENT_JOBS, GROUP_CONTENT, msg_id)

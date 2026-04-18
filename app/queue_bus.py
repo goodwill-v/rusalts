@@ -88,10 +88,10 @@ async def publish_parser_job(*, payload: dict[str, Any]) -> str:
     return msg.id
 
 
-async def publish_content_job(*, payload: dict[str, Any]) -> str:
+async def publish_content_job(*, payload: dict[str, Any], job_type: str = "content.from_change_package") -> str:
     r = await get_redis()
     await ensure_groups(r)
-    msg = QueueMsg(id=uuid.uuid4().hex, type="content.from_change_package", ts_utc=_utc_now_iso(), payload=payload)
+    msg = QueueMsg(id=uuid.uuid4().hex, type=job_type, ts_utc=_utc_now_iso(), payload=payload)
     await r.xadd(STREAM_CONTENT_JOBS, _to_fields(msg), maxlen=10_000, approximate=True)
     return msg.id
 

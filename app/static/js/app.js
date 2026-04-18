@@ -187,8 +187,8 @@ function initNewsFilter() {
   });
 }
 
-async function fetchJson(url, opts) {
-  const res = await fetch(url, opts);
+async function fetchJson(url, opts = {}) {
+  const res = await fetch(url, { credentials: "same-origin", ...opts });
   const text = await res.text();
   let data = null;
   try {
@@ -388,6 +388,38 @@ function buildApprovalsItem(it) {
   return wrap;
 }
 
+function parseCorpSources(raw) {
+  return String(raw || "")
+    .split(/\n+/)
+    .map((s) => s.trim())
+    .filter(Boolean);
+}
+
+function clearCorpForm(root) {
+  const setv = (sel, v) => {
+    const el = root.querySelector(sel);
+    if (el) el.value = v;
+  };
+  setv("[data-corp-title]", "");
+  setv("[data-corp-site]", "");
+  setv("[data-corp-vk]", "");
+  setv("[data-corp-sources]", "");
+  setv("[data-corp-note]", "");
+  const pin = root.querySelector("[data-corp-pin]");
+  if (pin) pin.checked = false;
+}
+
+function buildPublishedRow(it) {
+  const row = document.createElement("label");
+  row.className = "approv-published-row";
+  const pubId = String(it.publication_id || "").trim();
+  const pubFmt = pubId.padStart(5, "0");
+  const dt = fmtDate(it.published_at_utc);
+  const pinMark = it.pinned ? " 📎" : "";
+  row.innerHTML = `<input type="checkbox" name="pub" value="${escapeHtml(pubFmt)}" /><span>${escapeHtml(dt)} (${escapeHtml(pubFmt)})${pinMark}</span>`;
+  return row;
+}
+
 async function initPublApprov() {
   const root = document.querySelector("[data-publapprov]");
   if (!root) return;
@@ -395,7 +427,30 @@ async function initPublApprov() {
   const status = root.querySelector("[data-approv-status]");
   const refreshBtn = root.querySelector("[data-approv-refresh]");
   const approveAllBtn = root.querySelector("[data-approv-approve-all]");
+  const pubList = root.querySelector("[data-published-list]");
+  const corpStatus = root.querySelector("[data-corp-status]");
   if (!list) return;
+
+  const loadPublished = async () => {
+    if (!pubList) return;
+    pubList.innerHTML = "";
+    try {
+      const idx = await fetchJson("/api/content/site/index");
+      const items = Array.isArray(idx.items) ? idx.items : [];
+      if (!items.length) {
+        pubList.innerHTML = '<p class="muted-site">Нет опубликованных новостей.</p>';
+        return;
+      }
+      items.forEach((it) => pubList.appendChild(buildPublishedRow(it)));
+    } catch (e) {
+      pubList.innerHTML = `<p class="muted-site">Не удалось загрузить список: ${escapeHtml(e?.message || e)}</p>`;
+    }
+  };
+
+  const selectedPubIds = () => {
+    if (!pubList) return [];
+    return Array.from(pubList.querySelectorAll('input[type="checkbox"][name="pub"]:checked')).map((el) => el.value);
+  };
 
   const load = async () => {
     if (status) status.textContent = "Загрузка…";
@@ -405,11 +460,121 @@ async function initPublApprov() {
     if (!items.length) {
       list.innerHTML = '<p class="muted-site">Очередь пуста.</p>';
       if (status) status.textContent = "";
+      await loadPublished();
       return;
     }
     items.forEach((it) => list.appendChild(buildApprovalsItem(it)));
     if (status) status.textContent = `Материалов: ${items.length}`;
+    await loadPublished();
   };
+
+  root.querySelector("[data-site-batch-delete]")?.addEventListener("click", async () => {
+    const ids = selectedPubIds();
+    if (!ids.length) {
+      if (status) status.textContent = "Отметьте новости для удаления.";
+      return;
+    }
+    try {
+      if (status) status.textContent = "Удаление…";
+      await fetchJson("/api/content/site/batch-delete", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ publication_ids: ids }),
+      });
+      if (status) status.textContent = "Удалено.";
+      await loadPublished();
+    } catch (e) {
+      if (status) status.textContent = `Ошибка: ${e?.message || e}`;
+    }
+  });
+
+  root.querySelector("[data-site-batch-pin]")?.addEventListener("click", async () => {
+    const ids = selectedPubIds();
+    if (!ids.length) {
+      if (status) status.textContent = "Отметьте новости для закрепления.";
+      return;
+    }
+    try {
+      if (status) status.textContent = "Закрепление…";
+      await fetchJson("/api/content/site/batch-pin", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ publication_ids: ids, pinned: true }),
+      });
+      if (status) status.textContent = "Закреплено.";
+      await loadPublished();
+    } catch (e) {
+      if (status) status.textContent = `Ошибка: ${e?.message || e}`;
+    }
+  });
+
+  root.querySelector("[data-site-batch-unpin]")?.addEventListener("click", async () => {
+    const ids = selectedPubIds();
+    if (!ids.length) {
+      if (status) status.textContent = "Отметьте новости для снятия закрепления.";
+      return;
+    }
+    try {
+      if (status) status.textContent = "Снятие закрепления…";
+      await fetchJson("/api/content/site/batch-pin", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ publication_ids: ids, pinned: false }),
+      });
+      if (status) status.textContent = "Готово.";
+      await loadPublished();
+    } catch (e) {
+      if (status) status.textContent = `Ошибка: ${e?.message || e}`;
+    }
+  });
+
+  root.querySelector("[data-corp-save]")?.addEventListener("click", async () => {
+    const title = root.querySelector("[data-corp-title]")?.value?.trim() || "";
+    const site_text = root.querySelector("[data-corp-site]")?.value?.trim() || "";
+    const vk_text = root.querySelector("[data-corp-vk]")?.value?.trim() || "";
+    const internal_note = root.querySelector("[data-corp-note]")?.value?.trim() || "";
+    const sources = parseCorpSources(root.querySelector("[data-corp-sources]")?.value);
+    const pinned = Boolean(root.querySelector("[data-corp-pin]")?.checked);
+    try {
+      if (corpStatus) corpStatus.textContent = "Сохранение…";
+      await fetchJson("/api/content/corporate/save", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ title, site_text, vk_text, internal_note, sources, pinned }),
+      });
+      clearCorpForm(root);
+      if (corpStatus) corpStatus.textContent = "Отправлено в очередь согласования.";
+      await load();
+    } catch (e) {
+      if (corpStatus) corpStatus.textContent = `Ошибка: ${e?.message || e}`;
+    }
+  });
+
+  root.querySelector("[data-corp-publish]")?.addEventListener("click", async () => {
+    const title = root.querySelector("[data-corp-title]")?.value?.trim() || "";
+    const site_text = root.querySelector("[data-corp-site]")?.value?.trim() || "";
+    const vk_text = root.querySelector("[data-corp-vk]")?.value?.trim() || "";
+    const internal_note = root.querySelector("[data-corp-note]")?.value?.trim() || "";
+    const sources = parseCorpSources(root.querySelector("[data-corp-sources]")?.value);
+    const pinned = Boolean(root.querySelector("[data-corp-pin]")?.checked);
+    try {
+      if (corpStatus) corpStatus.textContent = "Публикация…";
+      const res = await fetchJson("/api/content/corporate/publish", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ title, site_text, vk_text, internal_note, sources, pinned }),
+      });
+      clearCorpForm(root);
+      if (res?.last_publish_error) {
+        if (corpStatus) corpStatus.textContent = `Опубликовано с ошибкой: ${res.last_publish_error}`;
+      } else if (res?.vk_post_url) {
+        if (corpStatus) corpStatus.textContent = `Опубликовано. VK: ${res.vk_post_url}`;
+      } else if (corpStatus) corpStatus.textContent = "Опубликовано.";
+      await load();
+    } catch (e) {
+      if (corpStatus) corpStatus.textContent = `Ошибка: ${e?.message || e}`;
+    }
+  });
 
   refreshBtn?.addEventListener("click", () => load().catch((e) => (status.textContent = `Ошибка: ${e?.message || e}`)));
   approveAllBtn?.addEventListener("click", async () => {
