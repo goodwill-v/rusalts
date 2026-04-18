@@ -156,7 +156,7 @@ async def queue(request: Request) -> QueueResponse:
 class UpdateQueueItemRequest(BaseModel):
     title: str | None = Field(default=None, max_length=200)
     site_text: str | None = Field(default=None, min_length=20, max_length=50_000)
-    vk_text: str | None = Field(default=None, min_length=10, max_length=20_000)
+    vk_text: str | None = Field(default=None, max_length=20_000)
 
 
 class SimpleOkResponse(BaseModel):
@@ -206,7 +206,9 @@ async def update_queue_item(request: Request, publication_id: str, body: UpdateQ
     if new_site is not None:
         fields["site_text"] = new_site
     if new_vk is not None:
-        fields["vk_text"] = new_vk
+        site_for_vk = (new_site if new_site is not None else it.site_text).strip()
+        vk_eff = new_vk if len(new_vk) >= 10 else site_for_vk
+        fields["vk_text"] = vk_eff
     if body.title is not None:
         t = body.title.strip()
         fields["title"] = t or title_fallback_from_site_text(new_site or it.site_text)
@@ -350,13 +352,14 @@ async def corporate_save(request: Request, body: CorporateNewsRequest) -> Corpor
     pub_id = next_publication_id()
     site_s = body.site_text.strip()
     title_e = (body.title or "").strip() or title_fallback_from_site_text(site_s)
+    vk_s = (body.vk_text or "").strip() or site_s
     item = ContentItem(
         publication_id=pub_id,
         created_at_utc=datetime.now(timezone.utc).replace(microsecond=0).isoformat(),
         status="pending",
         title=title_e,
         site_text=site_s,
-        vk_text=(body.vk_text or "").strip(),
+        vk_text=vk_s,
         internal_note=("corporate_portal\n" + (body.internal_note or "").strip()).strip(),
         sources=[s.strip() for s in body.sources if s and str(s).strip()],
         pinned=bool(body.pinned),

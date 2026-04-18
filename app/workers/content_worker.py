@@ -294,8 +294,10 @@ async def refine_corporate_publication(it: ContentItem) -> tuple[str, str, str, 
     internal_note = str(obj.get("internal_note") or "").strip()
     internal_note = _clean_public_text(internal_note)
 
-    if not site_plain or not vk_plain:
+    if not site_plain:
         raise ValueError("LLM returned empty public text fields")
+    if len(vk_plain) < 10:
+        vk_plain = site_plain
     if site_plain.lstrip().startswith("{") or vk_plain.lstrip().startswith("{"):
         raise ValueError("LLM returned JSON-like public text")
 
@@ -564,8 +566,21 @@ async def refine_corporate_item_by_id(publication_id: str) -> tuple[bool, str]:
             continue
 
     if config.CONTENT_LLM_REQUIRED:
+        it = load_item(publication_id)
+        site_out = _strip_residual_markdown(it.site_text or "") or (it.site_text or "").strip()
+        vk_raw = (it.vk_text or "").strip() or site_out
+        vk_out = _strip_residual_markdown(vk_raw) or site_out
+        if len(vk_out) < 10:
+            vk_out = site_out
+        title_u = title_fallback_from_site_text(site_out)
+        update_item(
+            publication_id,
+            title=title_u,
+            site_text=site_out,
+            vk_text=vk_out,
+            last_publish_error=(err_s[:4000] if err_s else "refine failed"),
+        )
         set_status(publication_id, status="needs_edit", message_id="corporate_refine_failed")
-        update_item(publication_id, last_publish_error=(err_s[:4000] if err_s else "refine failed"))
         return False, err_s
 
     it = load_item(publication_id)
