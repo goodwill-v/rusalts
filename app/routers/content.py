@@ -26,10 +26,11 @@ from app.content_store import (
     set_status,
     update_item,
 )
+from app.content_publish_flow import approve_publication_by_id
 from app.observability import json_log
 from app.publishers.site import get_site_markdown, publish_to_site, remove_site_publications, set_site_publications_pinned
-from app.publishers.vk import publish_to_vk
 from app.queue_bus import publish_content_job
+from app.workers.content_worker import refine_corporate_item_by_id
 
 
 router = APIRouter(prefix="/api/content", tags=["content"])
@@ -176,58 +177,18 @@ async def _approve_and_publish_item(*, rid: str, publication_id: str) -> Approve
         raise HTTPException(status_code=400, detail="Некорректный ID")
     if not item_exists(publication_id):
         raise HTTPException(status_code=404, detail="Не найдено")
-
-    set_status(publication_id, status="approved", message_id="web_approved")
-    it = load_item(publication_id)
-
-    _append_feedback(
-        publication_id=publication_id,
-        payload={
-            "approved_at_utc": datetime.now(timezone.utc).replace(microsecond=0).isoformat(),
-            "title": it.title,
-            "site_text": it.site_text,
-            "vk_text": it.vk_text,
-            "sources": it.sources,
-            "pinned": bool(getattr(it, "pinned", False)),
-        },
-    )
-
-    site_published = False
-    vk_published = False
-    if not it.site_published_at_utc:
-        pub_at, url_path = publish_to_site(it)
-        update_item(publication_id, site_published_at_utc=pub_at, site_url=url_path, last_publish_error=None)
-        site_published = True
-
-    it = load_item(publication_id)
-    if not it.vk_published_at_utc:
-        try:
-            pub_at, post_id, post_url = await publish_to_vk(it)
-            update_item(publication_id, vk_published_at_utc=pub_at, vk_post_id=post_id, vk_post_url=post_url, last_publish_error=None)
-            vk_published = True
-        except Exception as e:  # noqa: BLE001
-            update_item(publication_id, last_publish_error=str(e))
-
-    it2 = load_item(publication_id)
+    data = await approve_publication_by_id(request_id=rid, publication_id=publication_id)
     json_log(
         {
             "type": "content_approved_web",
             "request_id": rid,
             "publication_id": publication_id,
-            "site_published": site_published,
-            "vk_published": vk_published,
-            "last_publish_error": it2.last_publish_error,
+            "site_published": data.get("site_published"),
+            "vk_published": data.get("vk_published"),
+            "last_publish_error": data.get("last_publish_error"),
         }
     )
-    return ApproveResponse(
-        ok=True,
-        request_id=rid,
-        publication_id=publication_id,
-        site_published=site_published or bool(it2.site_published_at_utc),
-        vk_published=vk_published or bool(it2.vk_published_at_utc),
-        vk_post_url=it2.vk_post_url,
-        last_publish_error=it2.last_publish_error,
-    )
+    return ApproveResponse(**data)
 
 
 @router.put("/queue/{publication_id}", response_model=SimpleOkResponse, dependencies=[Depends(_require_admin_auth)])
@@ -261,19 +222,6 @@ async def toggle_pin(request: Request, publication_id: str) -> SimpleOkResponse:
     update_item(publication_id, pinned=(not bool(getattr(it, "pinned", False))))
     json_log({"type": "content_queue_item_pinned_toggled", "request_id": rid, "publication_id": publication_id})
     return SimpleOkResponse(ok=True, request_id=rid)
-
-
-def _append_feedback(*, publication_id: str, payload: dict) -> None:
-    try:
-        config.ensure_data_dirs()
-        path = (config.MONITORING_DIR / "content_approvals_feedback.jsonl").resolve()
-        line = json.dumps({"publication_id": publication_id, **payload}, ensure_ascii=False)
-        path.parent.mkdir(parents=True, exist_ok=True)
-        with path.open("a", encoding="utf-8") as f:
-            f.write(line + "\n")
-    except Exception:
-        # best-effort only
-        pass
 
 
 @router.post("/queue/{publication_id}/approve", response_model=ApproveResponse, dependencies=[Depends(_require_admin_auth)])
@@ -432,7 +380,12 @@ async def corporate_publish(request: Request, body: CorporateNewsRequest) -> App
     )
     save_item(item)
     json_log({"type": "content_corporate_publish", "request_id": rid, "publication_id": pub_id})
-    return await _approve_and_publish_item(rid=rid, publication_id=pub_id)
+    ok, err = await refine_corporate_item_by_id(pub_id)
+    if not ok:
+        raise HTTPException(status_code=502, detail=f"Не удалось подготовить текст для публикации: {err}")
+    data = await approve_publication_by_id(request_id=rid, publication_id=pub_id)
+    json_log({"type": "content_corporate_publish_done", "request_id": rid, "publication_id": pub_id})
+    return ApproveResponse(**data)
 
 
 @router.get("/site/index")

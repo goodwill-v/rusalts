@@ -7,7 +7,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 import pytest
 
-from app.workers.content_worker import _extract_json_object
+from app.workers.content_worker import _extract_json_object, _strip_residual_markdown
 
 
 def test_extract_json_direct() -> None:
@@ -35,4 +35,22 @@ def test_extract_json_brace_window() -> None:
 def test_extract_json_raises_on_empty() -> None:
     with pytest.raises(Exception):
         _extract_json_object("")
+
+
+def test_strip_residual_markdown_headers_and_bold() -> None:
+    raw = "## Заголовок\n\n**жирный** и `код`"
+    out = _strip_residual_markdown(raw)
+    assert "##" not in out
+    assert "**" not in out
+    assert "`" not in out
+    assert "Заголовок" in out
+    assert "жирный" in out
+    assert "код" in out
+
+
+def test_strip_residual_markdown_link() -> None:
+    out = _strip_residual_markdown("См. [пример](https://a.ru/b)")
+    assert "[" not in out
+    assert "пример" in out
+    assert "https://a.ru/b" in out
 

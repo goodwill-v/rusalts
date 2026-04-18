@@ -18,6 +18,7 @@ from app.content_store import (
     set_status,
     update_item,
 )
+from app.content_publish_flow import approve_publication_by_id
 from app.observability import json_log
 from app.publishers.site import publish_to_site
 from app.queue_bus import CONSUMER_NAME, GROUP_CONTENT, STREAM_CONTENT_JOBS, consume_one, ensure_groups, get_redis
@@ -151,6 +152,150 @@ def _clean_public_text(s: str) -> str:
     # Normalize whitespace
     t = "\n".join(line.rstrip() for line in t.splitlines()).strip()
     return t
+
+
+def _strip_residual_markdown(s: str) -> str:
+    """
+    Публичные поля корпоративных новостей — обычный текст (сайт и ВК не рендерят Markdown).
+    Снимаем типичные остатки разметки, если модель их вернула.
+    """
+    t = _clean_public_text(s)
+    if not t:
+        return ""
+    t = re.sub(r"(?m)^#{1,6}\s+", "", t)
+    t = re.sub(r"\*\*([^*]+)\*\*", r"\1", t)
+    t = re.sub(r"`([^`]+)`", r"\1", t)
+    t = re.sub(r"\[([^\]]+)\]\((https?://[^)\s]+)\)", r"\1 — \2", t)
+    t = "\n".join(line.rstrip() for line in t.splitlines()).strip()
+    t = re.sub(r"\n{3,}", "\n\n", t).strip()
+    return t
+
+
+async def refine_corporate_publication(it: ContentItem) -> tuple[str, str, str, str, str]:
+    """
+    Творческая обработка черновика с портала: два канала, без Markdown и служебных инструкций в публичных полях.
+    Возвращает: title, site_plain, vk_plain, internal_note, model.
+    """
+    raw_site = (it.site_text or "").strip()
+    raw_vk = (it.vk_text or "").strip() or raw_site
+    sources = [str(u).strip() for u in (it.sources or []) if str(u).strip()]
+    sources_for_prompt = [{"label": _domain_label(u), "url": u} for u in sources[:20]]
+
+    choice = content_choice(has_legal=False, main=config.CONTENT_MODEL_MAIN, heavy=config.CONTENT_MODEL_HEAVY)
+    model = choice.model
+
+    payload = {
+        "title_in": (it.title or "").strip(),
+        "site_draft": raw_site,
+        "vk_draft": raw_vk,
+        "sources": sources_for_prompt,
+        "rules": {
+            "no_markdown_in_public": True,
+            "no_prefix_announce": True,
+            "no_technical_meta_in_public": True,
+            "tone_site": "официально-деловой, экспертный, нейтральный, как новость на корпоративном сайте",
+            "tone_vk": "живой, вовлекающий, короткие абзацы, умеренные эмодзи, призыв и хэштеги в конце",
+        },
+        "output": {
+            "title": "string (3..120)",
+            "site_text_plain": "string (plain text only, no # ** ` []() markdown)",
+            "vk_text_plain": "string (plain text only)",
+            "internal_note": "string (PRIVATE, факты для редактора, без фраз про «тон выдержан»)",
+        },
+    }
+
+    messages = [
+        {
+            "role": "system",
+            "content": (
+                "Ты редактор корпоративных коммуникаций АЛТ. На вход — черновик с портала согласования; "
+                "на выход — готовые тексты для публикации. Публичные поля должны быть обычным русским текстом: "
+                "никаких символов Markdown (#, **, `, []()), никаких JSON-блоков и служебных инструкций. "
+                "Переформулируй сухие технические списки в связный публицистический текст по смыслу, без выдуманных фактов."
+            ),
+        },
+        {
+            "role": "user",
+            "content": (
+                "Сгенерируй результат строго как ОДИН JSON-объект, без ```json``` и без текста вокруг.\n"
+                "Требования:\n"
+                "- Заголовок `title`: информативный, без кавычек-ёлочек вокруг всей строки, можно короткое уточнение в кавычках внутри.\n"
+                "- `site_text_plain`: статья для сайта, абзацы, без эмодзи. Убери префиксы вроде «Анонс:», «##», технические заголовки-шаблоны. "
+                "Не копируй дословно канцелярит инструкций; перескажи для читателя.\n"
+                "  - Если ровно один URL в sources: последняя отдельная строка «Источник: <label> — <url>».\n"
+                "  - Если несколько: вплети ссылки естественно: «<label> — https://...» по ходу или в конце списком строками.\n"
+                "- `vk_text_plain`: версия для ВКонтакте: динамично, 2–3 строки на абзац, умеренные эмодзи (🔹✅⚠️), "
+                "первый абзац — цепляющий анонс (до ~220 знаков), в конце призыв и хэштеги #АЛТ #МАХ #ЗаконыИТ.\n"
+                "- `internal_note`: только факты/ограничения для редакции; не дублируй публичный текст.\n\n"
+                f"Входные данные:\n{json.dumps(payload, ensure_ascii=False)}"
+            ),
+        },
+    ]
+
+    text, usage, _raw = await chat_completion(
+        base_url=config.ROUTERAI_BASE_URL,
+        api_key=config.ROUTERAI_API_KEY,
+        model=model,
+        messages=messages,
+        timeout_s=90.0,
+    )
+    json_log(
+        {
+            "type": "routerai_usage",
+            "request_id": uuid.uuid4().hex,
+            "model": usage.model,
+            "tokens_in": usage.input_tokens,
+            "tokens_out": usage.output_tokens,
+            "cost_usd": usage.cost_usd,
+            "purpose": "content_refine_corporate",
+            "routing_reason": choice.reason,
+        }
+    )
+
+    try:
+        obj = _extract_json_object(str(text))
+    except Exception:
+        if config.CONTENT_MODEL_HEAVY and model != config.CONTENT_MODEL_HEAVY:
+            choice2 = content_choice(has_legal=True, main=config.CONTENT_MODEL_MAIN, heavy=config.CONTENT_MODEL_HEAVY)
+            text2, usage2, _raw2 = await chat_completion(
+                base_url=config.ROUTERAI_BASE_URL,
+                api_key=config.ROUTERAI_API_KEY,
+                model=choice2.model,
+                messages=messages,
+                timeout_s=120.0,
+            )
+            json_log(
+                {
+                    "type": "routerai_usage",
+                    "request_id": uuid.uuid4().hex,
+                    "model": usage2.model,
+                    "tokens_in": usage2.input_tokens,
+                    "tokens_out": usage2.output_tokens,
+                    "cost_usd": usage2.cost_usd,
+                    "purpose": "content_refine_corporate_retry",
+                    "routing_reason": "json_extract_failed",
+                }
+            )
+            obj = _extract_json_object(str(text2))
+            model = choice2.model
+        else:
+            raise
+
+    if not isinstance(obj, dict):
+        raise ValueError("LLM output is not a JSON object")
+
+    title = _strip_residual_markdown(str(obj.get("title") or it.title or "").strip())
+    site_plain = _strip_residual_markdown(str(obj.get("site_text_plain") or "")).strip()
+    vk_plain = _strip_residual_markdown(str(obj.get("vk_text_plain") or "")).strip()
+    internal_note = str(obj.get("internal_note") or "").strip()
+    internal_note = _clean_public_text(internal_note)
+
+    if not title or not site_plain or not vk_plain:
+        raise ValueError("LLM returned empty public text fields")
+    if site_plain.lstrip().startswith("{") or vk_plain.lstrip().startswith("{"):
+        raise ValueError("LLM returned JSON-like public text")
+
+    return title, site_plain, vk_plain, internal_note, model
 
 
 def _fallback_publication(*, change_package_path: str, items: list[dict], error: str) -> tuple[str, str, str, list[str], str]:
@@ -351,21 +496,99 @@ async def _generate_texts(*, change_package_path: str, items: list[dict]) -> tup
 _ID5 = re.compile(r"^\d{5}$")
 
 
+async def refine_corporate_item_by_id(publication_id: str) -> tuple[bool, str]:
+    """
+    Обработка корпоративного черновика: LLM (или снятие Markdown при отключённой обязательности LLM).
+    Возвращает (успех, сообщение об ошибке при неуспехе).
+    """
+    if not _ID5.match(publication_id) or not item_exists(publication_id):
+        return False, "missing_or_bad_id"
+    it0 = load_item(publication_id)
+    if it0.status not in ("pending", "needs_edit"):
+        return False, "not_in_queue"
+
+    max_attempts = 4 if config.CONTENT_LLM_REQUIRED else 1
+    err_s = ""
+    for attempt in range(1, max_attempts + 1):
+        it = load_item(publication_id)
+        try:
+            title, site_plain, vk_plain, note_llm, used_model = await refine_corporate_publication(it)
+            merged_note = (it.internal_note or "").strip()
+            if merged_note:
+                merged_note += "\n"
+            merged_note += f"refined | model={used_model}"
+            if note_llm:
+                merged_note += "\n" + note_llm
+            merged_note = merged_note[:50_000]
+            update_item(
+                publication_id,
+                title=title,
+                site_text=site_plain,
+                vk_text=vk_plain,
+                internal_note=merged_note,
+                last_publish_error=None,
+            )
+            if it.status == "needs_edit":
+                set_status(publication_id, status="pending", message_id="corporate_refined")
+            json_log({"type": "content_corporate_refined", "publication_id": publication_id, "model": used_model})
+            return True, ""
+        except RouterAIError as e:
+            err_s = str(e) or "RouterAI request failed"
+            json_log(
+                {
+                    "type": "content_corporate_refine_routerai",
+                    "publication_id": publication_id,
+                    "attempt": attempt,
+                    "max_attempts": max_attempts,
+                    "error": err_s,
+                }
+            )
+        except Exception as e:  # noqa: BLE001
+            err_s = str(e) or "corporate refine failed"
+            json_log(
+                {
+                    "type": "content_corporate_refine_failed",
+                    "publication_id": publication_id,
+                    "attempt": attempt,
+                    "max_attempts": max_attempts,
+                    "error": err_s,
+                }
+            )
+        if attempt < max_attempts:
+            await asyncio.sleep(2.0**attempt)
+            continue
+
+    if config.CONTENT_LLM_REQUIRED:
+        set_status(publication_id, status="needs_edit", message_id="corporate_refine_failed")
+        update_item(publication_id, last_publish_error=(err_s[:4000] if err_s else "refine failed"))
+        return False, err_s
+
+    it = load_item(publication_id)
+    site_f = _strip_residual_markdown(it.site_text or "")
+    vk_raw = (it.vk_text or "").strip() or (it.site_text or "")
+    vk_f = _strip_residual_markdown(vk_raw)
+    title_keep = (it.title or "").strip()
+    site_out = site_f or (it.site_text or "").strip()
+    vk_out = vk_f or site_out
+    update_item(publication_id, title=title_keep, site_text=site_out, vk_text=vk_out, last_publish_error=None)
+    if it.status == "needs_edit":
+        set_status(publication_id, status="pending", message_id="corporate_strip_only")
+    json_log({"type": "content_corporate_strip_fallback", "publication_id": publication_id})
+    return True, ""
+
+
 async def handle_content_corporate_draft(*, payload: dict) -> None:
-    """Post-process ручной черновик с /publapprov: нормализация и лог (очередь согласования)."""
+    """Корпоративный черновик: творческая обработка под каналы; опционально сразу публикация."""
     pub_id = str(payload.get("publication_id") or "").strip()
-    if not _ID5.match(pub_id) or not item_exists(pub_id):
-        json_log({"type": "content_corporate_draft_skip", "publication_id": pub_id, "reason": "missing_or_bad_id"})
+    auto_publish = bool(payload.get("auto_publish"))
+    ok, err = await refine_corporate_item_by_id(pub_id)
+    if not ok:
+        json_log({"type": "content_corporate_draft_fail", "publication_id": pub_id, "error": err})
         return
-    it = load_item(pub_id)
-    if it.status not in ("pending", "needs_edit"):
-        json_log({"type": "content_corporate_draft_skip", "publication_id": pub_id, "reason": "not_in_queue"})
-        return
-    vk = (it.vk_text or "").strip()
-    site = (it.site_text or "").strip()
-    if not vk and site:
-        update_item(pub_id, vk_text=site)
-    json_log({"type": "content_corporate_draft_ok", "publication_id": pub_id})
+    json_log({"type": "content_corporate_draft_ok", "publication_id": pub_id, "auto_publish": auto_publish})
+    if auto_publish:
+        await approve_publication_by_id(request_id=f"corp-auto-{pub_id}", publication_id=pub_id)
+        json_log({"type": "content_corporate_auto_published", "publication_id": pub_id})
 
 
 async def handle_content_from_change_package(*, payload: dict) -> None:

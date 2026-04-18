@@ -4,6 +4,18 @@
 
 const $ = (sel, root = document) => root.querySelector(sel);
 
+function errText(e) {
+  if (!e) return "Неизвестная ошибка";
+  if (typeof e === "string") return e;
+  if (e instanceof Error) return e.message || String(e);
+  if (typeof e?.message === "string") return e.message;
+  try {
+    return JSON.stringify(e);
+  } catch {
+    return String(e);
+  }
+}
+
 function appendMessage(log, role, text) {
   if (!log) return;
   const div = document.createElement("div");
@@ -197,7 +209,14 @@ async function fetchJson(url, opts = {}) {
     data = null;
   }
   if (!res.ok) {
-    const msg = (data && (data.detail || data.error)) || text || res.statusText;
+    let msg = (data && (data.detail || data.error)) || text || res.statusText;
+    if (typeof msg !== "string") {
+      try {
+        msg = JSON.stringify(msg);
+      } catch {
+        msg = String(msg);
+      }
+    }
     throw new Error(msg);
   }
   return data;
@@ -484,7 +503,7 @@ async function initPublApprov() {
       if (status) status.textContent = "Удалено.";
       await loadPublished();
     } catch (e) {
-      if (status) status.textContent = `Ошибка: ${e?.message || e}`;
+      if (status) status.textContent = `Ошибка: ${errText(e)}`;
     }
   });
 
@@ -504,7 +523,7 @@ async function initPublApprov() {
       if (status) status.textContent = "Закреплено.";
       await loadPublished();
     } catch (e) {
-      if (status) status.textContent = `Ошибка: ${e?.message || e}`;
+      if (status) status.textContent = `Ошибка: ${errText(e)}`;
     }
   });
 
@@ -524,7 +543,7 @@ async function initPublApprov() {
       if (status) status.textContent = "Готово.";
       await loadPublished();
     } catch (e) {
-      if (status) status.textContent = `Ошибка: ${e?.message || e}`;
+      if (status) status.textContent = `Ошибка: ${errText(e)}`;
     }
   });
 
@@ -546,7 +565,7 @@ async function initPublApprov() {
       if (corpStatus) corpStatus.textContent = "Отправлено в очередь согласования.";
       await load();
     } catch (e) {
-      if (corpStatus) corpStatus.textContent = `Ошибка: ${e?.message || e}`;
+      if (corpStatus) corpStatus.textContent = `Ошибка: ${errText(e)}`;
     }
   });
 
@@ -572,11 +591,11 @@ async function initPublApprov() {
       } else if (corpStatus) corpStatus.textContent = "Опубликовано.";
       await load();
     } catch (e) {
-      if (corpStatus) corpStatus.textContent = `Ошибка: ${e?.message || e}`;
+      if (corpStatus) corpStatus.textContent = `Ошибка: ${errText(e)}`;
     }
   });
 
-  refreshBtn?.addEventListener("click", () => load().catch((e) => (status.textContent = `Ошибка: ${e?.message || e}`)));
+  refreshBtn?.addEventListener("click", () => load().catch((e) => (status.textContent = `Ошибка: ${errText(e)}`)));
   approveAllBtn?.addEventListener("click", async () => {
     try {
       if (status) status.textContent = "Одобряем все…";
@@ -586,7 +605,7 @@ async function initPublApprov() {
       if (status) status.textContent = failed ? `Готово: ок=${approved}, с ошибками=${failed}` : `Готово: ок=${approved}`;
       await load();
     } catch (e) {
-      if (status) status.textContent = `Ошибка: ${e?.message || e}`;
+      if (status) status.textContent = `Ошибка: ${errText(e)}`;
     }
   });
 
@@ -649,7 +668,7 @@ async function initPublApprov() {
         if (st) st.textContent = "Сохранено (без публикации)";
       }
     } catch (e) {
-      if (st) st.textContent = `Ошибка: ${e?.message || e}`;
+      if (st) st.textContent = `Ошибка: ${errText(e)}`;
     }
   });
 
