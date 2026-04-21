@@ -147,6 +147,72 @@ def _strip_residual_markdown(s: str) -> str:
     return strip_markdown_public(s)
 
 
+def _load_recent_publications(*, limit: int = 12) -> list[dict]:
+    """
+    Берём последние опубликованные записи (для анти-дубля и контекста редакции).
+    index.json ведётся в app.publishers.site.publish_to_site.
+    """
+    try:
+        path = config.CONTENT_PUBLISHED_SITE_INDEX_PATH
+        if not path.exists():
+            return []
+        data = json.loads(path.read_text(encoding="utf-8"))
+        if not isinstance(data, list):
+            return []
+        out: list[dict] = []
+        for row in data[: max(1, int(limit))]:
+            if not isinstance(row, dict):
+                continue
+            out.append(
+                {
+                    "publication_id": str(row.get("publication_id") or "").strip(),
+                    "published_at_utc": str(row.get("published_at_utc") or "").strip(),
+                    "title": str(row.get("title") or "").strip(),
+                    "excerpt": str(row.get("excerpt") or "").strip(),
+                    "url": str(row.get("url") or "").strip(),
+                    "sources": row.get("sources") or [],
+                }
+            )
+        return out
+    except Exception:
+        return []
+
+
+def _inject_inline_sources(site_text: str, sources: list[str]) -> str:
+    """
+    Требование: если источников несколько — вставлять ссылки по ходу текста.
+    Практически: если некоторых URL нет в тексте, добавляем их сразу после первого абзаца
+    как строки «домен — https://...». Если источник один — добавляем в конец.
+    """
+    text = (site_text or "").strip()
+    if not text:
+        return ""
+    urls = [str(u).strip() for u in (sources or []) if str(u).strip()]
+    urls = list(dict.fromkeys(urls))  # stable unique
+    if not urls:
+        return text
+
+    missing = [u for u in urls if u not in text]
+    if not missing:
+        return text
+
+    def _fmt(u: str) -> str:
+        return f"{_domain_label(u)} — {u}"
+
+    if len(urls) == 1:
+        # Один источник — в конец
+        return (text + "\n\n" + _fmt(urls[0])).strip()
+
+    # Несколько источников — сразу после первого абзаца
+    parts = text.split("\n\n", 1)
+    first = parts[0].strip()
+    rest = parts[1].strip() if len(parts) > 1 else ""
+    links_block = "\n".join(_fmt(u) for u in missing[:10]).strip()
+    if rest:
+        return (first + "\n\n" + links_block + "\n\n" + rest).strip()
+    return (first + "\n\n" + links_block).strip()
+
+
 async def refine_corporate_publication(it: ContentItem) -> tuple[str, str, str, str, str]:
     """
     Творческая обработка черновика с портала: два канала, без Markdown и служебных инструкций в публичных полях.
@@ -343,6 +409,7 @@ async def _generate_texts(*, change_package_path: str, items: list[dict]) -> tup
     items_aug = _augment_items(items)
     sources = sorted({str(it.get("source_url") or "").strip() for it in items_aug if it.get("source_url")})
     sources = [s for s in sources if s]
+    recent = _load_recent_publications(limit=12)
 
     has_legal = _is_legal(items_aug)
     choice = content_choice(has_legal=has_legal, main=config.CONTENT_MODEL_MAIN, heavy=config.CONTENT_MODEL_HEAVY)
@@ -354,12 +421,14 @@ async def _generate_texts(*, change_package_path: str, items: list[dict]) -> tup
         "change_package_path": change_package_path,
         "items": items_aug[:40],
         "sources": sources_for_prompt,
+        "recent_publications": recent[:12],
         "rules": {
             "no_legal_advice": True,
             "must_cite_sources": True,
             "tone_site": "официально-деловой, экспертный, нейтральный",
             "tone_vk": "динамичный, вовлекающий, экспертный но дружеский",
             "no_technical_notes_in_public_text": True,
+            "no_duplicate_story_against_recent": True,
         },
         "output": {
             "title": "string (служебное: начало первого абзаца site_text_md, до 100 знаков)",
@@ -391,10 +460,12 @@ async def _generate_texts(*, change_package_path: str, items: list[dict]) -> tup
                 "- `title`: одна строка = дословное начало первого абзаца `site_text_md` (до 100 знаков), только для служебного поля.\n"
                 "- САЙТ (`site_text_md`): официально-деловой стиль, без эмодзи, обычный текст (не Markdown).\n"
                 "  - Ссылки на первоисточники: без подписи «Источник:». Если официальный URL один — в конце текста естественная строка «<домен> — https://...».\n"
-                "  - Если источников несколько — впиши каждый URL в фразы по ходу или коротким списком строк, без Markdown-скобок []( ).\n"
+                "  - Если источников несколько — впиши КАЖДЫЙ URL по ходу текста (или блоком строк сразу после первого абзаца), без Markdown-скобок []( ).\n"
                 "  - Для регуляторных тем сохрани ссылку на официальный ресурс из входных данных, если он есть.\n"
                 "- ВК (`vk_text`): первый абзац — тот же крючок по смыслу, до ~200 знаков; далее абзацы по 2–3 строки, эмодзи умеренно (🔹✅⚠️); "
                 "в конце призыв и хэштеги #АЛТ #МАХ #ЗаконыИТ; ссылки как «домен — https://...».\n"
+                "- Анти-дубль: перед тобой `recent_publications` (последние публикации). Не повторяй уже опубликованную историю теми же формулировками. "
+                "Если новая публикация похожа на одну из recent — сфокусируйся только на новых фактах/обновлениях и явно отдели их от уже известного контекста.\n"
                 "- `internal_note`: только факты для редактора, без мета-комментариев про стиль.\n\n"
                 f"Входные данные:\n{json.dumps(prompt, ensure_ascii=False)}"
             ),
@@ -464,6 +535,7 @@ async def _generate_texts(*, change_package_path: str, items: list[dict]) -> tup
     internal_note = str(obj.get("internal_note") or internal_note).strip()
     site_text = _strip_residual_markdown(site_text)
     vk_text = _strip_residual_markdown(vk_text)
+    site_text = _inject_inline_sources(site_text, sources)
     title = title_fallback_from_site_text(site_text)
 
     # Minimal validation: public texts must not be empty and must not contain JSON braces-only dumps.

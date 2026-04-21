@@ -9,6 +9,9 @@ __pycache__/
 # Runtime данные (генерируются при работе)
 data/
 
+# Talk - файлы для общения с LLM
+talk/
+
 # Не игнорируем docs/ — они нужны в GitHub.
 # Agennts_instractions/ больше не используем (брифы уже в docs/agents).
 

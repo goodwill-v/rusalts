@@ -1,4 +1,5 @@
 created_at;model_name;creator_email;input_tokens;output_tokens;search_amount;amount
+21-04-2026 05:04:25;anthropic/claude-sonnet-4.6;akord@bk.ru;7162;2221;;5.3599816881
 20-04-2026 05:14:28;qwen/qwen3.6-plus;akord@bk.ru;4522;4347;;0.983386205165
 20-04-2026 05:07:48;qwen/qwen3.6-plus;akord@bk.ru;6214;4955;;1.15497430919
 20-04-2026 05:06:40;qwen/qwen3.6-plus;akord@bk.ru;6214;4187;;1.00690727111
