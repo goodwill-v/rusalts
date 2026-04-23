@@ -36,13 +36,18 @@ def _require_talk_key(request: Request) -> None:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Неверный ключ")
 
 
-def _pick_target(target: int) -> str:
-    urls = config.TALK_ALLOWED_URLS or []
-    if not urls:
-        raise HTTPException(status_code=500, detail="TALK_ALLOWED_URLS не настроен")
-    if target < 1 or target > len(urls):
-        raise HTTPException(status_code=400, detail="Некорректный target")
-    return urls[target - 1]
+def _relay_url() -> str:
+    url = (config.TALK_RELAY_URL or "").strip()
+    if not url:
+        raise HTTPException(status_code=500, detail="TALK_RELAY_URL не настроен")
+    return url
+
+
+def _relay_headers() -> dict[str, str]:
+    h: dict[str, str] = {}
+    if config.TALK_RELAY_APP_KEY:
+        h["X-App-Key"] = config.TALK_RELAY_APP_KEY
+    return h
 
 
 def _talk_dir() -> str:
@@ -82,17 +87,16 @@ async def ping(request: Request) -> dict:
 @router.post("/relay")
 async def relay(request: Request, payload: dict[str, Any]) -> dict[str, Any]:
     _require_talk_key(request)
-    target = int(payload.get("target") or 1)
-    url = _pick_target(target)
+    url = _relay_url()
     text = str(payload.get("text") or "").strip()
     if not text:
         raise HTTPException(status_code=400, detail="Пустой текст")
 
     try:
         async with httpx.AsyncClient(timeout=30) as client:
-            r = await client.post(url, json={"text": text})
+            r = await client.post(url, json={"text": text}, headers=_relay_headers())
     except httpx.RequestError as e:
-        raise HTTPException(status_code=502, detail=f"Не удалось подключиться к target{target}: {e}") from None
+        raise HTTPException(status_code=502, detail=f"Не удалось подключиться к боту: {e}") from None
 
     ct = (r.headers.get("content-type") or "").lower()
     raw = r.text
@@ -110,12 +114,11 @@ async def relay(request: Request, payload: dict[str, Any]) -> dict[str, Any]:
 @router.post("/relay-file")
 async def relay_file(
     request: Request,
-    target: int = Form(1),
     text: str = Form(""),
     file: UploadFile | None = File(default=None),
 ) -> dict[str, Any]:
     _require_talk_key(request)
-    url = _pick_target(int(target))
+    url = _relay_url()
     txt = (text or "").strip()
     if not (txt or file):
         raise HTTPException(status_code=400, detail="Нужно сообщение или файл")
@@ -128,9 +131,9 @@ async def relay_file(
     data = {"text": txt}
     try:
         async with httpx.AsyncClient(timeout=60) as client:
-            r = await client.post(url, data=data, files=files)
+            r = await client.post(url, data=data, files=files, headers=_relay_headers())
     except httpx.RequestError as e:
-        raise HTTPException(status_code=502, detail=f"Не удалось подключиться к target{target}: {e}") from None
+        raise HTTPException(status_code=502, detail=f"Не удалось подключиться к боту: {e}") from None
 
     ct = (r.headers.get("content-type") or "").lower()
     raw = r.text
@@ -142,6 +145,26 @@ async def relay_file(
         except Exception:
             return {"ok": True, "data": {"reply": raw}}
     return {"ok": True, "data": {"reply": raw}}
+
+
+@router.get("/upstream-health")
+async def upstream_health(request: Request) -> dict[str, Any]:
+    """Проверка связи АЛТ -> бот (без участия UI)."""
+    _require_talk_key(request)
+    url = _relay_url().rstrip("/") + "/health"
+    try:
+        async with httpx.AsyncClient(timeout=10) as client:
+            r = await client.get(url, headers=_relay_headers())
+            body = r.text
+            ct = (r.headers.get("content-type") or "").lower()
+            if "application/json" in ct:
+                try:
+                    return {"ok": True, "status": r.status_code, "data": r.json()}
+                except Exception:
+                    return {"ok": True, "status": r.status_code, "data": body[:2000]}
+            return {"ok": True, "status": r.status_code, "data": body[:2000]}
+    except httpx.RequestError as e:
+        raise HTTPException(status_code=502, detail=f"Не удалось подключиться к боту: {e}") from None
 
 
 @router.post("/incoming")

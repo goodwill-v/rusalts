@@ -85,11 +85,13 @@ CORS_ORIGINS = [o.strip() for o in _cors.split(",") if o.strip()]
 MAX_UPLOAD_BYTES = int(os.getenv("MAX_UPLOAD_BYTES", str(5 * 1024 * 1024)))
 DEBUG = os.getenv("DEBUG", "false").lower() in ("1", "true", "yes")
 
-# TALK (/talk) — отдельная скрытая страница для интеграций со сторонними приложениями.
-# Доступ по ключу; запросы к внешним приложениям — только по allowlist (через серверный прокси).
+# TALK (/talk) — отдельная скрытая страница для интеграций со сторонним приложением (ботом).
+# Доступ по ключу; АЛТ проксирует запросы к одному заданному URL.
 TALK_KEY = os.getenv("TALK_KEY", "").strip()
-_talk_allowed = os.getenv("TALK_ALLOWED_URLS", "").strip()
-TALK_ALLOWED_URLS = [u.strip() for u in _talk_allowed.split(",") if u.strip()]
+# URL приложения-бота (например: http://bot:9010/talk или http://host.docker.internal:19010/talk)
+TALK_RELAY_URL = os.getenv("TALK_RELAY_URL", "").strip()
+# Необязательный ключ до бота (передаётся в заголовке X-App-Key)
+TALK_RELAY_APP_KEY = os.getenv("TALK_RELAY_APP_KEY", "").strip()
 # Токен для сторонних приложений, которые ПУШат сообщения/файлы в /talk.
 # Если не задан — по умолчанию используется TALK_KEY.
 TALK_APP_TOKEN = os.getenv("TALK_APP_TOKEN", "").strip()

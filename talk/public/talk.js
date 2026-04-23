@@ -100,11 +100,8 @@ function autosize(ta) {
 }
 
 async function sendText({ text, file }) {
-  const targetEl = $("[data-talk-target]");
-  const target = Number(targetEl?.value || 1) || 1;
   if (file) {
     const fd = new FormData();
-    fd.append("target", String(target));
     fd.append("text", text || "");
     fd.append("file", file);
     return fetchJson("/api/talk/relay-file", { method: "POST", body: fd });
@@ -112,7 +109,7 @@ async function sendText({ text, file }) {
   return fetchJson("/api/talk/relay", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ target, text }),
+    body: JSON.stringify({ text }),
   });
 }
 
@@ -122,7 +119,6 @@ async function main() {
   const input = $("[data-talk-input]");
   const fileInput = $("[data-talk-file]");
   const toast = $("[data-toast]");
-  const targetSel = $("[data-talk-target]");
   const gate = $("[data-keygate]");
   const gateInput = $("[data-keygate-input]");
   const gateBtn = $("[data-keygate-btn]");
@@ -165,14 +161,6 @@ async function main() {
     }
     showGate(false);
   });
-
-  // target selector: если URLs меньше 3 — прячем лишние
-  if (targetSel) {
-    // держим селектор максимально простым; если не настроено 3 адреса — сервер всё равно вернёт ошибку,
-    // но в UI не будем мешать: пользователь сам выберет 1/2/3 по настройке.
-    targetSel.value = localStorage.getItem("talk_target") || "1";
-    targetSel.addEventListener("change", () => localStorage.setItem("talk_target", targetSel.value));
-  }
 
   input?.addEventListener("input", () => autosize(input));
 
