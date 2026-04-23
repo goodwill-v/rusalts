@@ -88,12 +88,23 @@ async def relay(request: Request, payload: dict[str, Any]) -> dict[str, Any]:
     if not text:
         raise HTTPException(status_code=400, detail="Пустой текст")
 
-    async with httpx.AsyncClient(timeout=30) as client:
-        r = await client.post(url, json={"text": text})
-        r.raise_for_status()
-        data = r.json()
-    # ожидаем {reply: "..."}; но вернём как есть, клиент сам покажет
-    return {"ok": True, "data": data}
+    try:
+        async with httpx.AsyncClient(timeout=30) as client:
+            r = await client.post(url, json={"text": text})
+    except httpx.RequestError as e:
+        raise HTTPException(status_code=502, detail=f"Не удалось подключиться к target{target}: {e}") from None
+
+    ct = (r.headers.get("content-type") or "").lower()
+    raw = r.text
+    if r.status_code >= 400:
+        # пробрасываем реальный ответ upstream, чтобы было видно, что именно сломалось
+        raise HTTPException(status_code=502, detail={"upstream_status": r.status_code, "upstream_body": raw[:4000], "target_url": url})
+    if "application/json" in ct:
+        try:
+            return {"ok": True, "data": r.json()}
+        except Exception:
+            return {"ok": True, "data": {"reply": raw}}
+    return {"ok": True, "data": {"reply": raw}}
 
 
 @router.post("/relay-file")
@@ -115,11 +126,22 @@ async def relay_file(
         files = {"file": (file.filename or "upload.bin", content, file.content_type or "application/octet-stream")}
 
     data = {"text": txt}
-    async with httpx.AsyncClient(timeout=60) as client:
-        r = await client.post(url, data=data, files=files)
-        r.raise_for_status()
-        out = r.json()
-    return {"ok": True, "data": out}
+    try:
+        async with httpx.AsyncClient(timeout=60) as client:
+            r = await client.post(url, data=data, files=files)
+    except httpx.RequestError as e:
+        raise HTTPException(status_code=502, detail=f"Не удалось подключиться к target{target}: {e}") from None
+
+    ct = (r.headers.get("content-type") or "").lower()
+    raw = r.text
+    if r.status_code >= 400:
+        raise HTTPException(status_code=502, detail={"upstream_status": r.status_code, "upstream_body": raw[:4000], "target_url": url})
+    if "application/json" in ct:
+        try:
+            return {"ok": True, "data": r.json()}
+        except Exception:
+            return {"ok": True, "data": {"reply": raw}}
+    return {"ok": True, "data": {"reply": raw}}
 
 
 @router.post("/incoming")
