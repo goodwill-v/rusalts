@@ -50,7 +50,7 @@ body {
 
 .talk__composer {
   display: grid;
-  grid-template-columns: auto 1fr auto;
+  grid-template-columns: auto auto 1fr auto;
   gap: 10px;
   padding: 10px;
   padding-bottom: calc(10px + env(safe-area-inset-bottom));
@@ -113,6 +113,37 @@ body {
   font-size: 22px;
   line-height: 1;
   opacity: 0.9;
+}
+
+.talk__target {
+  height: 42px;
+  border-radius: 12px;
+  padding: 0 10px;
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  background: rgba(255, 255, 255, 0.06);
+  color: inherit;
+  font: inherit;
+  outline: none;
+  cursor: pointer;
+}
+
+.toast {
+  position: fixed;
+  left: 12px;
+  right: 12px;
+  bottom: calc(70px + env(safe-area-inset-bottom));
+  background: rgba(0, 0, 0, 0.72);
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  color: #fff;
+  padding: 10px 12px;
+  border-radius: 14px;
+  display: none;
+  max-width: 720px;
+  margin: 0 auto;
+}
+
+.toast--show {
+  display: block;
 }
 
 .keygate {

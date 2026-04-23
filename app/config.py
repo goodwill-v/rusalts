@@ -90,6 +90,9 @@ DEBUG = os.getenv("DEBUG", "false").lower() in ("1", "true", "yes")
 TALK_KEY = os.getenv("TALK_KEY", "").strip()
 _talk_allowed = os.getenv("TALK_ALLOWED_URLS", "").strip()
 TALK_ALLOWED_URLS = [u.strip() for u in _talk_allowed.split(",") if u.strip()]
+# Токен для сторонних приложений, которые ПУШат сообщения/файлы в /talk.
+# Если не задан — по умолчанию используется TALK_KEY.
+TALK_APP_TOKEN = os.getenv("TALK_APP_TOKEN", "").strip()
 
 # Content approvals via email (Chief)
 CHIEF_EMAIL_TO = os.getenv("CHIEF_EMAIL_TO", "v.devops@yandex.ru").strip()
