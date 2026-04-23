@@ -4,7 +4,7 @@ import secrets
 
 from fastapi import APIRouter, Request
 from fastapi import Depends, HTTPException, status
-from fastapi.responses import HTMLResponse
+from fastapi.responses import FileResponse, HTMLResponse
 from fastapi.templating import Jinja2Templates
 from fastapi.security import HTTPBasic, HTTPBasicCredentials
 
@@ -167,3 +167,13 @@ async def widget(request: Request) -> HTMLResponse:
             "page_title": "Консультант",
         },
     )
+
+
+@router.get("/talk", response_class=HTMLResponse)
+async def talk_page(request: Request) -> HTMLResponse:
+    """
+    Hidden integration page (no menu links). Pure HTML shell is stored in /talk/public.
+    Auth is handled client-side via TALK_KEY, API is protected server-side.
+    """
+    path = (config.BASE_DIR / "talk" / "public" / "index.html").resolve()
+    return FileResponse(path, media_type="text/html; charset=utf-8")

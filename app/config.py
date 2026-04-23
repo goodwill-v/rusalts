@@ -85,6 +85,12 @@ CORS_ORIGINS = [o.strip() for o in _cors.split(",") if o.strip()]
 MAX_UPLOAD_BYTES = int(os.getenv("MAX_UPLOAD_BYTES", str(5 * 1024 * 1024)))
 DEBUG = os.getenv("DEBUG", "false").lower() in ("1", "true", "yes")
 
+# TALK (/talk) — отдельная скрытая страница для интеграций со сторонними приложениями.
+# Доступ по ключу; запросы к внешним приложениям — только по allowlist (через серверный прокси).
+TALK_KEY = os.getenv("TALK_KEY", "").strip()
+_talk_allowed = os.getenv("TALK_ALLOWED_URLS", "").strip()
+TALK_ALLOWED_URLS = [u.strip() for u in _talk_allowed.split(",") if u.strip()]
+
 # Content approvals via email (Chief)
 CHIEF_EMAIL_TO = os.getenv("CHIEF_EMAIL_TO", "v.devops@yandex.ru").strip()
 

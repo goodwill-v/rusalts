@@ -1,0 +1,173 @@
+:root {
+  color-scheme: light dark;
+}
+
+html,
+body {
+  height: 100%;
+}
+
+body {
+  margin: 0;
+  font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif;
+  background: #0b1220;
+  color: #e5e7eb;
+}
+
+.talk {
+  height: 100%;
+  display: grid;
+  grid-template-rows: 1fr auto;
+}
+
+.talk__log {
+  padding: 16px 12px 10px;
+  overflow: auto;
+  display: grid;
+  gap: 10px;
+}
+
+.msg {
+  max-width: min(720px, 92vw);
+  padding: 10px 12px;
+  border-radius: 14px;
+  line-height: 1.35;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.msg--me {
+  justify-self: end;
+  background: #6d28d9;
+  color: #fff;
+}
+
+.msg--app {
+  justify-self: start;
+  background: rgba(255, 255, 255, 0.1);
+  border: 1px solid rgba(255, 255, 255, 0.14);
+}
+
+.talk__composer {
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  gap: 10px;
+  padding: 10px;
+  padding-bottom: calc(10px + env(safe-area-inset-bottom));
+  border-top: 1px solid rgba(255, 255, 255, 0.14);
+  background: rgba(13, 18, 31, 0.92);
+  backdrop-filter: blur(10px);
+}
+
+.talk__input {
+  width: 100%;
+  resize: none;
+  border-radius: 12px;
+  padding: 10px 12px;
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  background: rgba(255, 255, 255, 0.06);
+  color: inherit;
+  font: inherit;
+  outline: none;
+  min-height: 42px;
+}
+
+.talk__input:focus {
+  border-color: rgba(109, 40, 217, 0.8);
+  box-shadow: 0 0 0 3px rgba(109, 40, 217, 0.22);
+}
+
+.talk__send {
+  border: none;
+  background: #6d28d9;
+  color: #fff;
+  border-radius: 12px;
+  padding: 0 14px;
+  font-weight: 700;
+  cursor: pointer;
+  min-height: 42px;
+}
+
+.talk__send:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+
+.talk__file {
+  width: 42px;
+  height: 42px;
+  display: grid;
+  place-items: center;
+  border-radius: 12px;
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  background: rgba(255, 255, 255, 0.06);
+  cursor: pointer;
+  user-select: none;
+}
+
+.talk__file input {
+  display: none;
+}
+
+.talk__file span {
+  font-size: 22px;
+  line-height: 1;
+  opacity: 0.9;
+}
+
+.keygate {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.72);
+  display: none;
+  align-items: center;
+  justify-content: center;
+  padding: 18px;
+}
+
+.keygate--show {
+  display: flex;
+}
+
+.keygate__card {
+  width: min(520px, 100%);
+  background: #0f172a;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  border-radius: 18px;
+  padding: 16px;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5);
+  display: grid;
+  gap: 10px;
+}
+
+.keygate__title {
+  font-weight: 800;
+  font-size: 18px;
+}
+
+.keygate__input {
+  border-radius: 12px;
+  padding: 10px 12px;
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  background: rgba(255, 255, 255, 0.06);
+  color: inherit;
+  font: inherit;
+  outline: none;
+}
+
+.keygate__btn {
+  border: none;
+  background: #6d28d9;
+  color: #fff;
+  border-radius: 12px;
+  padding: 10px 12px;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.keygate__err {
+  min-height: 1.2em;
+  color: #fca5a5;
+  font-size: 0.95rem;
+}
+

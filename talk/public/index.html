@@ -1,0 +1,41 @@
+<!doctype html>
+<html lang="ru">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
+    <title>Talk</title>
+    <link rel="stylesheet" href="/talk/assets/talk.css" />
+  </head>
+  <body>
+    <div class="talk">
+      <div class="talk__log" data-talk-log aria-live="polite"></div>
+
+      <form class="talk__composer" data-talk-form autocomplete="off">
+        <label class="talk__file">
+          <input type="file" data-talk-file accept=".txt,.md,text/plain,image/*,video/*" />
+          <span>+</span>
+        </label>
+        <textarea
+          class="talk__input"
+          data-talk-input
+          rows="1"
+          placeholder="Сообщение…"
+          inputmode="text"
+        ></textarea>
+        <button class="talk__send" type="submit">Отправить</button>
+      </form>
+    </div>
+
+    <div class="keygate" data-keygate>
+      <div class="keygate__card">
+        <div class="keygate__title">Введите ключ TALK</div>
+        <input class="keygate__input" type="password" data-keygate-input placeholder="TALK_KEY" />
+        <button class="keygate__btn" type="button" data-keygate-btn>Войти</button>
+        <div class="keygate__err" data-keygate-err></div>
+      </div>
+    </div>
+
+    <script src="/talk/assets/talk.js"></script>
+  </body>
+</html>
+

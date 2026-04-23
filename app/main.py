@@ -9,7 +9,7 @@ from fastapi.staticfiles import StaticFiles
 from app import config
 from app.middleware import EmbedSecurityMiddleware
 from app.observability import RequestIdMiddleware
-from app.routers import api, content, pages, parser
+from app.routers import api, content, pages, parser, talk
 
 config.ensure_data_dirs()
 
@@ -33,9 +33,14 @@ app.include_router(pages.router)
 app.include_router(api.router)
 app.include_router(content.router)
 app.include_router(parser.router)
+app.include_router(talk.router)
 
 static_dir = config.BASE_DIR / "app" / "static"
 app.mount("/static", StaticFiles(directory=str(static_dir)), name="static")
+
+# /talk assets are served from repository /talk/public (HTML is served by a route)
+talk_public_dir = config.BASE_DIR / "talk" / "public"
+app.mount("/talk/assets", StaticFiles(directory=str(talk_public_dir)), name="talk_assets")
 
 
 @app.get("/health")
