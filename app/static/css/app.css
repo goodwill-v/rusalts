@@ -1292,19 +1292,11 @@ code {
 }
 
 .footer-social__icon--max {
-  width: auto;
-  min-width: 2.25rem;
-  height: 28px;
-  padding: 0 0.45rem;
+  width: 30px;
+  height: 30px;
   border-radius: 8px;
-  font-size: 0.7rem;
-  font-weight: 800;
-  letter-spacing: 0.04em;
-  line-height: 28px;
-  text-align: center;
-  color: #fff;
-  background: linear-gradient(135deg, #7c3aed 0%, #c026d3 100%);
-  box-shadow: 0 2px 8px rgba(124, 58, 237, 0.35);
+  object-fit: contain;
+  box-shadow: 0 2px 8px rgba(124, 58, 237, 0.25);
 }
 
 .footer-links,
