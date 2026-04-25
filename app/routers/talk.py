@@ -10,6 +10,7 @@ from typing import Any
 import httpx
 from fastapi import APIRouter, File, Form, HTTPException, Request, UploadFile, status
 from fastapi.responses import FileResponse
+from urllib.parse import urlparse, urlunparse
 
 from app import config
 
@@ -151,7 +152,10 @@ async def relay_file(
 async def upstream_health(request: Request) -> dict[str, Any]:
     """Проверка связи АЛТ -> бот (без участия UI)."""
     _require_talk_key(request)
-    url = _relay_url().rstrip("/") + "/health"
+    ru = _relay_url().strip()
+    p = urlparse(ru)
+    # health endpoint у бота: /health (не зависит от того, /talk или /)
+    url = urlunparse((p.scheme, p.netloc, "/health", "", "", ""))
     try:
         async with httpx.AsyncClient(timeout=10) as client:
             r = await client.get(url, headers=_relay_headers())
