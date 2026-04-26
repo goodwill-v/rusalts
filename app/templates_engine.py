@@ -50,6 +50,7 @@ def _normalize(text: str) -> str:
 
 def match_trigger(triggers: list[Trigger], message: str) -> tuple[Trigger | None, dict[str, Any]]:
     text = _normalize(message)
+    tokens = set(re.findall(r"[a-zа-я0-9]+", text, flags=re.IGNORECASE))
     best: tuple[int, int, Trigger] | None = None  # (hits, priority_weight, trigger)
     for t in triggers:
         if not t.id or not t.template_key:
@@ -57,11 +58,30 @@ def match_trigger(triggers: list[Trigger], message: str) -> tuple[Trigger | None
         hits = 0
         for kw in t.keywords:
             nkw = _normalize(kw)
-            if nkw and nkw in text:
+            if not nkw:
+                continue
+            # Если keyword очень короткий (1–3 символа), считаем совпадением только как отдельный токен,
+            # иначе будут ложные срабатывания (например, "ит" в слове "консультант").
+            if len(nkw) <= 3:
+                if nkw in tokens:
+                    hits += 1
+                continue
+            # Фразы со пробелами — ищем как подстроку в нормализованном тексте.
+            if " " in nkw:
+                if nkw in text:
+                    hits += 1
+                continue
+            # Обычные слова — допускаем подстроку (после нормализации), но это достаточно безопасно для длины >3.
+            if nkw in text:
                 hits += 1
         if hits <= 0:
             continue
+        # Защита от ложных срабатываний: низкий/средний приоритет требует ≥2 попаданий,
+        # высокий/критический допускает 1 (там фразы более «якорные»).
         pw = _PRIORITY_WEIGHT.get(t.priority.lower().strip(), 1)
+        min_hits = 1 if pw >= 3 else 2
+        if hits < min_hits:
+            continue
         cand = (hits, pw, t)
         if best is None or cand > best:
             best = cand
