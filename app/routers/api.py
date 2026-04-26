@@ -20,7 +20,9 @@ from app.templates_engine import load_templates_bundle, load_triggers, match_tri
 
 router = APIRouter(prefix="/api", tags=["api"])
 
-SAFE_NAME = re.compile(r"^[a-zA-Z0-9._-]+$")
+# Разрешаем кириллицу и пробелы (у нас шаблоны часто называются по-русски),
+# но запрещаем любые разделители путей и спецсимволы, чтобы исключить traversal.
+SAFE_NAME = re.compile(r"^[\w .,\-()]+$", re.UNICODE)
 
 _KB_ARTICLES: list[kb.KbArticle] | None = None
 _TRIGGERS = None

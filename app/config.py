@@ -11,7 +11,7 @@ load_dotenv()
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 DATA_DIR = BASE_DIR / "data"
-DOCUMENT_TEMPLATES_DIR = DATA_DIR / "document_templates"
+DOCUMENT_TEMPLATES_DIR = BASE_DIR / "templates" / "document_templates"
 UPLOADS_DIR = DATA_DIR / "uploads"
 LOGS_DIR = DATA_DIR / "logs"
 MONITORING_DIR = DATA_DIR / "monitoring"

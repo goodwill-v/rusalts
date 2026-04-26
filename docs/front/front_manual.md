@@ -143,7 +143,7 @@
 - Список шаблонов документов (по API `/api/document-templates`)
 
 Шаблоны документов:
-- физические файлы лежат в `data/document_templates/`
+- физические файлы лежат в `templates/document_templates/`
 - список и ссылки формирует бэкенд (`app/routers/api.py`, метод `GET /api/document-templates`)
 
 ---
