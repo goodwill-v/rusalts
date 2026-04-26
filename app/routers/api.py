@@ -51,6 +51,7 @@ def _shorten_to(s: str, n: int) -> str:
 class _RouteDecision(BaseModel):
     intent: str  # human_handoff | document_request | template_answer | kb_question | web_question | unclear
     confidence: float = 0.0
+    trigger_id: str | None = None
     template_key: str | None = None
     template_type: str | None = None
     document_query: str | None = None
@@ -95,6 +96,7 @@ async def _route_message(*, text: str, triggers: list, templates_bundle: dict | 
             return _RouteDecision(
                 intent="template_answer",
                 confidence=min(0.95, 0.6 + 0.15 * float(meta.get("hits") or 1)),
+                trigger_id=trig.id,
                 template_key=trig.template_key,
                 template_type=trig.template_type,
                 internal_note=f"trigger={trig.id} hits={meta.get('hits')}",
@@ -279,6 +281,7 @@ async def chat(request: Request, body: ChatRequest) -> ChatResponse:
             return ChatResponse(
                 reply=str(rendered["text"]),
                 request_id=rid,
+                trigger_id=decision.trigger_id,
                 template_key=decision.template_key,
                 template_type=decision.template_type,
                 sources=[],
