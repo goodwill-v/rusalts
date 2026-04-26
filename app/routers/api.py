@@ -76,6 +76,22 @@ _KW_HUMAN = (
 )
 _KW_DOC = ("шаблон", "образец", "документ", "бланк", "скачать", "файл", "docx", "pdf", "политика", "согласие")
 _KW_WEB = ("новости", "сегодня", "срок", "штраф", "актуально", "что нового", "источник", "официально", "ссылка")
+_KW_LEGAL = (
+    "152-фз",
+    "152 фз",
+    "168-фз",
+    "168 фз",
+    "персональн",
+    "пдн",
+    "роскомнадзор",
+    "ркн",
+    "штраф",
+    "ответственност",
+    "закон",
+    "проверка",
+    "согласие",
+    "политика",
+)
 
 
 async def _route_message(*, text: str, triggers: list, templates_bundle: dict | None) -> _RouteDecision:
@@ -88,6 +104,10 @@ async def _route_message(*, text: str, triggers: list, templates_bundle: dict | 
 
     if any(k in t for k in _KW_DOC):
         return _RouteDecision(intent="document_request", confidence=0.85, document_query=text.strip())
+
+    # Legal/regulatory questions: prefer official/web sources (to avoid hallucinations from KB).
+    if any(k in t for k in _KW_LEGAL):
+        return _RouteDecision(intent="web_question", confidence=0.85, web_query=text.strip())
 
     # Template candidates (but only if not a "human" / "doc" request)
     try:
@@ -328,8 +348,17 @@ async def chat(request: Request, body: ChatRequest) -> ChatResponse:
                 {
                     "role": "user",
                     "content": (
-                        "Ответь на вопрос пользователя, опираясь ТОЛЬКО на выдержки из базы знаний ниже. "
-                        "Если в выдержках нет ответа — напиши строго 'NO_ANSWER'.\n\n"
+                        "Ответь на вопрос пользователя, опираясь ТОЛЬКО на выдержки из базы знаний ниже.\n"
+                        "Верни ОДИН JSON без текста вокруг:\n"
+                        "{"
+                        "\"answer\": \"string (кратко и по делу)\","
+                        "\"used_hit_indexes\": [0,1],"
+                        "\"no_answer\": true|false"
+                        "}\n"
+                        "Правила:\n"
+                        "- Если в выдержках нет ответа: no_answer=true, used_hit_indexes=[] и answer=\"\".\n"
+                        "- Если отвечаешь: used_hit_indexes должен содержать хотя бы один индекс из 0..N-1.\n"
+                        "- Не добавляй советы/факты, которых нет в выдержках.\n\n"
                         f"Вопрос: {kb_q}\n\n"
                         f"Выдержки (JSON): {json.dumps(kb_hits[:5], ensure_ascii=False)}"
                     ),
@@ -363,9 +392,16 @@ async def chat(request: Request, body: ChatRequest) -> ChatResponse:
                     messages=messages,
                 )
             used_llm = True
-            final_reply = str(llm_text).strip() or reply_kb
-            if final_reply.strip() == "NO_ANSWER":
+            raw = str(llm_text).strip()
+            obj = json.loads(raw) if raw.startswith("{") else {}
+            if not isinstance(obj, dict):
+                raise RuntimeError("kb_bad_json")
+            if bool(obj.get("no_answer")):
                 raise RuntimeError("kb_no_answer")
+            used_idx = obj.get("used_hit_indexes") or []
+            if not isinstance(used_idx, list) or not used_idx:
+                raise RuntimeError("kb_no_citations")
+            final_reply = str(obj.get("answer") or "").strip() or reply_kb
             json_log(
                 {
                     "type": "routerai_usage",
