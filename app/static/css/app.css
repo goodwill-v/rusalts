@@ -166,6 +166,22 @@ body.layout-site {
   background: rgba(0, 0, 0, 0.2);
 }
 
+.chat-panel {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+
+.chat-panel .chat-log {
+  flex: 1;
+  min-height: 0;
+  max-height: none;
+}
+
+.chat-panel .chat-form {
+  margin-top: auto;
+}
+
 .layout-widget .chat-log {
   min-height: 140px;
   max-height: 280px;
@@ -221,8 +237,19 @@ body.layout-site {
   flex-wrap: wrap;
   gap: 0.5rem;
   align-items: center;
-  justify-content: flex-end;
+  justify-content: space-between;
   margin-top: 0.5rem;
+}
+
+.file-names {
+  flex: 1;
+  min-width: 140px;
+  padding: 0 0.25rem;
+  color: var(--muted);
+  font-size: 0.85rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .btn {
@@ -257,7 +284,14 @@ body.layout-site {
 }
 
 .file-pill input {
-  max-width: 160px;
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  border: 0;
 }
 
 .hint {
@@ -318,6 +352,26 @@ body.layout-site {
   min-height: 100vh;
   display: flex;
   flex-direction: column;
+}
+
+/* Полноэкранная высота для /consultant и виджета */
+.layout-app .shell,
+.layout-widget .shell {
+  min-height: 100dvh;
+}
+
+.layout-app .grid-main,
+.layout-widget .widget-wrap {
+  min-height: 100dvh;
+}
+
+@media (max-width: 520px) {
+  .layout-app .shell {
+    padding: 0.75rem 0.75rem 1rem;
+  }
+  .chat-form textarea {
+    min-height: 56px;
+  }
 }
 
 .widget-head {

@@ -12,11 +12,12 @@
         <label class="sr-only" for="question">Ваш вопрос</label>
         <textarea id="question" name="question" rows="2" placeholder="Вопрос…" required></textarea>
         <div class="chat-actions">
-          <label class="file-pill">
-            <input type="file" id="attachment" name="attachment" />
-            <span>Файл</span>
+          <label class="file-pill" title="Загрузка файла">
+            <input type="file" id="attachment" name="attachment" title="Загрузка файла" aria-label="Загрузка файла" />
+            <span>Прикрепить</span>
           </label>
-          <button type="submit" class="btn primary">Спросить</button>
+          <span class="file-names" data-file-names aria-live="polite"></span>
+          <button type="submit" class="btn primary">Отправить</button>
         </div>
         <p id="upload-hint" class="hint" hidden></p>
       </form>

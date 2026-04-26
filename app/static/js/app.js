@@ -105,6 +105,13 @@ async function uploadFile(file) {
 
 function initChatForm({ form, input, log, fileInput, hint }) {
   if (!form || !input || !log) return;
+  const fileNamesEl = form.querySelector("[data-file-names]");
+  const setFilesText = () => {
+    if (!fileNamesEl) return;
+    const files = fileInput?.files ? Array.from(fileInput.files) : [];
+    fileNamesEl.textContent = files.map((f) => f.name).filter(Boolean).join(", ");
+  };
+  fileInput?.addEventListener?.("change", () => setFilesText());
   form.addEventListener("submit", async (e) => {
     e.preventDefault();
     const text = (input.value || "").trim();
@@ -117,17 +124,20 @@ function initChatForm({ form, input, log, fileInput, hint }) {
       if (fileInput?.files?.length) {
         const f = fileInput.files[0];
         const up = await uploadFile(f);
-        if (hint) {
-          hint.hidden = false;
-          hint.textContent = `Файл «${up.filename}» принят (${formatSize(up.size)}).`;
-        }
+        // Никаких лишних надписей между кнопками: имя файла показываем рядом с «Прикрепить».
+        if (hint) hint.hidden = true;
         fileInput.value = "";
+        setFilesText();
       } else if (hint) {
         hint.hidden = true;
       }
       const data = await sendChat(text);
       appendMessage(log, "bot", data.reply || "");
     } catch (err) {
+      if (hint) {
+        hint.hidden = false;
+        hint.textContent = `Ошибка загрузки: ${err?.message || err}`;
+      }
       appendMessage(log, "bot", `Ошибка: ${err?.message || err}`);
     } finally {
       if (btn) btn.disabled = false;

@@ -2,8 +2,7 @@
 {% block body %}
 <header class="topbar">
   <h1 class="brand">АЛТ‑эксперт</h1>
-  <p class="tagline">Вопросы, ответы и шаблоны документов</p>
-  <a class="link-quiet" href="/widget" target="_blank" rel="noopener">Открыть виджет (как во ВКонтакте)</a>
+  <p class="tagline">Консультант по российским мессенджерам, социальным сетям и профильному законодательству.</p>
 </header>
 
 <main class="grid-main">
@@ -14,10 +13,11 @@
       <label class="sr-only" for="question">Ваш вопрос</label>
       <textarea id="question" name="question" rows="3" placeholder="Введите вопрос…" required></textarea>
       <div class="chat-actions">
-        <label class="file-pill">
-          <input type="file" id="attachment" name="attachment" />
-          <span>Вложение</span>
+        <label class="file-pill" title="Загрузка файла">
+          <input type="file" id="attachment" name="attachment" title="Загрузка файла" aria-label="Загрузка файла" />
+          <span>Прикрепить</span>
         </label>
+        <span class="file-names" data-file-names aria-live="polite"></span>
         <button type="submit" class="btn primary">Отправить</button>
       </div>
       <p id="upload-hint" class="hint" hidden></p>
