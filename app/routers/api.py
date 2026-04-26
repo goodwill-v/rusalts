@@ -136,19 +136,25 @@ async def _route_message(*, text: str, triggers: list, templates_bundle: dict | 
         }
     )
     model = config.ROUTERAI_CHEAP_MODEL or config.BACKEND_MODEL_MAIN or config.ROUTERAI_CHAT_MODEL
-    out, _usage, _raw = await chat_completion(
-        base_url=config.ROUTERAI_BASE_URL,
-        api_key=config.ROUTERAI_API_KEY,
-        model=model,
-        messages=router_messages,
-        timeout_s=12.0,
-    )
     try:
-        obj = json.loads(str(out).strip())
-        if isinstance(obj, dict):
-            return _RouteDecision(**obj)
-    except Exception:
-        pass
+        out, _usage, _raw = await chat_completion(
+            base_url=config.ROUTERAI_BASE_URL,
+            api_key=config.ROUTERAI_API_KEY,
+            model=model,
+            messages=router_messages,
+            timeout_s=12.0,
+        )
+        try:
+            obj = json.loads(str(out).strip())
+            if isinstance(obj, dict):
+                return _RouteDecision(**obj)
+        except Exception:
+            pass
+    except RouterAIError:
+        # Router model may be misconfigured/unavailable; fall back to heuristics/KB.
+        if any(k in t for k in _KW_WEB):
+            return _RouteDecision(intent="web_question", confidence=0.55, web_query=text.strip())
+        return _RouteDecision(intent="kb_question", confidence=0.5, kb_query=text.strip())
 
     # Fallback
     if any(k in t for k in _KW_WEB):
