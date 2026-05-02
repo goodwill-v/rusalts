@@ -13,6 +13,7 @@ from starlette.datastructures import UploadFile as StarletteUploadFile
 app = FastAPI(title="OpenClaw Talk Relay", version="0.1.0")
 
 EXPECTED_APP_KEY = os.getenv("TALK_RELAY_APP_KEY", "").strip()
+OKO_ADMIN_KEY = os.getenv("TALK_OKO_ADMIN_KEY", "").strip()
 RELAY_SESSION_ID = os.getenv("OPENCLAW_TALK_SESSION_ID", "talk-relay").strip() or "talk-relay"
 OPENCLAW_BIN = os.getenv("OPENCLAW_BIN", "/usr/bin/openclaw").strip() or "/usr/bin/openclaw"
 TMP_DIR = Path(os.getenv("OPENCLAW_TALK_TMP_DIR", "/tmp/openclaw-talk-relay")).resolve()
@@ -25,6 +26,38 @@ def _check_app_key(request: Request) -> None:
     provided = (request.headers.get("x-app-key") or "").strip()
     if not provided or provided != EXPECTED_APP_KEY:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="invalid X-App-Key")
+
+
+def _check_oko_admin(request: Request) -> None:
+    _check_app_key(request)
+    if not OKO_ADMIN_KEY:
+        raise HTTPException(status_code=503, detail="TALK_OKO_ADMIN_KEY is not configured on relay host")
+    got = (request.headers.get("x-oko-admin") or "").strip()
+    if not got or got != OKO_ADMIN_KEY:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="invalid X-Oko-Admin")
+
+
+_UNIT_GATEWAY = "openclaw-gateway.service"
+
+
+async def _systemctl(*args: str) -> tuple[int, str, str]:
+    proc = await asyncio.create_subprocess_exec(
+        "/usr/bin/systemctl",
+        *args,
+        stdout=asyncio.subprocess.PIPE,
+        stderr=asyncio.subprocess.PIPE,
+    )
+    try:
+        stdout_b, stderr_b = await asyncio.wait_for(proc.communicate(), timeout=120)
+    except asyncio.TimeoutError:
+        proc.kill()
+        await proc.communicate()
+        return 124, "", "systemctl timeout"
+    return (
+        proc.returncode or 0,
+        stdout_b.decode("utf-8", errors="replace").strip(),
+        stderr_b.decode("utf-8", errors="replace").strip(),
+    )
 
 
 def _extract_reply_text(obj: Any) -> str:
@@ -128,6 +161,42 @@ def _build_prompt(text: str, file_note: str) -> str:
 @app.get("/health")
 async def health() -> dict[str, Any]:
     return {"ok": True, "service": "openclaw-talk-relay"}
+
+
+@app.get("/oko/gateway/status")
+async def oko_gateway_status(request: Request) -> dict[str, Any]:
+    """Статус systemd openclaw-gateway (только чтение, нужен X-App-Key — как у /talk)."""
+    _check_app_key(request)
+    code, out, err = await _systemctl("is-active", _UNIT_GATEWAY)
+    raw = (out or err or "").strip() or "unknown"
+    state = raw.splitlines()[0].strip() if raw else "unknown"
+    return {"ok": True, "unit": _UNIT_GATEWAY, "active": state, "exit_code": code}
+
+
+@app.post("/oko/gateway/stop")
+async def oko_gateway_stop(request: Request) -> dict[str, Any]:
+    """Остановить OpenClaw Gateway на хосте (Telegram/дашборд перестанут работать до start)."""
+    _check_oko_admin(request)
+    code, out, err = await _systemctl("stop", _UNIT_GATEWAY)
+    if code != 0:
+        raise HTTPException(
+            status_code=502,
+            detail={"systemctl": "stop", "exit_code": code, "stdout": out[-2000:], "stderr": err[-2000:]},
+        )
+    return {"ok": True, "stopped": _UNIT_GATEWAY, "message": out or "stopped"}
+
+
+@app.post("/oko/gateway/start")
+async def oko_gateway_start(request: Request) -> dict[str, Any]:
+    """Запустить OpenClaw Gateway на хосте."""
+    _check_oko_admin(request)
+    code, out, err = await _systemctl("start", _UNIT_GATEWAY)
+    if code != 0:
+        raise HTTPException(
+            status_code=502,
+            detail={"systemctl": "start", "exit_code": code, "stdout": out[-2000:], "stderr": err[-2000:]},
+        )
+    return {"ok": True, "started": _UNIT_GATEWAY, "message": out or "started"}
 
 
 @app.post("/talk")

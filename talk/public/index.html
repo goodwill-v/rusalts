@@ -8,6 +8,14 @@
   </head>
   <body>
     <div class="talk">
+      <div class="talk__toolbar" data-talk-toolbar hidden>
+        <span class="talk__oko-state" data-oko-state>ОКО: …</span>
+        <div class="talk__toolbar-btns">
+          <button type="button" class="talk__tb" data-oko-status>Статус</button>
+          <button type="button" class="talk__tb talk__tb--danger" data-oko-stop>Стоп ОКО</button>
+          <button type="button" class="talk__tb talk__tb--ok" data-oko-start>Старт ОКО</button>
+        </div>
+      </div>
       <div class="talk__log" data-talk-log aria-live="polite"></div>
 
       <form class="talk__composer" data-talk-form autocomplete="off">

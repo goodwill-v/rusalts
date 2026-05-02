@@ -17,7 +17,51 @@ body {
 .talk {
   height: 100%;
   display: grid;
-  grid-template-rows: 1fr auto;
+  grid-template-rows: auto 1fr auto;
+}
+
+.talk__toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 8px 12px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.12);
+  background: rgba(13, 18, 31, 0.88);
+  font-size: 0.9rem;
+}
+
+.talk__toolbar-btns {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.talk__tb {
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  background: rgba(255, 255, 255, 0.08);
+  color: inherit;
+  border-radius: 10px;
+  padding: 6px 10px;
+  font-weight: 600;
+  cursor: pointer;
+  font-size: 0.85rem;
+}
+
+.talk__tb--danger {
+  border-color: rgba(248, 113, 113, 0.45);
+  background: rgba(127, 29, 29, 0.35);
+}
+
+.talk__tb--ok {
+  border-color: rgba(74, 222, 128, 0.35);
+  background: rgba(22, 101, 52, 0.35);
+}
+
+.talk__oko-state {
+  opacity: 0.92;
+  font-weight: 600;
 }
 
 .talk__log {

@@ -59,6 +59,14 @@ function setKey(k) {
   localStorage.setItem("talk_key", String(k || ""));
 }
 
+function getOkoAdminKey() {
+  return localStorage.getItem("talk_oko_admin") || "";
+}
+
+function setOkoAdminKey(k) {
+  localStorage.setItem("talk_oko_admin", String(k || ""));
+}
+
 async function fetchJson(url, opts = {}) {
   const key = getKey();
   const headers = new Headers(opts.headers || {});
@@ -83,6 +91,47 @@ async function fetchJson(url, opts = {}) {
     throw new Error(msg);
   }
   return data;
+}
+
+/** Запросы к /api/talk с опциональным X-Oko-Admin (кнопки управления Gateway). */
+async function fetchTalkApi(url, opts = {}) {
+  const key = getKey();
+  const headers = new Headers(opts.headers || {});
+  if (key) headers.set("Authorization", `Bearer ${key}`);
+  if (opts.withAdmin) {
+    const adm = getOkoAdminKey();
+    if (adm) headers.set("X-Oko-Admin", adm);
+  }
+  const res = await fetch(url, { credentials: "same-origin", ...opts, headers });
+  const text = await res.text();
+  let data = null;
+  try {
+    data = text ? JSON.parse(text) : null;
+  } catch {
+    data = null;
+  }
+  if (!res.ok) {
+    let msg = (data && (data.detail || data.error)) || text || res.statusText;
+    if (typeof msg !== "string") {
+      try {
+        msg = JSON.stringify(msg);
+      } catch {
+        msg = String(msg);
+      }
+    }
+    throw new Error(msg);
+  }
+  return data;
+}
+
+async function ensureOkoAdminForWrite() {
+  let a = getOkoAdminKey();
+  if (a) return a;
+  a = (typeof window !== "undefined" && window.prompt("Админ-ключ ОКО (TALK_OKO_ADMIN_KEY):")) || "";
+  a = String(a).trim();
+  if (!a) throw new Error("Админ-ключ не задан — операция отменена.");
+  setOkoAdminKey(a);
+  return a;
 }
 
 async function pingKey() {
@@ -123,6 +172,11 @@ async function main() {
   const gateInput = $("[data-keygate-input]");
   const gateBtn = $("[data-keygate-btn]");
   const gateErr = $("[data-keygate-err]");
+  const toolbar = $("[data-talk-toolbar]");
+  const okoState = $("[data-oko-state]");
+  const btnOkoStatus = $("[data-oko-status]");
+  const btnOkoStop = $("[data-oko-stop]");
+  const btnOkoStart = $("[data-oko-start]");
   let lastInboxId = localStorage.getItem("talk_last_inbox_id") || "";
 
   const showToast = (t) => {
@@ -137,12 +191,27 @@ async function main() {
     if (show) setTimeout(() => gateInput?.focus?.(), 0);
   };
 
+  const refreshOkoStatus = async () => {
+    if (!okoState) return;
+    try {
+      const j = await fetchTalkApi("/api/talk/oko/status");
+      const st = String(j?.active || j?.data?.active || "unknown");
+      okoState.textContent = `ОКО Gateway: ${st}`;
+    } catch (e) {
+      okoState.textContent = `ОКО: ? (${errText(e).slice(0, 80)})`;
+    }
+  };
+
   const ensureKey = async () => {
     const ok = await pingKey();
     showGate(!ok);
     if (!ok) {
       if (gateErr) gateErr.textContent = "";
       if (gateInput) gateInput.value = "";
+      if (toolbar) toolbar.hidden = true;
+    } else {
+      if (toolbar) toolbar.hidden = false;
+      await refreshOkoStatus();
     }
   };
 
@@ -160,6 +229,39 @@ async function main() {
       return;
     }
     showGate(false);
+    if (toolbar) toolbar.hidden = false;
+    await refreshOkoStatus();
+  });
+
+  btnOkoStatus?.addEventListener("click", async () => {
+    try {
+      await refreshOkoStatus();
+      showToast(okoState?.textContent || "OK");
+    } catch (e) {
+      showToast(errText(e));
+    }
+  });
+
+  btnOkoStop?.addEventListener("click", async () => {
+    try {
+      await ensureOkoAdminForWrite();
+      const j = await fetchTalkApi("/api/talk/oko/stop", { method: "POST", withAdmin: true });
+      showToast(j?.message || "ОКО остановлен");
+      await refreshOkoStatus();
+    } catch (e) {
+      showToast(errText(e));
+    }
+  });
+
+  btnOkoStart?.addEventListener("click", async () => {
+    try {
+      await ensureOkoAdminForWrite();
+      const j = await fetchTalkApi("/api/talk/oko/start", { method: "POST", withAdmin: true });
+      showToast(j?.message || "ОКО запущен");
+      await refreshOkoStatus();
+    } catch (e) {
+      showToast(errText(e));
+    }
   });
 
   input?.addEventListener("input", () => autosize(input));
@@ -223,6 +325,9 @@ async function main() {
 
   await ensureKey();
   setInterval(pollInbox, 2000);
+  setInterval(() => {
+    if (toolbar && !toolbar.hidden) refreshOkoStatus();
+  }, 20000);
 }
 
 main();

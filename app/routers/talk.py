@@ -44,11 +44,28 @@ def _relay_url() -> str:
     return url
 
 
+def _relay_base_url() -> str:
+    """База URL relay без суффикса /talk (для /oko/... на том же хосте)."""
+    u = _relay_url().strip()
+    if u.endswith("/talk"):
+        return u[: -len("/talk")].rstrip("/") or u.rsplit("/", 1)[0]
+    p = urlparse(u)
+    return urlunparse((p.scheme, p.netloc, "", "", "", "")).rstrip("/")
+
+
 def _relay_headers() -> dict[str, str]:
     h: dict[str, str] = {}
     if config.TALK_RELAY_APP_KEY:
         h["X-App-Key"] = config.TALK_RELAY_APP_KEY
     return h
+
+
+def _require_oko_admin(request: Request) -> None:
+    if not config.TALK_OKO_ADMIN_KEY:
+        raise HTTPException(status_code=501, detail="TALK_OKO_ADMIN_KEY не настроен на сервере")
+    got = (request.headers.get("x-oko-admin") or "").strip()
+    if not got or not secrets.compare_digest(got, config.TALK_OKO_ADMIN_KEY):
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Неверный админ-ключ ОКО")
 
 
 def _talk_dir() -> str:
@@ -171,6 +188,66 @@ async def upstream_health(request: Request) -> dict[str, Any]:
             return {"ok": True, "status": r.status_code, "data": body[:2000]}
     except httpx.RequestError as e:
         raise HTTPException(status_code=502, detail=f"Не удалось подключиться к боту: {e}") from None
+
+
+@router.get("/oko/status")
+async def oko_status(request: Request) -> dict[str, Any]:
+    """Статус systemd `openclaw-gateway` на хосте relay (чтение)."""
+    _require_talk_key(request)
+    url = f"{_relay_base_url()}/oko/gateway/status"
+    try:
+        async with httpx.AsyncClient(timeout=15) as client:
+            r = await client.get(url, headers=_relay_headers())
+    except httpx.RequestError as e:
+        raise HTTPException(status_code=502, detail=f"Не удалось связаться с relay: {e}") from None
+    if r.status_code >= 400:
+        raise HTTPException(status_code=502, detail={"upstream_status": r.status_code, "body": r.text[:4000]})
+    try:
+        return r.json()
+    except Exception:
+        return {"ok": False, "raw": r.text[:2000]}
+
+
+@router.post("/oko/stop")
+async def oko_stop(request: Request) -> dict[str, Any]:
+    """Остановить OpenClaw Gateway на хосте (снижает нагрузку; Telegram/дашборд отключатся)."""
+    _require_talk_key(request)
+    _require_oko_admin(request)
+    url = f"{_relay_base_url()}/oko/gateway/stop"
+    h = _relay_headers()
+    h["X-Oko-Admin"] = (request.headers.get("x-oko-admin") or "").strip()
+    try:
+        async with httpx.AsyncClient(timeout=90) as client:
+            r = await client.post(url, headers=h)
+    except httpx.RequestError as e:
+        raise HTTPException(status_code=502, detail=f"Не удалось связаться с relay: {e}") from None
+    if r.status_code >= 400:
+        raise HTTPException(status_code=502, detail={"upstream_status": r.status_code, "body": r.text[:4000]})
+    try:
+        return r.json()
+    except Exception:
+        return {"ok": False, "raw": r.text[:2000]}
+
+
+@router.post("/oko/start")
+async def oko_start(request: Request) -> dict[str, Any]:
+    """Запустить OpenClaw Gateway на хосте."""
+    _require_talk_key(request)
+    _require_oko_admin(request)
+    url = f"{_relay_base_url()}/oko/gateway/start"
+    h = _relay_headers()
+    h["X-Oko-Admin"] = (request.headers.get("x-oko-admin") or "").strip()
+    try:
+        async with httpx.AsyncClient(timeout=90) as client:
+            r = await client.post(url, headers=h)
+    except httpx.RequestError as e:
+        raise HTTPException(status_code=502, detail=f"Не удалось связаться с relay: {e}") from None
+    if r.status_code >= 400:
+        raise HTTPException(status_code=502, detail={"upstream_status": r.status_code, "body": r.text[:4000]})
+    try:
+        return r.json()
+    except Exception:
+        return {"ok": False, "raw": r.text[:2000]}
 
 
 @router.post("/incoming")

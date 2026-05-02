@@ -95,6 +95,8 @@ TALK_RELAY_APP_KEY = os.getenv("TALK_RELAY_APP_KEY", "").strip()
 # Токен для сторонних приложений, которые ПУШат сообщения/файлы в /talk.
 # Если не задан — по умолчанию используется TALK_KEY.
 TALK_APP_TOKEN = os.getenv("TALK_APP_TOKEN", "").strip()
+# Секрет для кнопок «Стоп/Старт ОКО» на /talk (остановка systemd openclaw-gateway на хосте через relay).
+TALK_OKO_ADMIN_KEY = os.getenv("TALK_OKO_ADMIN_KEY", "").strip()
 
 # Content approvals via email (Chief)
 CHIEF_EMAIL_TO = os.getenv("CHIEF_EMAIL_TO", "v.devops@yandex.ru").strip()
