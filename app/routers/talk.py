@@ -94,7 +94,9 @@ async def relay(request: Request, payload: dict[str, Any]) -> dict[str, Any]:
         raise HTTPException(status_code=400, detail="Пустой текст")
 
     try:
-        async with httpx.AsyncClient(timeout=30) as client:
+        # Relay to external app can take time (LLM / tools). Keep this comfortably
+        # above proxy defaults to avoid false 502 while still bounded.
+        async with httpx.AsyncClient(timeout=130) as client:
             r = await client.post(url, json={"text": text}, headers=_relay_headers())
     except httpx.RequestError as e:
         raise HTTPException(status_code=502, detail=f"Не удалось подключиться к боту: {e}") from None
@@ -131,7 +133,7 @@ async def relay_file(
 
     data = {"text": txt}
     try:
-        async with httpx.AsyncClient(timeout=60) as client:
+        async with httpx.AsyncClient(timeout=180) as client:
             r = await client.post(url, data=data, files=files, headers=_relay_headers())
     except httpx.RequestError as e:
         raise HTTPException(status_code=502, detail=f"Не удалось подключиться к боту: {e}") from None
