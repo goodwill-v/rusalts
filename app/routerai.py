@@ -5,6 +5,8 @@ from typing import Any
 
 import httpx
 
+from app import config
+
 
 @dataclass(frozen=True)
 class RouterAIUsage:
@@ -50,7 +52,15 @@ async def chat_completion(
         "messages": messages,
         "temperature": 0.2,
     }
-    async with httpx.AsyncClient(timeout=timeout_s) as client:
+    connect_s = float(getattr(config, "ROUTERAI_TIMEOUT_CONNECT_S", 15.0))
+    read_s = float(timeout_s)
+    httpx_timeout = httpx.Timeout(
+        connect=connect_s,
+        read=read_s,
+        write=min(read_s, 600.0),
+        pool=10.0,
+    )
+    async with httpx.AsyncClient(timeout=httpx_timeout) as client:
         try:
             r = await client.post(url, headers=headers, json=payload)
         except Exception as e:  # noqa: BLE001

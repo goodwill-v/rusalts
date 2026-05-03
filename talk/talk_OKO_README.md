@@ -262,7 +262,7 @@ OpenClaw при этом **не** обязателен для работы `/tal
 TELEGRAM_BOT_TOKEN=123456:ABCDEF...
 ```
 
-- **Gateway unit** (`/etc/systemd/system/openclaw-gateway.service`) должен подхватывать этот env:
+- **Gateway unit** (`/etc/systemd/system/openclaw-gateway.service`) должен подхватывать этот env (добавить в файл):
   - `EnvironmentFile=/root/.openclaw/telegram.env`
 
 ### 9.2. Быстрые шаги подключения
@@ -314,5 +314,30 @@ sudo systemctl restart openclaw-gateway
 - **Бот пишет “access not configured”**
   - **Причина**: `dmPolicy` не допускает этого пользователя (pairing не одобрен, allowlist пуст).
   - **Решение**: `openclaw pairing approve …` или `channels.telegram.allowFrom` + `dmPolicy=allowlist`.
+
+## 10. Кнопки «Стоп / Старт ОКО» на `/talk` (только Gateway на хосте)
+
+Для сценария «в неурочное время не грузить сервер» на странице `/talk` можно остановить **`openclaw-gateway.service`** (Telegram и Control UI на этом хосте перестанут отвечать, пока не нажмёте «Старт»). **Relay** (`openclaw-talk-relay`) при этом остаётся запущенным, чтобы кнопка «Старт» снова подняла Gateway.
+
+### Переменные в `/opt/alt/.env`
+
+| Переменная | Назначение |
+|------------|------------|
+| **`TALK_OKO_ADMIN_KEY`** | Секрет для операций **Стоп/Старт** (заголовок `X-Oko-Admin` с браузера). Должен совпадать на **relay** (relay читает тот же `.env`). |
+
+Обычный **`TALK_KEY`** по-прежнему нужен для входа на `/talk`; без **`TALK_OKO_ADMIN_KEY`** на сервере эндпоинты стоп/старт вернут **501**.
+
+### API
+
+- `GET /api/talk/oko/status` — статус `systemctl is-active openclaw-gateway` (нужен только `TALK_KEY`).
+- `POST /api/talk/oko/stop` / `POST /api/talk/oko/start` — `TALK_KEY` + заголовок **`X-Oko-Admin: <TALK_OKO_ADMIN_KEY>`**.
+
+Relay принимает те же вызовы на `…/oko/gateway/*` с **`X-App-Key`**; для стоп/старт дополнительно **`X-Oko-Admin`**.
+
+### Требования
+
+- Пользователь **`openclaw-talk-relay`** в systemd должен иметь право выполнять **`systemctl start/stop openclaw-gateway`** (в текущей схеме часто **`User=root`** на relay).
+
+---
 
 *Актуальность: схема соответствует развёртыванию ALT + OpenClaw + relay на одном хосте с Docker для `web`.*

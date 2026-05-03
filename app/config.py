@@ -39,6 +39,19 @@ ROUTERAI_CHEAP_MODEL = os.getenv("ROUTERAI_CHEAP_MODEL", "gpt-4o-mini")
 ROUTERAI_REASONING_MODEL = os.getenv("ROUTERAI_REASONING_MODEL", "")
 ROUTERAI_EMBEDDINGS_MODEL = os.getenv("ROUTERAI_EMBEDDINGS_MODEL", "")
 
+
+def _float_env(name: str, default: float) -> float:
+    try:
+        return float(os.getenv(name, str(default)))
+    except ValueError:
+        return default
+
+
+# Таймауты HTTP к RouterAI (httpx): медленные модели (Qwen и т.п.) часто не укладываются в 60s на чтение ответа.
+ROUTERAI_TIMEOUT_CONNECT_S = _float_env("ROUTERAI_TIMEOUT_CONNECT_S", 15.0)
+ROUTERAI_TIMEOUT_READ_CONTENT_S = _float_env("ROUTERAI_TIMEOUT_READ_CONTENT_S", 180.0)
+ROUTERAI_TIMEOUT_READ_CONTENT_RETRY_S = _float_env("ROUTERAI_TIMEOUT_READ_CONTENT_RETRY_S", 240.0)
+
 # Agent-specific model routing (server-side services)
 # Backend (chat / synthesis)
 BACKEND_MODEL_MAIN = os.getenv("BACKEND_MODEL_MAIN", ROUTERAI_CHAT_MODEL).strip()
