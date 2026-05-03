@@ -49,8 +49,19 @@ def _float_env(name: str, default: float) -> float:
 
 # Таймауты HTTP к RouterAI (httpx): медленные модели (Qwen и т.п.) часто не укладываются в 60s на чтение ответа.
 ROUTERAI_TIMEOUT_CONNECT_S = _float_env("ROUTERAI_TIMEOUT_CONNECT_S", 15.0)
-ROUTERAI_TIMEOUT_READ_CONTENT_S = _float_env("ROUTERAI_TIMEOUT_READ_CONTENT_S", 180.0)
-ROUTERAI_TIMEOUT_READ_CONTENT_RETRY_S = _float_env("ROUTERAI_TIMEOUT_READ_CONTENT_RETRY_S", 240.0)
+# Чтение тела ответа chat/completions (content-worker). Приоритет: ROUTERAI_TIMEOUT_READ_CONTENT_S → ROUTERAI_TIMEOUT (совместимость) → 180.
+if os.getenv("ROUTERAI_TIMEOUT_READ_CONTENT_S", "").strip():
+    ROUTERAI_TIMEOUT_READ_CONTENT_S = _float_env("ROUTERAI_TIMEOUT_READ_CONTENT_S", 180.0)
+elif os.getenv("ROUTERAI_TIMEOUT", "").strip():
+    ROUTERAI_TIMEOUT_READ_CONTENT_S = _float_env("ROUTERAI_TIMEOUT", 180.0)
+else:
+    ROUTERAI_TIMEOUT_READ_CONTENT_S = 180.0
+
+if os.getenv("ROUTERAI_TIMEOUT_READ_CONTENT_RETRY_S", "").strip():
+    ROUTERAI_TIMEOUT_READ_CONTENT_RETRY_S = _float_env("ROUTERAI_TIMEOUT_READ_CONTENT_RETRY_S", 240.0)
+else:
+    # Retry-попытка (тяжёлая модель / сложный JSON): чуть дольше основной read.
+    ROUTERAI_TIMEOUT_READ_CONTENT_RETRY_S = max(ROUTERAI_TIMEOUT_READ_CONTENT_S + 60.0, 240.0)
 
 # Agent-specific model routing (server-side services)
 # Backend (chat / synthesis)

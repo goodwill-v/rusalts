@@ -283,7 +283,7 @@ async def refine_corporate_publication(it: ContentItem) -> tuple[str, str, str, 
         api_key=config.ROUTERAI_API_KEY,
         model=model,
         messages=messages,
-        timeout_s=90.0,
+        timeout_s=config.ROUTERAI_TIMEOUT_READ_CONTENT_S,
     )
     json_log(
         {
@@ -308,7 +308,7 @@ async def refine_corporate_publication(it: ContentItem) -> tuple[str, str, str, 
                 api_key=config.ROUTERAI_API_KEY,
                 model=choice2.model,
                 messages=messages,
-                timeout_s=120.0,
+                timeout_s=config.ROUTERAI_TIMEOUT_READ_CONTENT_RETRY_S,
             )
             json_log(
                 {
