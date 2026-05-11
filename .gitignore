@@ -11,6 +11,7 @@ data/
 
 # Talk - файлы для общения с LLM
 
+RELEASES/
 
 # Не игнорируем docs/ — они нужны в GitHub.
 # Agennts_instractions/ больше не используем (брифы уже в docs/agents).
