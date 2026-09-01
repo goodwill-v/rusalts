@@ -1,0 +1,68 @@
+# Staging-контур АЛТ (черновик сайта для проверки)
+# Запуск: docker compose -f docker-compose.staging.yml --env-file .env.staging up -d --build
+# Проект изолирован от прода: имя проекта alt-staging, порт 8001, свои volume.
+
+name: alt-staging
+
+services:
+  redis:
+    image: redis:7-alpine
+    command: ["redis-server", "--save", "60", "1", "--appendonly", "yes"]
+    volumes:
+      - redis_data_staging:/data
+    restart: unless-stopped
+
+  web:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: alt-expert-web:staging
+    env_file:
+      - .env.staging
+    ports:
+      - "8001:8000"
+    depends_on:
+      - redis
+    dns:
+      - 1.1.1.1
+      - 8.8.8.8
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    volumes:
+      - ./data_staging:/app/data
+      - ./knowledge_base:/app/knowledge_base
+    restart: unless-stopped
+
+  parser-worker:
+    image: alt-expert-web:staging
+    env_file:
+      - .env.staging
+    depends_on:
+      - redis
+    dns:
+      - 1.1.1.1
+      - 8.8.8.8
+    volumes:
+      - ./data_staging:/app/data
+      - ./knowledge_base:/app/knowledge_base
+      - ./parser:/app/parser
+    command: ["python", "-m", "app.workers.parser_worker"]
+    restart: unless-stopped
+
+  content-worker:
+    image: alt-expert-web:staging
+    env_file:
+      - .env.staging
+    depends_on:
+      - redis
+    dns:
+      - 1.1.1.1
+      - 8.8.8.8
+    volumes:
+      - ./data_staging:/app/data
+      - ./knowledge_base:/app/knowledge_base
+    command: ["python", "-m", "app.workers.content_worker"]
+    restart: unless-stopped
+
+volumes:
+  redis_data_staging:
