@@ -79,7 +79,7 @@ rsync в `/opt/alt` → `docker compose -f docker-compose.staging.yml up -d --bu
 
 - [x] `.env.staging` создан на сервере (копия прода + правки)
 - [x] Стартовый запуск compose-staging → http://109.73.202.123:8001/health OK
-- [ ] DNS A-запись `staging` → 109.73.202.123 (панель Timeweb, делает Шеф)
-- [ ] certbot + nginx-конфиг → https://staging.rusalts.ru/health OK
+- [x] DNS A-запись `staging` → 109.73.202.123 (сделал Шеф 01.09.2026)
+- [x] certbot + nginx-конфиг → https://staging.rusalts.ru/health OK (01.09.2026)
 - [ ] Workflow `deploy-staging.yml` в репо (CI + rsync + compose staging)
 - [ ] Проверка: правка в staging-ветке → автообновление staging
