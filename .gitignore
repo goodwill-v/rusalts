@@ -16,3 +16,9 @@ RELEASES/
 # Не игнорируем docs/ — они нужны в GitHub.
 # Agennts_instractions/ больше не используем (брифы уже в docs/agents).
 
+
+# Local git credentials (секрет, только сервер)
+.git-credentials
+
+# Junk / local
+ssh-keyscan.err
