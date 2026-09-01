@@ -3,34 +3,64 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
-    <title>Talk</title>
+    <meta name="theme-color" content="#6d28d9" />
+    <meta name="mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-title" content="ТОЛК" />
+    <meta name="application-name" content="ТОЛК" />
+    <title>ТОЛК</title>
+    <link rel="manifest" href="/talk/assets/manifest.webmanifest" />
+    <link rel="icon" type="image/png" sizes="192x192" href="/talk/assets/icons/icon-192.png" />
+    <link rel="apple-touch-icon" href="/talk/assets/icons/icon-192.png" />
     <link rel="stylesheet" href="/talk/assets/talk.css" />
   </head>
   <body>
     <div class="talk">
       <div class="talk__toolbar" data-talk-toolbar hidden>
-        <span class="talk__oko-state" data-oko-state>ОКО: …</span>
-        <div class="talk__toolbar-btns">
-          <button type="button" class="talk__tb" data-oko-status>Статус</button>
-          <button type="button" class="talk__tb talk__tb--danger" data-oko-stop>Стоп ОКО</button>
-          <button type="button" class="talk__tb talk__tb--ok" data-oko-start>Старт ОКО</button>
-        </div>
+        <label class="talk__model-wrap">
+          <span class="talk__model-label">Модель</span>
+          <select class="talk__model-select" data-talk-model aria-label="Модель OpenClaw">
+            <option value="">Загрузка…</option>
+          </select>
+        </label>
+        <button type="button" class="talk__tb" data-oko-status title="Статус Gateway">Статус</button>
+        <button type="button" class="talk__tb talk__tb--danger" data-oko-stop>Стоп</button>
+        <button type="button" class="talk__tb talk__tb--ok" data-oko-start>Старт</button>
       </div>
       <div class="talk__log" data-talk-log aria-live="polite"></div>
 
       <form class="talk__composer" data-talk-form autocomplete="off">
-        <label class="talk__file">
-          <input type="file" data-talk-file accept=".txt,.md,text/plain,image/*,video/*" />
-          <span>+</span>
-        </label>
         <textarea
           class="talk__input"
           data-talk-input
-          rows="1"
+          rows="2"
           placeholder="Сообщение…"
           inputmode="text"
         ></textarea>
-        <button class="talk__send" type="submit">Отправить</button>
+        <div class="talk__actions">
+          <label class="talk__file talk__action talk__action--icon" title="Прикрепить файл">
+            <input type="file" data-talk-file accept=".txt,.md,.odt,.doc,.docx,text/plain,image/*,video/*,application/pdf" />
+            <span aria-hidden="true">+</span>
+          </label>
+          <button type="button" class="talk__action" data-talk-new-session title="Новая сессия OpenClaw">Новая</button>
+          <button type="button" class="talk__action" data-talk-export title="Экспорт переписки">Экспорт</button>
+          <button type="submit" class="talk__action talk__action--primary" data-talk-send title="Отправить">Отпр.</button>
+          <button
+            type="button"
+            class="talk__action talk__action--voice talk__action--icon"
+            data-talk-voice
+            aria-label="Голосовой ввод"
+            title="Голос → текст. Нажмите ещё раз, чтобы остановить и отправить."
+          >
+            <svg class="talk__icon" viewBox="0 0 24 24" width="20" height="20" aria-hidden="true">
+              <path
+                fill="currentColor"
+                d="M12 14a3 3 0 0 0 3-3V6a3 3 0 0 0-6 0v5a3 3 0 0 0 3 3zm5-3a5 5 0 0 1-10 0H5a7 7 0 0 0 14 0h-2zm-1 4H8v2h8v-2z"
+              />
+            </svg>
+          </button>
+        </div>
+        <div class="talk__attach-hint" data-talk-attach-hint hidden></div>
       </form>
     </div>
 
@@ -48,4 +78,3 @@
     <script src="/talk/assets/talk.js"></script>
   </body>
 </html>
-

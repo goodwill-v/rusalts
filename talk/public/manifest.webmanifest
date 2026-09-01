@@ -1,0 +1,33 @@
+{
+  "name": "ТОЛК — чат с ОКО",
+  "short_name": "ТОЛК",
+  "description": "Чат с OpenClaw Gateway (ОКО) на rusalts.ru",
+  "start_url": "/talk",
+  "scope": "/talk",
+  "id": "/talk",
+  "display": "standalone",
+  "orientation": "portrait-primary",
+  "background_color": "#0b1220",
+  "theme_color": "#6d28d9",
+  "lang": "ru",
+  "icons": [
+    {
+      "src": "/talk/assets/icons/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/talk/assets/icons/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/talk/assets/icons/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
+    }
+  ]
+}

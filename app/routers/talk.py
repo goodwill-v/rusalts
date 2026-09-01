@@ -102,6 +102,42 @@ async def ping(request: Request) -> dict:
     return {"ok": True}
 
 
+@router.post("/session/reset")
+async def talk_session_reset(request: Request) -> dict[str, Any]:
+    """Сброс сессии OpenClaw для /talk (новая сессия)."""
+    _require_talk_key(request)
+    url = f"{_relay_base_url()}/session/reset"
+    try:
+        async with httpx.AsyncClient(timeout=30) as client:
+            r = await client.post(url, headers=_relay_headers())
+    except httpx.RequestError as e:
+        raise HTTPException(status_code=502, detail=f"Не удалось связаться с relay: {e}") from None
+    if r.status_code >= 400:
+        raise HTTPException(status_code=502, detail={"upstream_status": r.status_code, "body": r.text[:4000]})
+    try:
+        return r.json()
+    except Exception:
+        return {"ok": False, "raw": r.text[:2000]}
+
+
+@router.get("/models")
+async def talk_models(request: Request) -> dict[str, Any]:
+    """Список моделей OpenClaw для выпадающего списка на /talk."""
+    _require_talk_key(request)
+    url = f"{_relay_base_url()}/models"
+    try:
+        async with httpx.AsyncClient(timeout=15) as client:
+            r = await client.get(url, headers=_relay_headers())
+    except httpx.RequestError as e:
+        raise HTTPException(status_code=502, detail=f"Не удалось связаться с relay: {e}") from None
+    if r.status_code >= 400:
+        raise HTTPException(status_code=502, detail={"upstream_status": r.status_code, "body": r.text[:4000]})
+    try:
+        return r.json()
+    except Exception:
+        return {"ok": False, "raw": r.text[:2000]}
+
+
 @router.post("/relay")
 async def relay(request: Request, payload: dict[str, Any]) -> dict[str, Any]:
     _require_talk_key(request)
@@ -109,12 +145,16 @@ async def relay(request: Request, payload: dict[str, Any]) -> dict[str, Any]:
     text = str(payload.get("text") or "").strip()
     if not text:
         raise HTTPException(status_code=400, detail="Пустой текст")
+    body: dict[str, Any] = {"text": text}
+    model = str(payload.get("model") or "").strip()
+    if model:
+        body["model"] = model
 
     try:
         # Relay to external app can take time (LLM / tools). Keep this comfortably
         # above proxy defaults to avoid false 502 while still bounded.
         async with httpx.AsyncClient(timeout=130) as client:
-            r = await client.post(url, json={"text": text}, headers=_relay_headers())
+            r = await client.post(url, json=body, headers=_relay_headers())
     except httpx.RequestError as e:
         raise HTTPException(status_code=502, detail=f"Не удалось подключиться к боту: {e}") from None
 
@@ -135,6 +175,7 @@ async def relay(request: Request, payload: dict[str, Any]) -> dict[str, Any]:
 async def relay_file(
     request: Request,
     text: str = Form(""),
+    model: str = Form(""),
     file: UploadFile | None = File(default=None),
 ) -> dict[str, Any]:
     _require_talk_key(request)
@@ -149,6 +190,9 @@ async def relay_file(
         files = {"file": (file.filename or "upload.bin", content, file.content_type or "application/octet-stream")}
 
     data = {"text": txt}
+    model_id = (model or "").strip()
+    if model_id:
+        data["model"] = model_id
     try:
         async with httpx.AsyncClient(timeout=180) as client:
             r = await client.post(url, data=data, files=files, headers=_relay_headers())

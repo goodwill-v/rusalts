@@ -90,10 +90,16 @@ async def news(request: Request) -> HTMLResponse:
 
 @router.get("/techologis/", response_class=HTMLResponse)
 async def techologis(request: Request) -> HTMLResponse:
-    return _site_page(
+    """Каталог инструментов АЛТ (страница «Услуги»)."""
+    return templates.TemplateResponse(
         request,
-        h1="Услуги",
-        description="Публичная страница: услуги проекта.",
+        "techologis.html",
+        {
+            "vk_app_id": config.VK_APP_ID or None,
+            "is_widget": False,
+            "layout_class": "layout-site",
+            "page_title": "Услуги — АЛЬТЕРНАТИВА (АЛТ)",
+        },
     )
 
 
