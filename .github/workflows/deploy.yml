@@ -91,6 +91,8 @@ jobs:
             --exclude '.env.*' \
             --exclude '.venv' \
             --exclude 'data' \
+            --exclude '.git/config' \
+            --exclude '.git-credentials' \
             -e "ssh -p ${{ secrets.SSH_PORT }} -o ServerAliveInterval=20 -o ServerAliveCountMax=10 -o TCPKeepAlive=yes -o ConnectTimeout=15" \
             ./ "${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }}:${{ secrets.DEPLOY_PATH }}/"
 
