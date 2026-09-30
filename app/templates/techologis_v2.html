@@ -1,0 +1,264 @@
+{% extends "base.html" %}
+
+{% block extra_scripts %}
+<link rel="stylesheet" href="/static/css/showcase.css" />
+{% endblock %}
+
+{% block body %}
+<header class="site-header" role="banner">
+  <div class="site-header__inner">
+    <a class="brandmark" href="/" aria-label="АЛТ — на главную">
+      <img class="brandmark__logo" src="/static/img/logo.png" alt="Логотип АЛТ" />
+      <span class="brandmark__text">АЛЬТЕРНАТИВА</span>
+    </a>
+    <button class="nav-toggle" type="button" aria-label="Открыть меню">
+      <span class="nav-toggle__bar"></span><span class="nav-toggle__bar"></span><span class="nav-toggle__bar"></span>
+    </button>
+    <nav id="site-nav" class="site-nav" aria-label="Навигация">
+      <a class="site-nav__link" href="/">Главная</a>
+      <a class="site-nav__link" href="/news/">Новости</a>
+      <a class="site-nav__link" href="/laws/">Правовая база</a>
+      <a class="site-nav__link" href="/channels/">Каналы</a>
+      <a class="site-nav__link is-active" href="/techologis-v2/">Магазин</a>
+      <a class="site-nav__link" href="/#contacts">Контакты</a>
+    </nav>
+  </div>
+</header>
+
+<main class="site-main">
+  <section class="showcase">
+    <div class="showcase__inner">
+      <h1 class="showcase__title">Продукты и услуги АЛТ</h1>
+      <p class="showcase__lead">
+        Российские ИИ-сервисы на отечественных платформах.
+        Работают в мессенджере <strong>MAX</strong>, <strong>ВКонтакте</strong> и в <strong>вебе</strong>.
+      </p>
+      <p class="showcase__payment-info">
+        <span class="payment-badge">💳 Карты Visa, Mastercard, МИР</span>
+        <span class="payment-badge">📱 СБП (Система быстрых платежей)</span>
+        <span class="payment-badge">🔒 Безопасно через ЮKassa</span>
+      </p>
+
+      {% if payment_status == "success" %}
+      <div class="showcase__alert showcase__alert--success">
+        ✅ <strong>Платеж проведён!</strong> Подписка активирована. Добро пожаловать!
+      </div>
+      {% elif payment_status == "fail" %}
+      <div class="showcase__alert showcase__alert--error">
+        ❌ <strong>Ошибка оплаты.</strong> Попробуйте снова или свяжитесь с нами.
+      </div>
+      {% endif %}
+
+      <!-- Вкладки -->
+      <div class="showcase__tabs">
+        <button class="tab-btn is-active" data-tab="products">📦 Продукты (подписки)</button>
+        <button class="tab-btn" data-tab="services">🛠️ Услуги (под заказ)</button>
+      </div>
+
+      <!-- Продукты -->
+      <div id="tab-products" class="tab-content is-active">
+        <div class="showcase__grid">
+          {% for p in products %}
+          <article class="prod-card" data-status="{{ p.status }}">
+            <div class="prod-card__header">
+              {% if p.status == "free" %}
+              <span class="prod-badge prod-badge--free">Бесплатно</span>
+              {% elif p.status == "coming" %}
+              <span class="prod-badge prod-badge--coming">Скоро</span>
+              {% elif p.status == "beta" %}
+              <span class="prod-badge prod-badge--beta">Бета</span>
+              {% elif p.status == "available" %}
+              <span class="prod-badge prod-badge--available">✅ Доступно</span>
+              {% endif %}
+            </div>
+
+            <h3 class="prod-card__title">{{ p.name }}</h3>
+            <p class="prod-card__desc">{{ p.description }}</p>
+
+            <div class="prod-card__meta">
+              {% if p.platform %}
+              <span class="prod-meta__platform">📡 {{ p.platform }}</span>
+              {% endif %}
+              {% if p.trial_days %}
+              <span class="prod-meta__trial">🎁 {{ p.trial_days }} дней бесплатно</span>
+              {% endif %}
+            </div>
+
+            <div class="prod-card__footer">
+              {% if p.status == "available" and p.price_rub > 0 %}
+              <div class="prod-card__price">
+                <span class="price-value">{{ p.price_rub }} ₽</span>
+                <span class="price-period">/мес</span>
+              </div>
+              <button class="btn-buy" data-product="{{ p.id }}" data-price="{{ p.price_rub }}">
+                Оплатить подписку
+              </button>
+              {% elif p.status == "free" %}
+              <div class="prod-card__price">
+                <span class="price-value price-value--free">Бесплатно</span>
+              </div>
+              <a class="btn-buy btn-buy--secondary" href="{{ p.bot_url }}">
+                Открыть →
+              </a>
+              {% elif p.status == "coming" or p.status == "beta" %}
+              <div class="prod-card__price">
+                <span class="price-value price-value--coming">от {{ p.price_rub }} ₽/мес</span>
+              </div>
+              <button class="btn-buy btn-buy--disabled" disabled>Скоро</button>
+              {% endif %}
+            </div>
+          </article>
+          {% endfor %}
+        </div>
+      </div>
+
+      <!-- Услуги -->
+      <div id="tab-services" class="tab-content">
+        <div class="showcase__grid">
+          {% for s in services %}
+          <article class="prod-card" data-status="{{ s.status }}">
+            <div class="prod-card__header">
+              {% if s.status == "inquiry" %}
+              <span class="prod-badge prod-badge--inquiry">По запросу</span>
+              {% elif s.status == "dev" %}
+              <span class="prod-badge prod-badge--dev">В разработке</span>
+              {% endif %}
+            </div>
+
+            <h3 class="prod-card__title">{{ s.name }}</h3>
+            <p class="prod-card__desc">{{ s.description }}</p>
+
+            <div class="prod-card__meta">
+              {% if s.platform %}
+              <span class="prod-meta__platform">📡 {{ s.platform }}</span>
+              {% endif %}
+            </div>
+
+            <div class="prod-card__footer">
+              <div class="prod-card__price">
+                {% if s.status == "inquiry" %}
+                <span class="price-value--inquiry">Цена по запросу</span>
+                {% else %}
+                <span class="price-value--coming">Уточняется</span>
+                {% endif %}
+              </div>
+              <button class="btn-buy btn-buy--secondary" onclick="location.href='/#contacts'">
+                Запросить →
+              </button>
+            </div>
+          </article>
+          {% endfor %}
+        </div>
+      </div>
+
+      <p class="showcase__oferta">
+        🔄 У платных инструментов — есть пробный период.
+        Отмена подписки и возвраты — по правилам
+        <a class="link" href="/oferta">оферты</a>.
+        По вопросам оплаты пишите в
+        <a class="link" href="/#contacts">контакты</a>.
+      </p>
+    </div>
+  </section>
+</main>
+
+<!-- Модалка оплаты -->
+<div id="payment-modal" class="modal" style="display:none">
+  <div class="modal__overlay"></div>
+  <div class="modal__content">
+    <button class="modal__close" onclick="closeModal()">✕</button>
+    <h2 id="modal-title">Оплата</h2>
+    <p id="modal-desc"></p>
+    <div class="modal__price">
+      <span id="modal-amount"></span>
+    </div>
+    <p class="modal__methods">💳 Карта · 📱 СБП · 🔒 ЮKassa</p>
+    <button id="modal-pay-btn" class="btn-buy btn-buy--large">Перейти к оплате</button>
+    <p class="modal__note">После оплаты подписка активируется автоматически.</p>
+  </div>
+</div>
+
+<footer class="site-footer" role="contentinfo">
+  <div class="site-footer__inner">
+    <div class="footer-brand">
+      <img class="footer-brand__logo" src="/static/img/logo.png" alt="АЛТ" />
+      <div class="footer-brand__col">
+        <p class="footer-brand__text">АЛЬТЕРНАТИВА — альтернативные легальные технологии</p>
+      </div>
+    </div>
+    <div class="footer-links">
+      <a class="footer-link" href="/">Главная</a>
+      <a class="footer-link" href="/techologis-v2/">Магазин</a>
+      <a class="footer-link" href="/#contacts">Контакты</a>
+    </div>
+  </div>
+</footer>
+
+<script>
+const PRODUCTS = {{ products | tojson }};
+const PAY_BASE = {{ request.base_url | string | tojson }};
+
+// Tabs
+document.querySelectorAll('.tab-btn').forEach(btn => {
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('is-active'));
+    document.querySelectorAll('.tab-content').forEach(t => t.classList.remove('is-active'));
+    btn.classList.add('is-active');
+    document.getElementById('tab-' + btn.dataset.tab).classList.add('is-active');
+  });
+});
+
+// Payment
+async function openPayment(productId, price) {
+  const prod = PRODUCTS.find(p => p.id === productId);
+  if (!prod) return;
+  document.getElementById('modal-title').textContent = prod.name;
+  document.getElementById('modal-desc').textContent = prod.description;
+  document.getElementById('modal-amount').textContent = price + ' ₽/мес';
+  document.getElementById('modal-pay-btn').onclick = () => startPayment(productId, price);
+  document.getElementById('payment-modal').style.display = 'flex';
+}
+
+async function startPayment(productId, price) {
+  const btn = document.getElementById('modal-pay-btn');
+  btn.textContent = '⏳ Подготовка...';
+  btn.disabled = true;
+  try {
+    const resp = await fetch('/api/create-payment', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({
+        product_id: productId,
+        amount_rub: price,
+        return_url: PAY_BASE.replace(/\/+$/, '') + '/techologis-v2/?payment=success'
+      })
+    });
+    const data = await resp.json();
+    if (data.confirmation_url) {
+      window.location.href = data.confirmation_url;
+    } else {
+      alert('Ошибка: ' + (data.error || 'нет ссылки для оплаты'));
+      closeModal();
+    }
+  } catch(e) {
+    alert('Ошибка соединения: ' + e.message);
+    closeModal();
+  }
+}
+
+function closeModal() {
+  document.getElementById('payment-modal').style.display = 'none';
+  document.getElementById('modal-pay-btn').textContent = 'Перейти к оплате';
+  document.getElementById('modal-pay-btn').disabled = false;
+}
+
+document.querySelectorAll('.btn-buy[data-product]').forEach(btn => {
+  btn.addEventListener('click', () => {
+    openPayment(btn.dataset.product, parseInt(btn.dataset.price));
+  });
+});
+
+// Close modal on overlay click
+document.querySelector('.modal__overlay')?.addEventListener('click', closeModal);
+</script>
+{% endblock %}

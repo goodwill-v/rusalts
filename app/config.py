@@ -122,6 +122,14 @@ TALK_APP_TOKEN = os.getenv("TALK_APP_TOKEN", "").strip()
 # Секрет для кнопок «Стоп/Старт ОКО» на /talk (остановка systemd openclaw-gateway на хосте через relay).
 TALK_OKO_ADMIN_KEY = os.getenv("TALK_OKO_ADMIN_KEY", "").strip()
 
+# ЮKassa (платёжный шлюз)
+YOOKASSA_SHOP_ID = os.getenv("YOOKASSA_SHOP_ID", "").strip()
+YOOKASSA_SECRET_KEY = os.getenv("YOOKASSA_SECRET_KEY", "").strip()
+YOOKASSA_RETURN_URL = PUBLIC_BASE_URL.rstrip("/") + "/techologis/"
+
+# Sandbox mode: demo flow if keys are test/empty
+IS_YOOKASSA_SANDBOX = YOOKASSA_SHOP_ID in ("", "test_shop_id", "test")
+
 # Content approvals via email (Chief)
 CHIEF_EMAIL_TO = os.getenv("CHIEF_EMAIL_TO", "v.devops@yandex.ru").strip()
 
