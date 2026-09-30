@@ -1,4 +1,4 @@
-"""Sandbox router: payment API endpoints and the new techologis-v2 showcase page."""
+"""Sandbox router: payment API endpoints for the techologis showcase page."""
 
 from __future__ import annotations
 
@@ -32,46 +32,13 @@ templates = Jinja2Templates(directory=str(config.BASE_DIR / "app" / "templates")
 
 
 # ---------------------------------------------------------------------------
-# Showcase page (v2 — new design)
+# Redirect from old URL
 # ---------------------------------------------------------------------------
 
-@router.get("/techologis-v2/", response_class=HTMLResponse)
-async def techologis_v2(request: Request, payment: str = "") -> HTMLResponse:
-    """Новая витрина с каталогом продуктов и услуг."""
-    products_list = [
-        p for p in PRODUCTS.values() if p["category"] == "product" and p["status"] != "dev"
-    ]
-    services_list = [
-        p for p in PRODUCTS.values() if p["category"] == "service" or p.get("status") == "dev"
-    ]
-
-    # Добавляем тарифы и тексты подписок в контекст шаблона
-    tariffs_info = {}
-    for pid, t in TARIFFS.items():
-        tariffs_info[pid] = {
-            "token_allowance": format_token_allowance(t.token_allowance),
-            "estimated_dialogues": t.estimated_dialogues,
-            "model": t.routerai_model_id,
-            "trial_tokens": format_token_allowance(t.trial_tokens) if t.trial_tokens else "нет",
-            "subscription_text": get_subscription_text(pid),
-        }
-
-    return templates.TemplateResponse(
-        request,
-        "techologis_v2.html",
-        {
-            "vk_app_id": config.VK_APP_ID or None,
-            "is_widget": False,
-            "layout_class": "layout-site",
-            "page_title": "Магазин — АЛЬТЕРНАТИВА (АЛТ)",
-            "products": products_list,
-            "services": services_list,
-            "payment_status": payment,
-            "is_sandbox": config.IS_YOOKASSA_SANDBOX,
-            "tariffs_info": tariffs_info,
-            "billing_enabled": True,
-        },
-    )
+@router.get("/techologis-v2/")
+async def techologis_v2_redirect():
+    from fastapi.responses import RedirectResponse
+    return RedirectResponse(url="/techologis/", status_code=301)
 
 
 # ---------------------------------------------------------------------------
@@ -101,7 +68,7 @@ async def api_create_payment(request: Request):
     # return_url нужен только боевому режиму ЮKassa; берём адрес текущего запроса,
     # чтобы не зависеть от PUBLIC_BASE_URL (staging/IP/туннель).
     base = str(request.base_url).rstrip("/")
-    return_url = data.get("return_url", "") or f"{base}/techologis-v2/?payment=success"
+    return_url = data.get("return_url", "") or f"{base}/techologis/?payment=success"
     description = data.get("description", "") or f"Оплата: {prod['name']}"
 
     try:
@@ -141,7 +108,7 @@ async def payment_demo_redirect(
     if yookassa_id and yookassa_id.startswith("sandbox-"):
         update_payment_status(yookassa_id, "succeeded")
     # Относительный редирект: возвращаем туда, откуда пришли (staging, IP:порт, туннель).
-    return RedirectResponse(url="/techologis-v2/?payment=success")
+    return RedirectResponse(url="/techologis/?payment=success")
 
 
 @router.post("/api/payment-webhook")
@@ -242,7 +209,7 @@ async def api_get_subscription(customer_id: str, product_id: str):
     })
 
 
-@router.get("/techologis-v2/subscription/")
+@router.get("/techologis/subscription/")
 async def subscription_page(request: Request, customer_id: str = "", product_id: str = ""):
     """Страница статуса подписки для клиента."""
     sub_info = None

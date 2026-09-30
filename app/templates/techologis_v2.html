@@ -1,6 +1,6 @@
 {% extends "base.html" %}
 
-{% block extra_scripts %}
+{% block extra_head %}
 <link rel="stylesheet" href="/static/css/showcase.css" />
 {% endblock %}
 
@@ -19,7 +19,7 @@
       <a class="site-nav__link" href="/news/">Новости</a>
       <a class="site-nav__link" href="/laws/">Правовая база</a>
       <a class="site-nav__link" href="/channels/">Каналы</a>
-      <a class="site-nav__link is-active" href="/techologis-v2/">Магазин</a>
+      <a class="site-nav__link is-active" href="/techologis/">Магазин</a>
       <a class="site-nav__link" href="/#contacts">Контакты</a>
     </nav>
   </div>
@@ -188,7 +188,7 @@
     </div>
     <div class="footer-links">
       <a class="footer-link" href="/">Главная</a>
-      <a class="footer-link" href="/techologis-v2/">Магазин</a>
+      <a class="footer-link" href="/techologis/">Магазин</a>
       <a class="footer-link" href="/#contacts">Контакты</a>
     </div>
   </div>
@@ -230,7 +230,7 @@ async function startPayment(productId, price) {
       body: JSON.stringify({
         product_id: productId,
         amount_rub: price,
-        return_url: PAY_BASE.replace(/\/+$/, '') + '/techologis-v2/?payment=success'
+        return_url: PAY_BASE.replace(/\/+$/, '') + '/techologis/?payment=success'
       })
     });
     const data = await resp.json();

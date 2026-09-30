@@ -89,16 +89,42 @@ async def news(request: Request) -> HTMLResponse:
 
 
 @router.get("/techologis/", response_class=HTMLResponse)
-async def techologis(request: Request) -> HTMLResponse:
-    """Каталог инструментов АЛТ (страница «Услуги»)."""
+async def techologis(request: Request, payment: str = "") -> HTMLResponse:
+    """Каталог инструментов АЛТ с токен-биллингом (витрина v2)."""
+    from app.billing import TARIFFS, Tariff, get_subscription_text, format_token_allowance
+    from app.payments import PRODUCTS
+
+    products_list = [
+        p for p in PRODUCTS.values() if p["category"] == "product" and p["status"] != "dev"
+    ]
+    services_list = [
+        p for p in PRODUCTS.values() if p["category"] == "service" or p.get("status") == "dev"
+    ]
+
+    tariffs_info = {}
+    for pid, t in TARIFFS.items():
+        tariffs_info[pid] = {
+            "token_allowance": format_token_allowance(t.token_allowance),
+            "estimated_dialogues": t.estimated_dialogues,
+            "model": t.routerai_model_id,
+            "trial_tokens": format_token_allowance(t.trial_tokens) if t.trial_tokens else "нет",
+            "subscription_text": get_subscription_text(pid),
+        }
+
     return templates.TemplateResponse(
         request,
-        "techologis.html",
+        "techologis_v2.html",
         {
             "vk_app_id": config.VK_APP_ID or None,
             "is_widget": False,
             "layout_class": "layout-site",
-            "page_title": "Услуги — АЛЬТЕРНАТИВА (АЛТ)",
+            "page_title": "Магазин — АЛЬТЕРНАТИВА (АЛТ)",
+            "products": products_list,
+            "services": services_list,
+            "payment_status": payment,
+            "is_sandbox": config.IS_YOOKASSA_SANDBOX,
+            "tariffs_info": tariffs_info,
+            "billing_enabled": True,
         },
     )
 

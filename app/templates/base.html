@@ -6,6 +6,7 @@
   <title>{{ page_title }}</title>
   {# Use relative /static URLs to avoid mixed-content issues behind reverse proxy. #}
   <link rel="stylesheet" href="/static/css/app.css" />
+  {% block extra_head %}{% endblock %}
   {% if is_widget %}
   <meta name="widget-mode" content="vk" />
   {% endif %}
