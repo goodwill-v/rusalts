@@ -1,0 +1,388 @@
+/* ==========================================================================
+   Showcase / Магазин — витрина продуктов и услуг
+   Согласован с дизайном app.css (layout-site: светлая тема)
+   ========================================================================== */
+
+/* Inner wrapper — согласован с .site-main на сайте */
+.showcase__inner {
+  max-width: 1100px;
+  margin: 0 auto;
+  padding: 2rem 1.5rem 4rem;
+}
+
+.showcase__title {
+  font-size: 2rem;
+  font-weight: 800;
+  color: var(--site-heading, #111827);
+  margin: 0 0 0.75rem;
+  line-height: 1.2;
+}
+
+.showcase__lead {
+  font-size: 1.1rem;
+  color: var(--site-text, #374151);
+  max-width: 640px;
+  margin: 0 0 1rem;
+  line-height: 1.6;
+}
+
+/* Платежные иконки */
+.showcase__payment-info {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin: 0 0 1.5rem;
+}
+
+.payment-badge {
+  display: inline-block;
+  padding: 0.3rem 0.75rem;
+  border-radius: 100px;
+  background: var(--site-surface-alt, #f3f4f6);
+  font-size: 0.85rem;
+  color: var(--site-text, #374151);
+  border: 1px solid var(--site-border, rgba(17,24,39,0.12));
+  font-weight: 500;
+}
+
+/* Алерты */
+.showcase__alert {
+  padding: 1rem 1.25rem;
+  border-radius: var(--radius, 12px);
+  margin-bottom: 1.5rem;
+  font-weight: 500;
+}
+.showcase__alert--success {
+  background: #dcfce7;
+  color: #166534;
+  border: 1px solid #86efac;
+}
+.showcase__alert--error {
+  background: #fee2e2;
+  color: #991b1b;
+  border: 1px solid #fca5a5;
+}
+
+/* ======================== Вкладки ======================== */
+
+.showcase__tabs {
+  display: flex;
+  gap: 0.5rem;
+  margin-bottom: 2rem;
+  border-bottom: 2px solid var(--site-border, rgba(17,24,39,0.12));
+  padding-bottom: 0.5rem;
+}
+
+.tab-btn {
+  padding: 0.6rem 1.25rem;
+  border: none;
+  background: transparent;
+  color: var(--site-text, #374151);
+  font-size: 1rem;
+  font-weight: 600;
+  cursor: pointer;
+  border-radius: 8px 8px 0 0;
+  transition: all 0.2s;
+  opacity: 0.6;
+}
+.tab-btn:hover {
+  opacity: 0.85;
+  background: var(--site-surface-alt, #f3f4f6);
+}
+.tab-btn.is-active {
+  opacity: 1;
+  color: var(--accent, #4c8dff);
+  border-bottom: 3px solid var(--accent, #4c8dff);
+  margin-bottom: -0.65rem;
+}
+
+.tab-content {
+  display: none;
+}
+.tab-content.is-active {
+  display: block;
+}
+
+/* ======================== Сетка карточек ======================== */
+
+.showcase__grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: 1.25rem;
+}
+
+.prod-card {
+  background: var(--site-surface, #ffffff);
+  border: 1px solid var(--site-border, rgba(17,24,39,0.12));
+  border-radius: var(--radius, 12px);
+  padding: 1.25rem;
+  display: flex;
+  flex-direction: column;
+  transition: box-shadow 0.25s, transform 0.2s;
+  position: relative;
+}
+.prod-card:hover {
+  box-shadow: 0 8px 24px rgba(17,24,39,0.1);
+  transform: translateY(-2px);
+}
+.prod-card[data-status="free"] {
+  border-color: #86efac;
+  background: #f0fdf4;
+}
+.prod-card[data-status="available"] {
+  border-color: var(--accent, #4c8dff);
+  border-width: 1.5px;
+}
+
+/* Бейджи статуса */
+.prod-card__header {
+  margin-bottom: 0.5rem;
+  min-height: 1.5rem;
+}
+.prod-badge {
+  display: inline-block;
+  padding: 0.2rem 0.6rem;
+  border-radius: 6px;
+  font-size: 0.75rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+.prod-badge--free { background: #dcfce7; color: #166534; }
+.prod-badge--available { background: #dbeafe; color: #1e40af; }
+.prod-badge--coming { background: #fef3c7; color: #92400e; }
+.prod-badge--beta { background: #ede9fe; color: #5b21b6; }
+.prod-badge--inquiry { background: #f3f4f6; color: #4b5563; }
+.prod-badge--dev { background: #f3f4f6; color: #9ca3af; }
+
+.prod-card__title {
+  font-size: 1.1rem;
+  font-weight: 700;
+  color: var(--site-heading, #111827);
+  margin: 0 0 0.5rem;
+  line-height: 1.3;
+}
+
+.prod-card__desc {
+  font-size: 0.9rem;
+  color: var(--site-text, #374151);
+  margin: 0 0 0.75rem;
+  line-height: 1.5;
+  flex: 1;
+}
+
+/* Мета-информация */
+.prod-card__meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+  margin-bottom: 1rem;
+}
+.prod-meta__platform,
+.prod-meta__trial {
+  font-size: 0.8rem;
+  color: var(--muted, #6b7280);
+  background: var(--site-surface-alt, #f3f4f6);
+  padding: 0.2rem 0.5rem;
+  border-radius: 6px;
+}
+.prod-meta__trial {
+  background: #fef3c7;
+  color: #92400e;
+}
+
+/* Подвал карточки: цена + кнопка */
+.prod-card__footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  margin-top: auto;
+  padding-top: 0.75rem;
+  border-top: 1px solid var(--site-border, rgba(17,24,39,0.12));
+}
+
+.prod-card__price {
+  display: flex;
+  align-items: baseline;
+  gap: 0.25rem;
+}
+.price-value {
+  font-size: 1.4rem;
+  font-weight: 800;
+  color: var(--site-heading, #111827);
+}
+.price-value--free {
+  font-size: 1.1rem;
+  color: #166534;
+}
+.price-value--coming {
+  font-size: 0.85rem;
+  color: var(--muted, #6b7280);
+}
+.price-value--inquiry {
+  font-size: 0.9rem;
+  color: var(--muted, #6b7280);
+}
+.price-period {
+  font-size: 0.85rem;
+  color: var(--muted, #6b7280);
+  font-weight: 500;
+}
+
+/* Кнопки */
+.btn-buy {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0.5rem 1rem;
+  border: none;
+  border-radius: 8px;
+  font-size: 0.85rem;
+  font-weight: 600;
+  background: var(--accent, #4c8dff);
+  color: #ffffff;
+  cursor: pointer;
+  transition: all 0.2s;
+  white-space: nowrap;
+  text-decoration: none;
+}
+.btn-buy:hover {
+  background: var(--accent-dim, #2d5aa0);
+  transform: scale(1.02);
+}
+.btn-buy--secondary {
+  background: var(--site-surface-alt, #f3f4f6);
+  color: var(--site-heading, #111827);
+  border: 1px solid var(--site-border, rgba(17,24,39,0.12));
+}
+.btn-buy--secondary:hover {
+  background: #e5e7eb;
+}
+.btn-buy--disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+  background: var(--site-surface-alt, #f3f4f6);
+  color: var(--muted, #6b7280);
+}
+.btn-buy--large {
+  padding: 0.75rem 2rem;
+  font-size: 1rem;
+  width: 100%;
+}
+
+/* Оферта */
+.showcase__oferta {
+  margin-top: 2.5rem;
+  padding: 1rem;
+  border-radius: var(--radius, 12px);
+  background: var(--site-surface-alt, #f3f4f6);
+  font-size: 0.9rem;
+  color: var(--site-text, #374151);
+  text-align: center;
+}
+.showcase__oferta .link {
+  color: var(--accent, #4c8dff);
+  text-decoration: underline;
+}
+
+/* ======================== Модалка оплаты ======================== */
+
+.modal {
+  position: fixed;
+  inset: 0;
+  z-index: 9999;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.modal__overlay {
+  position: absolute;
+  inset: 0;
+  background: rgba(0,0,0,0.45);
+}
+.modal__content {
+  position: relative;
+  background: #ffffff;
+  border-radius: 16px;
+  padding: 2rem;
+  max-width: 420px;
+  width: 90%;
+  box-shadow: 0 24px 48px rgba(0,0,0,0.2);
+  text-align: center;
+}
+.modal__close {
+  position: absolute;
+  top: 1rem;
+  right: 1rem;
+  background: none;
+  border: none;
+  font-size: 1.3rem;
+  cursor: pointer;
+  color: var(--muted, #6b7280);
+  width: 2rem;
+  height: 2rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+}
+.modal__close:hover {
+  background: var(--site-surface-alt, #f3f4f6);
+}
+.modal__content h2 {
+  margin: 0 0 0.5rem;
+  font-size: 1.25rem;
+  color: var(--site-heading, #111827);
+}
+.modal__content p {
+  color: var(--site-text, #374151);
+  font-size: 0.9rem;
+  margin: 0 0 1rem;
+}
+.modal__price {
+  font-size: 2rem;
+  font-weight: 800;
+  color: var(--site-heading, #111827);
+  margin: 1rem 0;
+}
+.modal__methods {
+  font-size: 0.85rem;
+  color: var(--muted, #6b7280);
+  margin-bottom: 1.25rem;
+}
+.modal__note {
+  font-size: 0.8rem;
+  color: var(--muted, #6b7280);
+  margin-top: 0.75rem;
+}
+
+/* ======================== Адаптивность ======================== */
+
+@media (max-width: 640px) {
+  .showcase__inner {
+    padding: 1.5rem 1rem 3rem;
+  }
+  .showcase__title {
+    font-size: 1.5rem;
+  }
+  .showcase__grid {
+    grid-template-columns: 1fr;
+  }
+  .showcase__tabs {
+    flex-direction: column;
+    gap: 0.25rem;
+    border-bottom: none;
+  }
+  .tab-btn.is-active {
+    border-bottom: 2px solid var(--accent);
+    margin-bottom: 0;
+  }
+  .prod-card__footer {
+    flex-direction: column;
+    align-items: stretch;
+  }
+  .btn-buy {
+    width: 100%;
+  }
+}
