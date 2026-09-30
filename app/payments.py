@@ -68,7 +68,7 @@ PRODUCTS: dict[str, dict[str, Any]] = {
         "period_days": 30,
         "trial_days": 7,
         "category": "product",
-        "platform": "Telegram / MAX / Савви",
+        "platform": "Telegram / MAX",
         "bot_url": "https://t.me/ItaLidia_bot",
         "status": "available",
     },
