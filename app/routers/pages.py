@@ -118,7 +118,7 @@ async def techologis(request: Request, payment: str = "") -> HTMLResponse:
             "vk_app_id": config.VK_APP_ID or None,
             "is_widget": False,
             "layout_class": "layout-site",
-            "page_title": "Услуги — АЛЬТЕРНАТИВА (АЛТ)",
+            "page_title": "Витрина — АЛЬТЕРНАТИВА (АЛТ)",
             "products": products_list,
             "services": services_list,
             "payment_status": payment,
