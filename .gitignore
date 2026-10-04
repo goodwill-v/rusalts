@@ -22,5 +22,3 @@ RELEASES/
 
 # Junk / local
 ssh-keyscan.err
-.venv_sandbox/
-.git-credentials
