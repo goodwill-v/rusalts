@@ -3,6 +3,7 @@ Supports sandbox (demo) mode and live mode with redirect confirmation."""
 
 from __future__ import annotations
 
+import base64
 import hashlib
 import hmac
 import json
@@ -69,7 +70,20 @@ PRODUCTS: dict[str, dict[str, Any]] = {
         "trial_days": 7,
         "category": "product",
         "platform": "Telegram / MAX",
-        "bot_url": "https://t.me/ItaLidia_bot",
+        "bot_url": "https://t.me/italecho_bot",
+        "detail_url": "/techologis/italidia/",
+        "status": "available",
+    },
+    "italidia_test": {
+        "id": "italidia_test",
+        "name": "🧪 ItaLidia — тест",
+        "description": "ТЕСТОВЫЙ режим: подписка на 4 дня, 120K токенов. Для проверки оплаты и цикла.",
+        "price_rub": 300,
+        "period_days": 4,
+        "trial_days": 1,
+        "category": "product",
+        "platform": "🧪 Тестовый",
+        "bot_url": "https://t.me/italecho_bot",
         "status": "available",
     },
     "kupec": {
@@ -147,6 +161,7 @@ def _connect() -> sqlite3.Connection:
             status TEXT NOT NULL DEFAULT 'pending',
             customer_email TEXT,
             customer_phone TEXT,
+            customer_id TEXT,
             payment_method_id TEXT,
             created_at TEXT NOT NULL DEFAULT (datetime('now')),
             updated_at TEXT NOT NULL DEFAULT (datetime('now'))
@@ -159,6 +174,7 @@ def _connect() -> sqlite3.Connection:
             product_id TEXT NOT NULL,
             customer_email TEXT,
             payment_method_id TEXT,
+            customer_id TEXT,
             status TEXT NOT NULL DEFAULT 'active',
             started_at TEXT NOT NULL DEFAULT (datetime('now')),
             expires_at TEXT,
@@ -175,13 +191,14 @@ def record_payment(
     status: str = "pending",
     customer_email: str = "",
     customer_phone: str = "",
+    customer_id: str = "",
     payment_method_id: str = "",
 ) -> int:
     with closing(_connect()) as db:
         cur = db.execute(
-            """INSERT INTO payments (yookassa_id, product_id, amount_rub, status, customer_email, customer_phone, payment_method_id)
-               VALUES (?, ?, ?, ?, ?, ?, ?)""",
-            (yookassa_id, product_id, amount_rub, status, customer_email, customer_phone, payment_method_id),
+            """INSERT INTO payments (yookassa_id, product_id, amount_rub, status, customer_email, customer_phone, customer_id, payment_method_id)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?)""",
+            (yookassa_id, product_id, amount_rub, status, customer_email, customer_phone, customer_id, payment_method_id),
         )
         db.commit()
         return cur.lastrowid
@@ -197,6 +214,15 @@ def update_payment_status(yookassa_id: str, status: str, payment_method_id: str 
         sql = f"UPDATE payments SET status = ?, updated_at = datetime('now'){extra} WHERE yookassa_id = ?"
         db.execute(sql, params)
         db.commit()
+
+
+def get_payment_record(yookassa_id: str) -> dict[str, Any] | None:
+    """Получить запись платежа из локальной БД."""
+    with closing(_connect()) as db:
+        row = db.execute(
+            "SELECT * FROM payments WHERE yookassa_id = ?", (yookassa_id,)
+        ).fetchone()
+    return dict(row) if row else None
 
 
 def activate_subscription(
@@ -227,7 +253,7 @@ _YOOKASSA_API = "https://api.yookassa.ru/v3"
 def _auth_header() -> str:
     """Basic auth: base64(ShopId:SecretKey)"""
     raw = f"{config.YOOKASSA_SHOP_ID}:{config.YOOKASSA_SECRET_KEY}"
-    return "Basic " + raw.encode("utf-8").hex()
+    return "Basic " + base64.b64encode(raw.encode("utf-8")).decode("ascii")
 
 
 def _idempotency_key() -> str:
