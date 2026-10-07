@@ -8,6 +8,7 @@ __pycache__/
 .vscode
 # Runtime данные (генерируются при работе)
 data/
+deploy.log
 
 # Talk - файлы для общения с LLM
 
