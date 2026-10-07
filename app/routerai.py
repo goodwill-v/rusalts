@@ -34,6 +34,25 @@ def _join_openai_path(base_url: str, path: str) -> str:
     return f"{b}{p}"
 
 
+def get_product_key(product_id: str = "") -> str:
+    """Вернуть API-ключ RouterAI для продукта.
+
+    Если для продукта задан отдельный ключ (ROUTERAI_API_KEY_VITRINA) —
+    используем его. Иначе — общий ROUTERAI_API_KEY.
+    """
+    if product_id:
+        keys = {
+            "vezhpom": config.ROUTERAI_API_KEY_VITRINA,
+            "italidia": config.ROUTERAI_API_KEY_VITRINA,
+            "neyrosotrudnik": config.ROUTERAI_API_KEY_VITRINA,
+        }
+        key = keys.get(product_id) or config.ROUTERAI_API_KEY
+        if key:
+            return key
+    return config.ROUTERAI_API_KEY
+
+
+
 async def chat_completion(
     *,
     base_url: str,
