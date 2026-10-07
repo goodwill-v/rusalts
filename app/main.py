@@ -9,7 +9,7 @@ from fastapi.staticfiles import StaticFiles
 from app import config
 from app.middleware import EmbedSecurityMiddleware
 from app.observability import RequestIdMiddleware
-from app.routers import api, content, pages, parser, sandbox_shop, talk
+from app.routers import api, billing_admin, content, pages, parser, sandbox_shop, talk
 
 config.ensure_data_dirs()
 
@@ -34,6 +34,7 @@ app.include_router(api.router)
 app.include_router(content.router)
 app.include_router(parser.router)
 app.include_router(talk.router)
+app.include_router(billing_admin.router)
 app.include_router(sandbox_shop.router)
 
 static_dir = config.BASE_DIR / "app" / "static"

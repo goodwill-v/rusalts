@@ -61,7 +61,8 @@ class Tariff:
     routerai_completion_price_per_1m: float  # Цена за 1 млн выходных токенов (₽)
     token_cost_ratio: float           # Доля цены подписки на покрытие токенов (≈0.5-0.7)
     estimated_dialogues: str          # Примерное кол-во диалогов (для витрины)
-    trial_tokens: int = 0             # Токенов для пробного периода (14 дней)
+    trial_tokens: int = 0             # Токенов для пробного периода (7 дней)
+    period_days: int = 30             # Дней действия подписки
     additional_token_price_per_1m: float = 0  # Цена докупки 1 млн токенов (₽)
 
     @property
@@ -93,13 +94,13 @@ TARIFFS: dict[str, Tariff] = {
         product_id="italidia",
         name="ItaLidia — ассистент итальянского языка",
         price_rub=300,
-        token_allowance=500_000,        # 500K токенов на месяц
+        token_allowance=900_000,        # 900K токенов на месяц (Шеф, 04.10)
         routerai_model_id="openai/gpt-4o-mini",
         routerai_prompt_price_per_1m=2.0,
         routerai_completion_price_per_1m=8.0,
         token_cost_ratio=0.60,           # 180₽ на токены, 120₽ маржа
         estimated_dialogues="от 80 до 400",
-        trial_tokens=50_000,             # 50K на пробу
+        trial_tokens=200_000,         # 200K токенов на пробу (~7 дней)
         additional_token_price_per_1m=10.0,  # Докупка по 10₽/1M токенов
     ),
     "vezhpom": Tariff(
@@ -112,7 +113,7 @@ TARIFFS: dict[str, Tariff] = {
         routerai_completion_price_per_1m=8.0,
         token_cost_ratio=0.30,           # 45₽ на токены, 105₽ маржа
         estimated_dialogues="до 200 проверок и уведомлений",
-        trial_tokens=30_000,
+        trial_tokens=50_000,
         additional_token_price_per_1m=8.0,
     ),
     "neyrosotrudnik": Tariff(
@@ -125,7 +126,7 @@ TARIFFS: dict[str, Tariff] = {
         routerai_completion_price_per_1m=8.0,
         token_cost_ratio=0.50,           # 250₽ на токены, 250₽ маржа
         estimated_dialogues="от 150 до 700",
-        trial_tokens=80_000,
+        trial_tokens=375_000,
         additional_token_price_per_1m=10.0,
     ),
     "alt_expert": Tariff(
@@ -141,6 +142,20 @@ TARIFFS: dict[str, Tariff] = {
         trial_tokens=0,
         additional_token_price_per_1m=0,
     ),
+    "italidia_test": Tariff(
+        product_id="italidia_test",
+        name="ItaLidia — тестовый (4 дня)",
+        price_rub=300,
+        token_allowance=120_000,          # 120K = 900K × 4/30
+        routerai_model_id="openai/gpt-4o-mini",
+        routerai_prompt_price_per_1m=2.0,
+        routerai_completion_price_per_1m=8.0,
+        token_cost_ratio=0.60,
+        estimated_dialogues="тестовый режим, 4 дня",
+        trial_tokens=30_000,              # 30K = 120K × 1/4 (1 день из 4)
+        period_days=4,
+        additional_token_price_per_1m=10.0,
+    ),
 }
 
 
@@ -153,7 +168,9 @@ def format_token_allowance(tokens: int) -> str:
     """Форматировать токены в человекочитаемый вид."""
     if tokens >= 1_000_000:
         return f"{tokens / 1_000_000:.1f}M"
-    return f"{tokens // 1000}K"
+    if tokens >= 1000:
+        return f"{tokens // 1000}K"
+    return str(tokens)
 
 
 def get_subscription_text(product_id: str) -> str:
@@ -310,8 +327,56 @@ def get_remaining_tokens(customer_id: str, product_id: str) -> int:
     return bal["allowance_tokens"] - bal["used_tokens"]
 
 
-def is_balance_low(customer_id: str, product_id: str, threshold_pct: float = 0.15) -> bool:
-    """Баланс ниже порога (по умолчанию 15%)? Пора предупредить клиента."""
+def remaining_pct(customer_id: str, product_id: str) -> float:
+    """Процент оставшихся токенов (0.0–1.0). 0 если нет подписки."""
+    bal = get_balance(customer_id, product_id)
+    if bal is None or bal["allowance_tokens"] == 0:
+        return 0.0
+    remaining = bal["allowance_tokens"] - bal["used_tokens"]
+    return max(0.0, remaining / bal["allowance_tokens"])
+
+
+def usage_pct(customer_id: str, product_id: str) -> float:
+    """Процент использованных токенов (0.0–1.0)."""
+    return 1.0 - remaining_pct(customer_id, product_id)
+
+
+def is_balance_low(customer_id: str, product_id: str, threshold_pct: float = 0.20) -> bool:
+    """Баланс ниже порога (по умолчанию 20%)? Пора предупредить клиента."""
+    return remaining_pct(customer_id, product_id) < threshold_pct
+
+
+def check_before_inference(customer_id: str, product_id: str) -> dict:
+    """Проверить, можно ли выполнить AI-запрос.
+
+    Returns:
+        {"ok": True} — запрос разрешён.
+        {"ok": False, "reason": "exhausted", "message": "..."} — лимит исчерпан.
+        {"ok": False, "reason": "no_subscription", "message": "..."} — нет подписки.
+        {"ok": False, "reason": "expired", "message": "..."} — срок истёк.
+    """
+    bal = get_balance(customer_id, product_id)
+    if bal is None:
+        return {
+            "ok": False,
+            "reason": "no_subscription",
+            "message": "Подписка не найдена. Пожалуйста, оформите подписку.",
+        }
+    if bal["status"] == "expired":
+        return {
+            "ok": False,
+            "reason": "expired",
+            "message": "Срок подписки истёк. Пожалуйста, продлите подписку.",
+        }
+    remaining = bal["allowance_tokens"] - bal["used_tokens"]
+    if remaining <= 0:
+        return {
+            "ok": False,
+            "reason": "exhausted",
+            "message": "Пожалуйста, продлите подписку. Базовый лимит исчерпан.",
+            "warning_pct": usage_pct(customer_id, product_id) * 100,
+        }
+    return {"ok": True}
     bal = get_balance(customer_id, product_id)
     if bal is None:
         return True

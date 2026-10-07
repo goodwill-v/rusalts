@@ -1,0 +1,272 @@
+{% extends "base.html" %}
+{% block extra_head %}
+<style>
+  .product-hero {
+    max-width: 800px; margin: 0 auto; padding: 40px 20px;
+  }
+  .product-hero h1 {
+    font-size: 2em; margin-bottom: 0.3em;
+  }
+  .product-hero .subtitle {
+    font-size: 1.15em; color: var(--text-strong); margin-bottom: 2em;
+  }
+  .feature-grid {
+    display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+    gap: 24px; margin: 2em 0;
+  }
+  .feature-card {
+    background: var(--card); border-radius: var(--radius); padding: 20px;
+    border: 1px solid var(--border);
+  }
+  .feature-card h3 {
+    font-size: 1.15em; margin: 0 0 0.5em;
+  }
+  .feature-card p {
+    margin: 0; color: var(--text); font-size: 0.92em; line-height: 1.5;
+  }
+  .feature-card .icon {
+    font-size: 1.6em; display: block; margin-bottom: 0.2em;
+  }
+  .highlight-box {
+    background: var(--accent-fill); border-left: 4px solid var(--accent);
+    padding: 16px 20px; border-radius: 8px; margin: 1.5em 0;
+  }
+  .highlight-box p { margin: 0; }
+  .cta-section {
+    text-align: center; padding: 2em 0; margin: 2em 0;
+  }
+  .cta-button {
+    display: inline-block;
+    background: var(--accent-fill); color: var(--accent-fg);
+    padding: 14px 36px; border-radius: var(--radius);
+    font-size: 1.1em; font-weight: 600; text-decoration: none;
+    transition: filter .15s;
+  }
+  .cta-button:hover { filter: brightness(1.12); }
+  .spec-table {
+    width: 100%; border-collapse: collapse; margin: 1.5em 0;
+  }
+  .spec-table th, .spec-table td {
+    padding: 12px 16px; border: 1px solid var(--border);
+    text-align: left; vertical-align: top;
+  }
+  .spec-table thead th {
+    background: var(--accent-fill); font-weight: 600;
+  }
+  .spec-table tr:nth-child(even) td {
+    background: var(--card);
+  }
+  @media (max-width: 640px) {
+    .feature-grid { grid-template-columns: 1fr; }
+  }
+</style>
+{% endblock %}
+
+{% block body %}
+<div class="product-hero">
+
+  <h1>ItaLidia — ваш ИИ-ассистент итальянского языка</h1>
+  <p class="subtitle">
+    🎯 Разговаривайте, читайте, слушайте — и язык входит в жизнь сам.
+    Не просто чат-болванка, а живой собеседник, который помнит вас,
+    ваш уровень и ваши цели.
+  </p>
+
+  <div class="highlight-box">
+    <p><strong>✨ Для кого?</strong>
+    Для студентов итальянского, которые хотят практиковаться каждый день.
+    Для преподавателей, которые ищут инструмент для учеников (работает в чатах).
+    Для тех, кто «учил, но всё забыл» — с ItaLidia язык становится привычкой.</p>
+  </div>
+
+  <!-- Помощник, а не болванка -->
+  <h2>🤖 Чем ИИ-ассистент отличается от обычного чата с ИИ</h2>
+
+  <p>Казалось бы, открой ChatGPT, попроси перевести — и готово.
+  Но изучение языка — это не одноразовый запрос. Это диалог, практика,
+  повторение и привычка. ItaLidia built для этого с нуля.</p>
+
+  <table class="spec-table">
+    <thead>
+      <tr><th style="width:22%">Возможность</th><th>Как в обычном чате</th><th>Как в ItaLidia</th></tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td><strong>Память</strong></td>
+        <td>Забыл — закрыл окно — потерял нить разговора</td>
+        <td>Помнит вас, ваш уровень, интересы и типичные ошибки.
+          Даже если не писали неделю — бот вернётся в контекст.</td>
+      </tr>
+      <tr>
+        <td><strong>Персонализация</strong></td>
+        <td>Все получают одни и те же ответы</td>
+        <td>Учитывает ваше имя, уровень, цели и даже частоту ошибок —
+          подстраивает сложность и темы.</td>
+      </tr>
+      <tr>
+        <td><strong>Языковой баланс</strong></td>
+        <td>Один язык на сессию</td>
+        <td>Определяет язык сообщения: отвечает на итальянском,
+          но если вам нужно объяснение на русском — переключится.
+          Итальянские фразы подсвечивает.</td>
+      </tr>
+      <tr>
+        <td><strong>Перевод и грамматика</strong></td>
+        <td>«Переведи…» каждый раз</td>
+        <td>Кнопки <strong>«П»</strong> (перевод) и <strong>«Ан»</strong>
+          (анализ) прямо под ответом бота — не нужно ничего писать.</td>
+      </tr>
+      <tr>
+        <td><strong>Медиа</strong></td>
+        <td>Только текст</td>
+        <td>Фото (распознаёт и переводит текст), голосовые сообщения
+          (распознаёт речь), видеокружки.</td>
+      </tr>
+      <tr>
+        <td><strong>Голос</strong></td>
+        <td>Нет</td>
+        <td>Распознаёт вашу речь → пишет ответ → озвучивает его
+          итальянским голосом. Включите <code>/voice</code> — и каждый
+          ответ будет со звуком.</td>
+      </tr>
+      <tr>
+        <td><strong>Контекст</strong></td>
+        <td>Нет истории между сессиями</td>
+        <td>Динамический контекст: дата, время суток, ваши заметки,
+          последние темы. Бот знает, утро сейчас или вечер.</td>
+      </tr>
+      <tr>
+        <td><strong>Рассылки</strong></td>
+        <td>Нет</td>
+        <td>Утреннее <em>Buongiorno!</em> и вечернее
+          <em>Buonasera!</em> — итальянский сам приходит к вам
+          в удобное время. Можно настроить часы.</td>
+      </tr>
+      <tr>
+        <td><strong>Данные под контролем</strong></td>
+        <td>Нельзя удалить историю</td>
+        <td>Команда <code>/forget</code> — вы сами решаете,
+          что боту забыть.</td>
+      </tr>
+      <tr>
+        <td><strong>Подписка</strong></td>
+        <td>Нет</td>
+        <td>Прозрачная подписка 300 ₽/мес. Никаких скрытых плат
+          за токены — фиксированный лимит на месяц.</td>
+      </tr>
+      <tr>
+        <td><strong>Устойчивость</strong></td>
+        <td>Зависит от браузера и сессии</td>
+        <td>Серверный сервис: работает 24/7, сам восстанавливается
+          при сбоях, логирует ошибки. Вам не нужно думать о том,
+          «включён ли бот».</td>
+      </tr>
+    </tbody>
+  </table>
+
+  <!-- Как работает -->
+  <h2>🚀 Как это работает</h2>
+
+  <div class="feature-grid">
+    <div class="feature-card">
+      <span class="icon">💬</span>
+      <h3>Пишете — он отвечает</h3>
+      <p>На русском, итальянском, вперемешку.
+      Бот определяет язык и поддерживает диалог.
+      Попросите перевести фразу, объяснить правило или просто поболтать.</p>
+    </div>
+    <div class="feature-card">
+      <span class="icon">📸</span>
+      <h3>Фото — в текст и перевод</h3>
+      <p>Сфотографировали меню, вывеску, страницу учебника?
+      Бот прочитает текст, переведёт и ответит по-итальянски.</p>
+    </div>
+    <div class="feature-card">
+      <span class="icon">🎤</span>
+      <h3>Говорите — бот слышит</h3>
+      <p>Голосовое сообщение или кружок — распознавание речи,
+      ответ текстом и опционально голосом. Тренируйте произношение!</p>
+    </div>
+    <div class="feature-card">
+      <span class="icon">🔊</span>
+      <h3>Слушайте, как звучит</h3>
+      <p>Кнопка озвучки под каждым ответом — идеальное произношение
+      итальянским голосом. Нажмите ещё раз — приходит мгновенно
+      без повтора синтеза.</p>
+    </div>
+    <div class="feature-card">
+      <span class="icon">📋</span>
+      <h3>Проверяйте себя</h3>
+      <p><code>/profile</code> — что бот запомнил.
+      <code>/summary</code> — сводка диалога.
+      <code>/topics</code> — темы рассылок.
+      Всё прозрачно.</p>
+    </div>
+    <div class="feature-card">
+      <span class="icon">📬</span>
+      <h3>Итальянский сам приходит</h3>
+      <p>Утром — <em>Buongiorno!</em> с интересным фактом,
+      рецептом или вопросом дня. Вечером — тёплое <em>Buonasera!</em>
+      для хорошего настроения. Можно настроить время или отписаться.</p>
+    </div>
+  </div>
+
+  <!-- Преподаватель -->
+  <div class="highlight-box">
+    <p><strong>👩‍🏫 Хотите с преподавателем?</strong>
+    Напишите «хочу урок» или используйте команду (скоро).
+    Бот передаст вашу заявку преподавателю Лидии —
+    она ответит в удобное время. Почта для связи:
+    <a href="mailto:lidia-lp@mail.ru">lidia-lp@mail.ru</a>.</p>
+  </div>
+
+  <!-- Цены -->
+  <h2>💰 Подписка</h2>
+
+  <table class="spec-table">
+    <thead>
+      <tr><th>Параметр</th><th>Значение</th></tr>
+    </thead>
+    <tbody>
+      <tr><td>Стоимость</td><td>300 ₽ в месяц</td></tr>
+      <tr><td>Пробный период</td><td>🎁 7 дней / 200 000 токенов — бесплатно</td></tr>
+      <tr><td>Что входит</td><td>Неограниченное количество сообщений в рамках тарифа.
+        Фиксированный объём токенов на месяц.
+        Все функции: диалог, фото, голос, озвучка, рассылки.
+        Сопровождение 1 месяц после старта.</td></tr>
+      <tr><td>Как оплатить</td><td>Команда <code>/pay</code> в боте → ссылка на оплату →
+        ЮKassa (карты, СБП, ЮMoney). Подписка активируется сразу.
+        <a href="#">Подробнее об оплате →</a></td></tr>
+    </tbody>
+  </table>
+
+  <div class="highlight-box">
+    <p><strong>💡 Попробуйте бесплатно</strong>
+    → напишите боту
+    <a href="https://t.me/ItaLidia_bot" target="_blank"><strong>@ItaLidia_bot</strong></a>
+    в Telegram. Пробный период включается автоматически при активации.</p>
+  </div>
+
+  <!-- Техническое (мелко) -->
+  <details>
+    <summary style="cursor:pointer; color: var(--muted);">Технические детали</summary>
+    <p style="font-size: 0.85em; color: var(--muted);">
+      Модель: openai/gpt-5-mini (через RouterAI).
+      Распознавание речи: Whisper Large v3 Turbo.
+      Озвучка: Google Gemini TTS, голос Kore.
+      База данных: SQLite (ваши данные не передаются третьим лицам).
+      Сервер: РФ, Екатеринбург.
+    </p>
+  </details>
+
+  <div class="cta-section">
+    <a href="https://t.me/ItaLidia_bot" class="cta-button" target="_blank">
+      🚀 Начать бесплатный пробный период
+    </a>
+    <p style="margin-top: 1em; font-size: 0.9em;">
+      7 дней бесплатно · 200 000 токенов · Без привязки карты
+    </p>
+  </div>
+
+</div>
+{% endblock %}

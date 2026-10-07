@@ -14,6 +14,7 @@ from app import config
 from app.billing import (
     TARIFFS,
     Tariff,
+    check_before_inference,
     get_or_create_balance,
     get_balance,
     get_remaining_tokens,
@@ -25,7 +26,7 @@ from app.billing import (
     deactivate_expired_subscriptions,
     top_up_balance,
 )
-from app.payments import PRODUCTS, create_payment, record_payment, update_payment_status
+from app.payments import PRODUCTS, create_payment, get_payment_record, record_payment, update_payment_status
 
 router = APIRouter()
 templates = Jinja2Templates(directory=str(config.BASE_DIR / "app" / "templates"))
@@ -42,6 +43,25 @@ async def techologis_v2_redirect():
 
 
 # ---------------------------------------------------------------------------
+# Product pages
+# ---------------------------------------------------------------------------
+
+@router.get("/techologis/italidia/")
+async def italidia_product_page(request: Request):
+    """Страница подробнее о продукте ItaLidia."""
+    return templates.TemplateResponse(
+        request,
+        "italidia_product.html",
+        {
+            "vk_app_id": config.VK_APP_ID or None,
+            "is_widget": False,
+            "layout_class": "layout-site",
+            "page_title": "ItaLidia — ассистент итальянского языка — АЛТ",
+        },
+    )
+
+
+# ---------------------------------------------------------------------------
 # Payment API
 # ---------------------------------------------------------------------------
 
@@ -54,6 +74,7 @@ async def api_create_payment(request: Request):
         return JSONResponse({"error": "Invalid JSON"}, status_code=400)
 
     product_id = data.get("product_id", "").strip()
+    customer_id = data.get("customer_id", "").strip()
     if product_id not in PRODUCTS:
         return JSONResponse({"error": f"Unknown product: {product_id}"}, status_code=404)
 
@@ -88,6 +109,7 @@ async def api_create_payment(request: Request):
         product_id=product_id,
         amount_rub=amount_rub,
         status=result.get("status", "pending"),
+        customer_id=customer_id,
         payment_method_id=pm_id,
     )
 
@@ -103,11 +125,20 @@ async def api_create_payment(request: Request):
 async def payment_demo_redirect(
     yookassa_id: str = "",
     product_id: str = "",
+    customer_id: str = "",
 ):
     """Sandbox: simulate successful payment redirect."""
     if yookassa_id and yookassa_id.startswith("sandbox-"):
         update_payment_status(yookassa_id, "succeeded")
-    # Относительный редирект: возвращаем туда, откуда пришли (staging, IP:порт, туннель).
+        # Activate subscription in sandbox
+        if customer_id and product_id and product_id in TARIFFS:
+            tariff = TARIFFS[product_id]
+            get_or_create_balance(
+                customer_id=customer_id,
+                product_id=product_id,
+                allowance_tokens=tariff.token_allowance,
+                period_days=tariff.period_days,
+            )
     return RedirectResponse(url="/techologis/?payment=success")
 
 
@@ -127,7 +158,17 @@ async def payment_webhook(request: Request):
         payment_id = payment_obj.get("id", "")
         pm_id = payment_obj.get("payment_method", {}).get("id", "")
         update_payment_status(payment_id, "succeeded", payment_method_id=pm_id)
-        # TODO: activate subscription and notify user
+        # Get stored payment record and activate subscription
+        rec = get_payment_record(payment_id)
+        if rec and rec["customer_id"] and rec["product_id"]:
+            tariff = TARIFFS.get(rec["product_id"])
+            if tariff:
+                get_or_create_balance(
+                    customer_id=rec["customer_id"],
+                    product_id=rec["product_id"],
+                    allowance_tokens=tariff.token_allowance,
+                    period_days=tariff.period_days,
+                )
 
     return JSONResponse({"ok": True})
 
@@ -172,6 +213,7 @@ async def api_activate_subscription(request: Request):
             customer_id=customer_id,
             product_id=product_id,
             allowance_tokens=allowance,
+            period_days=tariff.period_days,
         )
 
     return JSONResponse({
@@ -258,6 +300,36 @@ async def subscription_page(request: Request, customer_id: str = "", product_id:
             "billing_enabled": True,
         },
     )
+
+
+@router.post("/api/subscription/check")
+async def api_subscription_check(request: Request):
+    """Проверить, можно ли выполнить AI-запрос для клиента по продукту.
+
+    Перед каждым AI-запросом вызывать этот эндпоинт.
+    Если лимит исчерпан — вернёт {ok: false, reason: "exhausted", message: "..."}.
+    """
+    try:
+        data = await request.json()
+    except Exception:
+        return JSONResponse({"error": "Invalid JSON"}, status_code=400)
+
+    customer_id = data.get("customer_id", "").strip()
+    product_id = data.get("product_id", "").strip()
+    if not customer_id or not product_id:
+        return JSONResponse({"error": "customer_id and product_id are required"}, status_code=400)
+
+    result = check_before_inference(customer_id, product_id)
+    if result["ok"]:
+        remaining = get_remaining_tokens(customer_id, product_id)
+        bal = get_balance(customer_id, product_id)
+        return JSONResponse({
+            "ok": True,
+            "remaining_tokens": remaining,
+            "percent_used": round((bal["used_tokens"] / bal["allowance_tokens"]) * 100, 1) if bal and bal["allowance_tokens"] else 0,
+            "balance_low": is_balance_low(customer_id, product_id),
+        })
+    return JSONResponse(result, status_code=403)
 
 
 @router.post("/api/subscription/top-up")
