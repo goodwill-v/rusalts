@@ -94,9 +94,14 @@ async def techologis(request: Request, payment: str = "") -> HTMLResponse:
     from app.billing import TARIFFS, Tariff, get_subscription_text, format_token_allowance
     from app.payments import PRODUCTS
 
-    products_list = [
-        p for p in PRODUCTS.values() if p["category"] == "product" and p["status"] != "dev"
-    ]
+    product_order = ["italidia", "vezhpom"]
+    products_list = sorted(
+        [
+            p for p in PRODUCTS.values()
+            if p["category"] == "product" and p["status"] != "dev" and p["id"] != "italidia_test"
+        ],
+        key=lambda p: product_order.index(p["id"]) if p["id"] in product_order else len(product_order),
+    )
     services_list = [
         p for p in PRODUCTS.values() if p["category"] == "service" or p.get("status") == "dev"
     ]
@@ -118,7 +123,7 @@ async def techologis(request: Request, payment: str = "") -> HTMLResponse:
             "vk_app_id": config.VK_APP_ID or None,
             "is_widget": False,
             "layout_class": "layout-site",
-            "page_title": "Магазин — АЛЬТЕРНАТИВА (АЛТ)",
+            "page_title": "Витрина — АЛЬТЕРНАТИВА (АЛТ)",
             "products": products_list,
             "services": services_list,
             "payment_status": payment,
