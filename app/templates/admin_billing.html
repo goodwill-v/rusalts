@@ -1,0 +1,475 @@
+{% extends "base.html" %}
+{% block extra_head %}
+<style>
+.admin-shell {
+  max-width: 1200px;
+  margin: 2rem auto;
+  padding: 0 1.5rem;
+}
+.admin-shell h1 {
+  font-size: 1.6rem;
+  font-weight: 800;
+  color: var(--site-heading, #111827);
+  margin: 0 0 0.5rem;
+}
+.admin-badge {
+  display: inline-block;
+  padding: 0.15rem 0.5rem;
+  border-radius: 6px;
+  font-size: 0.78rem;
+  font-weight: 600;
+}
+.admin-badge--active { background: #d1fae5; color: #065f46; }
+.admin-badge--expired { background: #fee2e2; color: #991b1b; }
+
+.admin-panel {
+  background: var(--site-surface, #ffffff);
+  border: 1px solid var(--site-border, rgba(17,24,39,0.12));
+  border-radius: 12px;
+  padding: 1.25rem;
+  margin-bottom: 1.5rem;
+}
+.admin-panel h2 {
+  font-size: 1.1rem;
+  font-weight: 700;
+  margin: 0 0 0.75rem;
+}
+.admin-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  gap: 1rem;
+}
+.stat-card {
+  background: var(--site-surface-alt, #f3f4f6);
+  border-radius: 10px;
+  padding: 0.75rem 1rem;
+  text-align: center;
+}
+.stat-card__value {
+  font-size: 1.8rem;
+  font-weight: 800;
+  color: var(--site-heading);
+}
+.stat-card__label {
+  font-size: 0.8rem;
+  color: var(--muted);
+  margin-top: 0.25rem;
+}
+
+table.billing-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.85rem;
+}
+table.billing-table th {
+  text-align: left;
+  padding: 0.5rem 0.6rem;
+  font-weight: 600;
+  border-bottom: 2px solid var(--site-border);
+  color: var(--site-heading);
+  white-space: nowrap;
+  cursor: pointer;
+}
+table.billing-table td {
+  padding: 0.4rem 0.6rem;
+  border-bottom: 1px solid var(--site-border);
+  vertical-align: top;
+}
+table.billing-table tr:hover {
+  background: var(--site-surface-alt, #f3f4f6);
+}
+
+.grant-form {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.75rem;
+  margin-bottom: 0.5rem;
+}
+.grant-form label {
+  display: block;
+  font-size: 0.85rem;
+  color: var(--muted);
+  margin-bottom: 0.25rem;
+}
+.grant-form input,
+.grant-form select {
+  width: 100%;
+  padding: 0.4rem 0.6rem;
+  border: 1px solid #ccc;
+  border-radius: 6px;
+  font-size: 0.9rem;
+  box-sizing: border-box;
+}
+.grant-form .full-row {
+  grid-column: 1 / -1;
+}
+
+.bar-cell {
+  position: relative;
+  min-width: 80px;
+}
+.bar-cell .bar {
+  height: 6px;
+  border-radius: 3px;
+  background: var(--accent, #4c8dff);
+  width: 0%;
+  display: inline-block;
+  vertical-align: middle;
+}
+.bar-cell .bar-over {
+  background: var(--warn, #b45309);
+}
+.bar-cell .pct-label {
+  font-size: 0.75rem;
+  color: var(--muted);
+  margin-left: 0.25rem;
+}
+
+.actions-cell a,
+.actions-cell button {
+  font-size: 0.78rem;
+  padding: 0.15rem 0.5rem;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  color: var(--accent, #4c8dff);
+  background: transparent;
+  text-decoration: underline;
+}
+.actions-cell .btn-revoke {
+  color: var(--danger, #dc2626);
+}
+
+.filter-bar {
+  display: flex;
+  gap: 0.5rem;
+  margin-bottom: 0.75rem;
+}
+.filter-bar input {
+  padding: 0.4rem 0.6rem;
+  border: 1px solid #ccc;
+  border-radius: 6px;
+  font-size: 0.85rem;
+  flex: 1;
+}
+.filter-bar button {
+  padding: 0.4rem 0.75rem;
+  border: 1px solid var(--site-border);
+  border-radius: 6px;
+  background: var(--site-surface-alt);
+  cursor: pointer;
+  font-size: 0.85rem;
+}
+
+.toast {
+  position: fixed;
+  bottom: 1.5rem;
+  right: 1.5rem;
+  padding: 0.75rem 1.25rem;
+  border-radius: 10px;
+  font-size: 0.9rem;
+  z-index: 9999;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+  display: none;
+}
+.toast--ok { background: #d1fae5; color: #065f46; border: 1px solid #a7f3d0; }
+.toast--error { background: #fee2e2; color: #991b1b; border: 1px solid #fca5a5; }
+
+@media (max-width: 640px) {
+  .admin-shell { padding: 0 0.75rem; }
+  table.billing-table { font-size: 0.75rem; }
+  .grant-form { grid-template-columns: 1fr; }
+}
+</style>
+{% endblock %}
+
+{% block body %}
+<header class="site-header" role="banner">
+  <div class="site-header__inner">
+    <a class="brandmark" href="/" aria-label="АЛТ — на главную">
+      <img class="brandmark__logo" src="/static/img/logo.png" alt="Логотип АЛТ" />
+      <span class="brandmark__text">АЛЬТЕРНАТИВА</span>
+    </a>
+    <button class="nav-toggle" type="button" aria-label="Открыть меню">
+      <span class="nav-toggle__bar"></span><span class="nav-toggle__bar"></span><span class="nav-toggle__bar"></span>
+    </button>
+    <nav id="site-nav" class="site-nav" aria-label="Навигация">
+      <a class="site-nav__link" href="/">Главная</a>
+      <a class="site-nav__link" href="/admin/">Админ</a>
+      <a class="site-nav__link is-active" href="/admin/billing/">Биллинг</a>
+      <a class="site-nav__link" href="/techologis/">Витрина</a>
+    </nav>
+  </div>
+</header>
+
+<main class="site-main">
+  <div class="admin-shell">
+
+    <h1>💳 Биллинг — управление подписками</h1>
+
+    <!-- Статистика -->
+    <div class="admin-panel">
+      <h2>📊 Сводка</h2>
+      <div class="admin-grid" id="stats-grid"></div>
+    </div>
+
+    <!-- Форма выдачи доступа -->
+    <div class="admin-panel">
+      <h2>🎁 Выдать доступ</h2>
+      <div class="grant-form">
+        <div>
+          <label for="grant-cid">Customer ID</label>
+          <input id="grant-cid" type="text" placeholder="telegram_id или email" />
+        </div>
+        <div>
+          <label for="grant-pid">Продукт</label>
+          <select id="grant-pid"></select>
+        </div>
+        <div>
+          <label for="grant-tokens">Токенов</label>
+          <input id="grant-tokens" type="number" placeholder="0 = по тарифу" value="0" />
+        </div>
+        <div>
+          <label for="grant-days">Дней</label>
+          <input id="grant-days" type="number" placeholder="30" value="30" />
+        </div>
+        <div class="full-row">
+          <label for="grant-reason">Причина</label>
+          <select id="grant-reason">
+            <option value="free">Бесплатный доступ</option>
+            <option value="teacher">Учитель</option>
+            <option value="admin">Администратор</option>
+            <option value="trial">Пробный период</option>
+            <option value="test">Тестирование</option>
+          </select>
+        </div>
+        <div class="full-row">
+          <button id="btn-grant" class="btn-site btn-site--primary" style="margin-top:0.5rem;">✅ Выдать доступ</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Таблица подписок -->
+    <div class="admin-panel">
+      <h2>📋 Все подписки</h2>
+      <div class="filter-bar">
+        <input id="filter-input" type="text" placeholder="Фильтр: customer_id или product_id" />
+        <button id="filter-btn">🔍 Фильтр</button>
+        <button id="filter-clear">✕ Сбросить</button>
+        <button id="refresh-btn">🔄 Обновить</button>
+      </div>
+      <div style="overflow-x:auto;">
+        <table class="billing-table" id="subs-table">
+          <thead>
+            <tr>
+              <th>ID</th>
+              <th>Customer</th>
+              <th>Продукт</th>
+              <th>Статус</th>
+              <th>Токены</th>
+              <th>Расход</th>
+              <th>Действия</th>
+            </tr>
+          </thead>
+          <tbody id="subs-body"></tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- Расход по продуктам -->
+    <div class="admin-panel">
+      <h2>📊 Расход по продуктам</h2>
+      <div style="overflow-x:auto;">
+        <table class="billing-table" id="usage-table">
+          <thead>
+            <tr>
+              <th>Продукт</th>
+              <th>Запросов</th>
+              <th>Prompt токенов</th>
+              <th>Completion токенов</th>
+              <th>Стоимость (₽)</th>
+            </tr>
+          </thead>
+          <tbody id="usage-body"></tbody>
+        </table>
+      </div>
+    </div>
+
+  </div>
+</main>
+
+<div id="toast" class="toast"></div>
+
+<script>
+const TOAST = document.getElementById("toast");
+const TBL = document.getElementById("subs-body");
+const UTBL = document.getElementById("usage-body");
+const STATS = document.getElementById("stats-grid");
+const FILTER_INP = document.getElementById("filter-input");
+const SEL_PID = document.getElementById("grant-pid");
+
+function showToast(msg, kind) {
+  TOAST.className = "toast toast--" + kind;
+  TOAST.textContent = msg;
+  TOAST.style.display = "block";
+  setTimeout(() => { TOAST.style.display = "none"; }, 4000);
+}
+
+async function loadData() {
+  try {
+    const res = await fetch("/api/billing/overview");
+    if (!res.ok) throw new Error("auth? " + res.status);
+    const data = await res.json();
+    renderStats(data);
+    renderTable(data);
+    renderUsage(data);
+    renderProductSelect(data);
+  } catch (e) {
+    showToast("Ошибка загрузки: " + e.message, "error");
+  }
+}
+
+function renderStats(data) {
+  const s = data.stats;
+  STATS.innerHTML = [
+    { label: "Активных подписок", value: s.active },
+    { label: "Истекло", value: s.expired },
+    { label: "Всего записей", value: s.total },
+    { label: "Оценка выручки/мес", value: s.monthly_revenue_est + " ₽" },
+  ].map(c =>
+    `<div class="stat-card"><div class="stat-card__value">${c.value}</div><div class="stat-card__label">${c.label}</div></div>`
+  ).join("");
+}
+
+function renderTable(data) {
+  const filter = FILTER_INP.value.trim().toLowerCase();
+  let items = data.subscriptions;
+  if (filter) {
+    items = items.filter(i =>
+      i.customer_id.toLowerCase().includes(filter) ||
+      i.product_id.toLowerCase().includes(filter)
+    );
+  }
+  if (!items.length) {
+    TBL.innerHTML = '<tr><td colspan="7"><p class="muted-site">Нет подписок</p></td></tr>';
+    return;
+  }
+  TBL.innerHTML = items.map(i => {
+    const pct = Math.min(i.percent_used, 100);
+    const barClass = i.percent_used >= 100 ? "bar bar-over" : "bar";
+    const statusBadge =
+      i.status === "active"
+        ? '<span class="admin-badge admin-badge--active">✅ active</span>'
+        : '<span class="admin-badge admin-badge--expired">✕ expired</span>';
+    return `<tr>
+      <td>${i.id}</td>
+      <td><strong>${i.customer_id}</strong></td>
+      <td>${i.product_id}</td>
+      <td>${statusBadge}</td>
+      <td>
+        <span title="Из ${i.allowance_tokens.toLocaleString()}">
+          ${i.remaining_tokens.toLocaleString()} / ${i.allowance_tokens.toLocaleString()}
+        </span>
+      </td>
+      <td class="bar-cell">
+        <span class="${barClass}" style="width:${pct}%;max-width:60px;height:6px;display:inline-block;">&nbsp;</span>
+        <span class="pct-label">${i.percent_used}%</span>
+      </td>
+      <td class="actions-cell">
+        <a href="/admin/billing/customer/${i.customer_id}" target="_blank">👤</a>
+        <button class="btn-revoke" onclick="revoke(${i.id},'${i.customer_id}','${i.product_id}')">✕</button>
+      </td>
+    </tr>`;
+  }).join("");
+}
+
+function renderUsage(data) {
+  const u = data.usage_by_product;
+  const keys = Object.keys(u);
+  if (!keys.length) {
+    UTBL.innerHTML = '<tr><td colspan="5"><p class="muted-site">Нет данных о расходе</p></td></tr>';
+    return;
+  }
+  UTBL.innerHTML = keys.map(pid => {
+    const r = u[pid];
+    return `<tr>
+      <td><strong>${pid}</strong></td>
+      <td>${r.requests.toLocaleString()}</td>
+      <td>${r.prompt.toLocaleString()}</td>
+      <td>${r.completion.toLocaleString()}</td>
+      <td>${r.cost} ₽</td>
+    </tr>`;
+  }).join("");
+}
+
+function renderProductSelect(data) {
+  const tariffs = data.tariffs || {};
+  const keys = Object.keys(tariffs);
+  SEL_PID.innerHTML = keys.map(pid =>
+    `<option value="${pid}">${tariffs[pid].name}</option>`
+  ).join("");
+  // add blank
+  SEL_PID.innerHTML = '<option value="">— выберите продукт —</option>' + SEL_PID.innerHTML;
+}
+
+async function revoke(id, cid, pid) {
+  if (!confirm(`Отозвать подписку ${cid}/${pid}?`)) return;
+  try {
+    const res = await fetch("/api/billing/revoke", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ balance_id: id, customer_id: cid, product_id: pid }),
+    });
+    const data = await res.json();
+    if (data.ok) {
+      showToast("Подписка отозвана", "ok");
+      loadData();
+    } else {
+      showToast("Ошибка: " + (data.error || "?"), "error");
+    }
+  } catch (e) {
+    showToast("Ошибка: " + e.message, "error");
+  }
+}
+
+document.getElementById("btn-grant").addEventListener("click", async () => {
+  const body = {
+    customer_id: document.getElementById("grant-cid").value.trim(),
+    product_id: document.getElementById("grant-pid").value,
+    tokens: parseInt(document.getElementById("grant-tokens").value) || 0,
+    period_days: parseInt(document.getElementById("grant-days").value) || 30,
+    reason: document.getElementById("grant-reason").value,
+  };
+  if (!body.customer_id || !body.product_id) {
+    showToast("Заполните Customer ID и продукт", "error");
+    return;
+  }
+  try {
+    const res = await fetch("/api/billing/grant-access", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    });
+    const data = await res.json();
+    if (data.ok) {
+      showToast(`✅ Доступ выдан: ${body.customer_id} — ${body.product_id}`, "ok");
+      loadData();
+    } else {
+      showToast("Ошибка: " + (data.error || "?"), "error");
+    }
+  } catch (e) {
+    showToast("Ошибка: " + e.message, "error");
+  }
+});
+
+document.getElementById("filter-btn").addEventListener("click", () => loadData());
+document.getElementById("filter-clear").addEventListener("click", () => {
+  FILTER_INP.value = "";
+  loadData();
+});
+document.getElementById("refresh-btn").addEventListener("click", () => loadData());
+
+// Load on start
+loadData();
+</script>
+{% endblock %}
