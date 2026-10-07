@@ -19,7 +19,7 @@
       <a class="site-nav__link" href="/news/">Новости</a>
       <a class="site-nav__link" href="/laws/">Правовая база</a>
       <a class="site-nav__link" href="/channels/">Каналы</a>
-      <a class="site-nav__link is-active" href="/techologis/">Магазин</a>
+      <a class="site-nav__link is-active" href="/techologis/">Витрина</a>
       <a class="site-nav__link" href="/#contacts">Контакты</a>
     </nav>
   </div>
@@ -30,14 +30,27 @@
     <div class="showcase__inner">
       <h1 class="showcase__title">Продукты и услуги АЛТ</h1>
       <p class="showcase__lead">
-        Российские ИИ-сервисы на отечественных платформах.
-        Работают в мессенджере <strong>MAX</strong>, <strong>ВКонтакте</strong> и в <strong>вебе</strong>.
+        Представленные на сайте ИИ-сервисы позволяют решать разнообразные задачи.
+        Спектр возможностей инструментов с искусственным интеллектом, который создаём мы,
+        намного шире представленных здесь примеров.
+        Мы поможем вам сформулировать задачи, исходя из ваших процессов,
+        и создадим те инструменты, которые помогут в решении именно ваших задач.
+      </p>
+      <p class="showcase__lead showcase__lead--invite">
+        Обращайтесь, всегда рады сотрудничеству!
       </p>
       <p class="showcase__payment-info">
         <span class="payment-badge">💳 Карты Visa, Mastercard, МИР</span>
         <span class="payment-badge">📱 СБП (Система быстрых платежей)</span>
         <span class="payment-badge">🔒 Безопасно через ЮKassa</span>
       </p>
+
+      <div class="showcase__contacts">
+        <p><strong>Как оплатить?</strong> Напишите боту команду <code>/pay</code> — он пришлёт ссылку с вашим ID, которая переведёт вас на страницу оплаты.</p>
+        <p>Для обсуждения и заказа услуг обращайтесь:</p>
+        <p>📧 <strong>Email:</strong> <a class="link" href="mailto:v.devops@yandex.ru">v.devops@yandex.ru</a></p>
+        <p>💬 <strong>Свяжитесь с нами:</strong> <a class="link" href="https://max.ru/u/f9LHodD0cOK6gNMmsDRwupMfH3kwJVLcDcuW3vJK9mV0rvWB36UGey5F3wA">MAX</a></p>
+      </div>
 
       {% if payment_status == "success" %}
       <div class="showcase__alert showcase__alert--success">
@@ -73,14 +86,14 @@
             </div>
 
             <h3 class="prod-card__title">{{ p.name }}</h3>
-            <p class="prod-card__desc">{{ p.description }}</p>
+            <p class="prod-card__desc">{{ p.description }}{% if p.detail_url %} <a class="prod-more-link" href="{{ p.detail_url }}">Подробнее</a>{% endif %}</p>
 
             <div class="prod-card__meta">
               {% if p.platform %}
               <span class="prod-meta__platform">📡 {{ p.platform }}</span>
               {% endif %}
               {% if p.trial_days %}
-              <span class="prod-meta__trial">🎁 {{ p.trial_days }} дней бесплатно</span>
+        <a class="prod-meta__trial" href="{{ p.bot_url }}">🎁 {{ p.trial_days }} дней Пробный период ({{ tariffs_info[p.id].trial_tokens }})</a>
               {% endif %}
             </div>
 
@@ -88,7 +101,11 @@
               {% if p.status == "available" and p.price_rub > 0 %}
               <div class="prod-card__price">
                 <span class="price-value">{{ p.price_rub }} ₽</span>
+                {% if p.period_days and p.period_days != 30 %}
+                <span class="price-period">/{{ p.period_days }} дн.</span>
+                {% else %}
                 <span class="price-period">/мес</span>
+                {% endif %}
               </div>
               <button class="btn-buy" data-product="{{ p.id }}" data-price="{{ p.price_rub }}">
                 Оплатить подписку
@@ -149,6 +166,132 @@
           </article>
           {% endfor %}
         </div>
+
+        <!-- Примеры наших работ -->
+        <div class="portfolio-intro">
+          <strong>🏗️ Примеры наших работ</strong> — ниже представлены проекты, которые мы разрабатывали под заказ.
+          Каждый из них решал конкретную бизнес-задачу: автоматизацию процессов, системный анализ,
+          интеграцию AI в существующие бизнес-процессы.
+          Если ваш проект похож на один из примеров — мы знаем, как подойти к его реализации.
+        </div>
+
+        <h3 class="portfolio-subtitle">📋 Автоматизация документооборота и реестров</h3>
+        <div class="showcase__grid">
+          <article class="portfolio-card">
+            <div class="portfolio-card__icon">📋</div>
+            <h4 class="portfolio-card__title">Система ведения реестра акционеров</h4>
+            <p class="portfolio-card__desc">
+              Автоматизированная система для ведения и обновления реестра акционеров с интеграцией данных
+              ЕГРЮЛ и ЕГАР. Формирование отчётности в ФНС, учёт перехода прав, дробления долей,
+              сплитования, обременений. Подготовка документов для корпоративных действий (собрания,
+              голосования, дивиденды). Экспорт в формат, принимаемый регистраторами и депозитариями.
+            </p>
+            <div class="portfolio-card__tags">
+              <span class="portfolio-tag portfolio-tag--enterprise">Корпоративный учёт</span>
+              <span class="portfolio-tag portfolio-tag--python">Python / FastAPI</span>
+              <span class="portfolio-tag portfolio-tag--js">React-дашборд</span>
+              <span class="portfolio-tag portfolio-tag--analytics">ЕГРЮЛ / ЕГАР</span>
+            </div>
+          </article>
+
+          <article class="portfolio-card">
+            <div class="portfolio-card__icon">🏗️</div>
+            <h4 class="portfolio-card__title">Платформа поставщиков для Хорика</h4>
+            <p class="portfolio-card__desc">
+              Экосистема закупок и управления поставщиками: каталог товаров и услуг, автоматическая
+              загрузка и сравнение коммерческих предложений, торги и тендеры, рейтинг поставщиков.
+              Модуль планирования закупок с AI-прогнозом потребностей на основе истории.
+              Интеграция с 1С: поступление заявок — автоматическое формирование заказов.
+            </p>
+            <div class="portfolio-card__tags">
+              <span class="portfolio-tag portfolio-tag--enterprise">Торговля / Снабжение</span>
+              <span class="portfolio-tag portfolio-tag--python">Python / FastAPI</span>
+              <span class="portfolio-tag portfolio-tag--js">React / Next.js</span>
+              <span class="portfolio-tag portfolio-tag--crm">1С интеграция</span>
+            </div>
+          </article>
+        </div>
+
+        <h3 class="portfolio-subtitle">🤖 AI-автоматизация бизнес-процессов</h3>
+        <div class="showcase__grid">
+          <article class="portfolio-card">
+            <div class="portfolio-card__icon">⚙️</div>
+            <h4 class="portfolio-card__title">AI-автоматизация цикла заявка → КП</h4>
+            <p class="portfolio-card__desc">
+              LLM-парсинг неструктурированных прайсов (Excel, PDF) с произвольной схемой — двухпроходный
+              AI-парсер: сначала определяет структуру, затем извлекает данные. Интеграция с amoCRM:
+              заявка → поиск товаров → генерация КП в PDF — без участия менеджера. Веб-кабинет
+              для ручной корректировки. Стек: Python, FastAPI, GigaChat, PostgreSQL, React.
+            </p>
+            <div class="portfolio-card__tags">
+              <span class="portfolio-tag portfolio-tag--ai">LLM / GigaChat</span>
+              <span class="portfolio-tag portfolio-tag--python">Python / FastAPI</span>
+              <span class="portfolio-tag portfolio-tag--crm">amoCRM API</span>
+              <span class="portfolio-tag portfolio-tag--js">PDF-генерация</span>
+            </div>
+          </article>
+
+          <article class="portfolio-card">
+            <div class="portfolio-card__icon">🎯</div>
+            <h4 class="portfolio-card__title">Тендерный ИИ-отдел (4 AI-агента)</h4>
+            <p class="portfolio-card__desc">
+              Мультиагентная система для автоматизации тендерного отдела на платформе Make + LLM.
+              Агент 1: поиск тендеров по API Контур.Закупки с дедупликацией.
+              Агент 2: анализ документации и извлечение ключевых условий.
+              Агент 3: просчёт стоимости (s4b.ru API) и маржинальности.
+              Агент 4: заполнение шаблона заявки и отправка на утверждение.
+              Оркестратор + Telegram-бот для контроля.
+            </p>
+            <div class="portfolio-card__tags">
+              <span class="portfolio-tag portfolio-tag--ai">Multi-agent</span>
+              <span class="portfolio-tag portfolio-tag--telegram">Telegram-бот</span>
+              <span class="portfolio-tag portfolio-tag--analytics">API-интеграции</span>
+              <span class="portfolio-tag portfolio-tag--enterprise">Тендеры</span>
+            </div>
+          </article>
+
+          <article class="portfolio-card">
+            <div class="portfolio-card__icon">📊</div>
+            <h4 class="portfolio-card__title">Сквозная аналитика «клик → сделка»</h4>
+            <p class="portfolio-card__desc">
+              Полный цикл сквозной аналитики: Яндекс Метрика + Google Tag Manager + Facebook Pixel +
+              Wazzup + YourGoodWidget. Настройка воронки от клика до оплаченной сделки,
+              атрибуция по UTM-меткам, дашборд в Яндекс DataLens.
+              Тестирование по каждому каналу, инструкция для самостоятельного контроля.
+            </p>
+            <div class="portfolio-card__tags">
+              <span class="portfolio-tag portfolio-tag--analytics">Сквозная аналитика</span>
+              <span class="portfolio-tag portfolio-tag--crm">Wazzup / YGW</span>
+              <span class="portfolio-tag portfolio-tag--archived">Яндекс Метрика</span>
+              <span class="portfolio-tag portfolio-tag--js">GTM / DataLens</span>
+            </div>
+          </article>
+
+          <article class="portfolio-card">
+            <div class="portfolio-card__icon">📈</div>
+            <h4 class="portfolio-card__title">Платформа мотивации персонала</h4>
+            <p class="portfolio-card__desc">
+              Веб-платформа для мотивации и контроля: KPI-дашборд (ручной и автоматический сбор),
+              система баллов и уровней с геймификацией, рейтинги отделов, челленджи.
+              Автоматический сбор KPI из CRM и трекеров задач. Аналитика вовлечённости,
+              тепловые карты. Личный кабинет сотрудника с историей достижений.
+              Интеграция с Telegram / WhatsApp для уведомлений.
+            </p>
+            <div class="portfolio-card__tags">
+              <span class="portfolio-tag portfolio-tag--python">Python / FastAPI</span>
+              <span class="portfolio-tag portfolio-tag--js">React / mobile-first</span>
+              <span class="portfolio-tag portfolio-tag--ai">AI-отчёты</span>
+              <span class="portfolio-tag portfolio-tag--telegram">Telegram / WhatsApp</span>
+            </div>
+          </article>
+        </div>
+
+        <div class="portfolio-intro" style="margin-top:1rem;">
+          💡 <strong>Не нашли свой тип проекта?</strong>
+          Это лишь часть того, что мы делали. Мы подбираем архитектуру под задачу, а не подгоняем
+          задачу под готовый шаблон.
+          <a class="link" href="/#contacts">Обращайтесь</a> — обсудим ваш проект без обязательств.
+        </div>
       </div>
 
       <p class="showcase__oferta">
@@ -172,7 +315,12 @@
     <div class="modal__price">
       <span id="modal-amount"></span>
     </div>
+    <div id="modal-customer-field" class="modal__field">
+      <label for="modal-customer">Telegram ID (для активации подписки):</label>
+      <input id="modal-customer" type="text" placeholder="напишите боту /pay или введите ID вручную" />
+    </div>
     <p class="modal__methods">💳 Карта · 📱 СБП · 🔒 ЮKassa</p>
+    <p class="modal__warning">⚠️ Начните оплату из своего профиля Telegram, чтобы присвоить подписку вашему ID</p>
     <button id="modal-pay-btn" class="btn-buy btn-buy--large">Перейти к оплате</button>
     <p class="modal__note">После оплаты подписка активируется автоматически.</p>
   </div>
@@ -184,18 +332,65 @@
       <img class="footer-brand__logo" src="/static/img/logo.png" alt="АЛТ" />
       <div class="footer-brand__col">
         <p class="footer-brand__text">АЛЬТЕРНАТИВА — альтернативные легальные технологии</p>
+        <div class="footer-social" aria-label="Сообщества в мессенджерах">
+          <a
+            class="footer-social__link"
+            href="https://vk.com/alternat777"
+            target="_blank"
+            rel="noopener noreferrer"
+            aria-label="ВКонтакте — сообщество АЛЬТЕРНАТИВА"
+          >
+            <svg class="footer-social__icon footer-social__icon--vk" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+              <path
+                fill="currentColor"
+                d="M15.684 0H8.316C1.592 0 0 1.592 0 8.316v7.368C0 22.408 1.592 24 8.316 24h7.368C22.408 24 24 22.408 24 15.684V8.316C24 1.592 22.408 0 15.684 0zm3.692 17.123h-1.744c-.66 0-.864-.525-2.05-1.727-1.033-1-1.49-1.135-1.744-1.135-.356 0-.458.102-.458.593v1.575c0 .424-.135.678-1.253.678-1.846 0-3.896-1.118-5.335-3.202C4.624 10.857 4.03 8.57 4.03 8.096c0-.254.102-.491.593-.491h1.744c.44 0 .61.203.78.677.863 2.49 2.303 4.675 2.896 4.675.22 0 .322-.102.322-.66V9.721c-.068-1.186-.695-1.287-.695-1.71 0-.203.17-.407.44-.407h2.744c.373 0 .508.203.508.643v3.473c0 .372.17.508.271.508.22 0 .407-.136.813-.542 1.253-1.405 2.15-3.574 2.15-3.574.119-.254.322-.491.763-.491h1.744c.525 0 .644.27.525.643-.22 1.017-2.354 3.844-2.354 3.844-.203.271-.271.407 0 .678.203.254.88.847 1.338 1.355.847.948 1.507 1.744 1.676 2.303.17.542-.085.813-.627.813z"
+              />
+            </svg>
+          </a>
+          <a
+            class="footer-social__link"
+            href="https://max.ru/u/f9LHodD0cOK6gNMmsDRwupMfH3kwJVLcDcuW3vJK9mV0rvWB36UGey5F3wA"
+            target="_blank"
+            rel="noopener noreferrer"
+            aria-label="Мессенджер MAX — присоединяйтесь"
+            title="Я пользуюсь мессенджером MAX. Присоединяйся!"
+          >
+            <img class="footer-social__icon footer-social__icon--max" src="/static/img/max.png" alt="MAX" />
+          </a>
+        </div>
       </div>
     </div>
     <div class="footer-links">
       <a class="footer-link" href="/">Главная</a>
-      <a class="footer-link" href="/techologis/">Магазин</a>
+      <a class="footer-link" href="/news/">Новости</a>
+      <a class="footer-link" href="/laws/">Правовая база</a>
+      <a class="footer-link" href="/channels/">Каналы</a>
+      <a class="footer-link" href="/techologis/">Витрина</a>
       <a class="footer-link" href="/#contacts">Контакты</a>
+    </div>
+    <div class="footer-legal">
+      <a class="footer-link" href="#">Политика конфиденциальности</a>
+      <a class="footer-link" href="#">Пользовательское соглашение</a>
     </div>
   </div>
 </footer>
 
 <script>
 const PRODUCTS = {{ products | tojson }};
+
+// Автозаполнение customer_id из URL-параметра (бот отправляет ссылку вида ?customer_id=123456789)
+const urlParams = new URLSearchParams(window.location.search);
+const urlCid = urlParams.get("customer_id");
+const cidInput = document.getElementById("modal-customer");
+const cidField = document.getElementById("modal-customer-field");
+if (urlCid) {
+  cidInput.value = urlCid;
+  cidInput.type = "hidden";
+  if (cidField) cidField.style.display = "none";
+} else {
+  // Показываем поле ввода ID, если customer_id не передан
+  if (cidField) cidField.style.display = "block";
+}
 const PAY_BASE = {{ request.base_url | string | tojson }};
 
 // Tabs
@@ -214,13 +409,20 @@ async function openPayment(productId, price) {
   if (!prod) return;
   document.getElementById('modal-title').textContent = prod.name;
   document.getElementById('modal-desc').textContent = prod.description;
-  document.getElementById('modal-amount').textContent = price + ' ₽/мес';
+  document.getElementById('modal-amount').textContent = price + ' ₽' + (prod.period_days && prod.period_days !== 30 ? '/' + prod.period_days + ' дн.' : '/мес');
   document.getElementById('modal-pay-btn').onclick = () => startPayment(productId, price);
   document.getElementById('payment-modal').style.display = 'flex';
 }
 
 async function startPayment(productId, price) {
   const btn = document.getElementById('modal-pay-btn');
+  const cid = document.getElementById('modal-customer').value.trim();
+  if (!cid) {
+    document.getElementById('modal-desc').textContent = '❌ Укажите Telegram ID — напишите боту /pay или введите ID вручную';
+    btn.textContent = 'Перейти к оплате';
+    btn.disabled = false;
+    return;
+  }
   btn.textContent = '⏳ Подготовка...';
   btn.disabled = true;
   try {
@@ -230,6 +432,7 @@ async function startPayment(productId, price) {
       body: JSON.stringify({
         product_id: productId,
         amount_rub: price,
+        customer_id: document.getElementById('modal-customer').value.trim(),
         return_url: PAY_BASE.replace(/\/+$/, '') + '/techologis/?payment=success'
       })
     });
