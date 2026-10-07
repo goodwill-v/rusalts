@@ -9,16 +9,19 @@
   --radius: 12px;
   --font: "Segoe UI", system-ui, -apple-system, sans-serif;
 
-  /* Brand (site) */
-  --site-bg: #ffffff;
+  /* Brand (site) — палитра ТЗ редизайна: тёмно-синий + изумрудный + белый */
+  --site-bg: #f8f9fc;
   --site-surface: #ffffff;
-  --site-surface-alt: #f3f4f6;
-  --site-text: #374151;
+  --site-surface-alt: #ffffff;
+  --site-text: #2d3436;
   --site-heading: #111827;
   --site-link: #6bb6ff;
   --site-border: rgba(17, 24, 39, 0.12);
-  --grad-a: #8b5cf6;
-  --grad-b: #c026d3;
+  --site-primary: #1a5c8a;
+  --site-primary-dark: #14476a;
+  --site-accent: #2ecc71;
+  --grad-a: #1a5c8a;
+  --grad-b: #2e86c1;
   --shadow: 0 14px 30px rgba(17, 24, 39, 0.12);
 }
 
@@ -609,13 +612,13 @@ code {
   border: none;
   color: #fff;
   background: linear-gradient(45deg, var(--grad-a), var(--grad-b));
-  box-shadow: 0 10px 24px rgba(139, 92, 246, 0.32);
+  box-shadow: 0 10px 24px rgba(26, 92, 138, 0.32);
   font-weight: 700;
 }
 
 .btn-site--outline {
   background: transparent;
-  border: 1px solid rgba(139, 92, 246, 0.45);
+  border: 1px solid rgba(26, 92, 138, 0.45);
   color: var(--site-heading);
 }
 
@@ -816,8 +819,8 @@ code {
   margin: 0 0 1rem;
   padding: 0.75rem 1rem;
   border-radius: 12px;
-  border: 1px solid rgba(139, 92, 246, 0.4);
-  background: rgba(139, 92, 246, 0.1);
+  border: 1px solid rgba(26, 92, 138, 0.4);
+  background: rgba(26, 92, 138, 0.1);
   color: var(--site-heading);
   font-size: 0.95rem;
   line-height: 1.45;
@@ -1069,7 +1072,7 @@ code {
 .card:hover {
   transform: translateY(-2px);
   box-shadow: 0 16px 32px rgba(17, 24, 39, 0.12);
-  border-color: rgba(139, 92, 246, 0.35);
+  border-color: rgba(26, 92, 138, 0.35);
 }
 
 .card__title {
@@ -1153,8 +1156,8 @@ code {
 }
 
 .tab.is-active {
-  border-color: rgba(139, 92, 246, 0.5);
-  background: rgba(139, 92, 246, 0.08);
+  border-color: rgba(26, 92, 138, 0.5);
+  background: rgba(26, 92, 138, 0.08);
 }
 
 .news-grid {
@@ -1330,7 +1333,7 @@ code {
 }
 
 .footer-social__link:hover {
-  color: #8b5cf6;
+  color: var(--site-primary);
   transform: translateY(-1px);
 }
 
@@ -1365,7 +1368,7 @@ code {
 }
 
 .footer-link:hover {
-  color: #8b5cf6;
+  color: var(--site-primary);
   text-decoration: underline;
 }
 
@@ -1402,7 +1405,7 @@ code {
   border-radius: 50%;
   border: none;
   background: linear-gradient(45deg, var(--grad-a), var(--grad-b));
-  box-shadow: 0 14px 32px rgba(139, 92, 246, 0.4);
+  box-shadow: 0 14px 32px rgba(26, 92, 138, 0.4);
   cursor: pointer;
   box-sizing: border-box;
   display: inline-flex;
