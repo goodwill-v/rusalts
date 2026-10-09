@@ -641,10 +641,15 @@ code {
   position: relative;
   overflow: hidden;
   display: block;
-  background: url("/static/img/cover.png");
-  background-size: cover;
-  background-position: center;
-  color: #fff;
+  /* Светлый экспертный герой: едва заметная сине-графитовая сетка + мягкий голубой отсвет */
+  background:
+    radial-gradient(ellipse 55% 90% at 85% 0%, rgba(46, 134, 193, 0.14), transparent 62%),
+    linear-gradient(rgba(26, 92, 138, 0.05) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(26, 92, 138, 0.05) 1px, transparent 1px),
+    var(--site-bg);
+  background-size: auto, 44px 44px, 44px 44px, auto;
+  color: var(--site-heading);
+  border-bottom: 1px solid var(--site-border);
 }
 
 .hero__content {
@@ -660,7 +665,22 @@ code {
   letter-spacing: -0.02em;
   line-height: 1.12;
   font-size: clamp(2rem, 3.6vw, 3.6rem);
-  text-shadow: 0 10px 28px rgba(0, 0, 0, 0.35);
+}
+
+.hero__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  align-items: center;
+  margin-top: 1.5rem;
+}
+
+.btn-site--accent {
+  border: none;
+  color: #fff;
+  background: linear-gradient(45deg, #1f9d55, var(--site-accent));
+  box-shadow: 0 10px 24px rgba(46, 204, 113, 0.28);
+  font-weight: 700;
 }
 
 .page-grid {
@@ -771,10 +791,10 @@ code {
 }
 
 .hero__subtitle {
-  margin: 0 0 1.4rem;
+  margin: 0;
   max-width: 58rem;
   font-size: clamp(1rem, 1.35vw, 1.2rem);
-  opacity: 0.95;
+  color: var(--site-text);
 }
 
 /* hero buttons removed in current layout */
