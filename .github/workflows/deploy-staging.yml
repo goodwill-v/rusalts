@@ -45,6 +45,15 @@ jobs:
         with:
           ssh-private-key: ${{ secrets.SSH_PRIVATE_KEY }}
 
+      - name: Add host key to known_hosts
+        run: |
+          mkdir -p ~/.ssh
+          timeout 12 ssh-keyscan -p "${{ secrets.SSH_PORT }}" -T 10 "${{ secrets.SSH_HOST }}" >> ~/.ssh/known_hosts 2>ssh-keyscan.err || {
+            echo "::error::ssh-keyscan failed. stderr:"
+            sed -n '1,120p' ssh-keyscan.err || true
+            exit 1
+          }
+
       - name: Sync repo to server
         run: |
           rsync -az --delete \
