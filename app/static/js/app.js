@@ -263,13 +263,12 @@ async function initHomeNews() {
       const li = document.createElement("li");
       li.className = "news-item";
       const dt = fmtDate(it.published_at_utc);
-      const pubId = String(it.publication_id || "").padStart(5, "0");
       const exIdx = (it.excerpt && String(it.excerpt).trim()) || "";
       const lead = exIdx || excerptForList(stripMd(it.title || "")) || "Новость";
       const href = "/news/#" + String(it.publication_id || "");
       li.innerHTML = `
         <div class="news-item__meta">
-          <time datetime="${String(it.published_at_utc || "")}">${dt || ""} (${escapeHtml(pubId)})</time>
+          <time datetime="${String(it.published_at_utc || "")}">${dt || ""}</time>
           ${it.pinned ? '<span class="news-item__pin" title="Закреплено" aria-label="Закреплено">📎</span>' : ""}
         </div>
         <p class="news-item__announce">${escapeHtml(lead)}</p>
@@ -320,6 +319,61 @@ function leadTitleFromSite(site) {
   return `${one.slice(0, 97)}…`;
 }
 
+/** Отделить хвостовые строки-источники («domain — url» или голый url) от основного текста. */
+function extractNewsSources(raw) {
+  const lines = String(raw || "").replace(/\r/g, "").split("\n");
+  const sources = [];
+  const seen = new Set();
+  const isUrl = (s) => /^https?:\/\//i.test(s);
+  const isDomainish = (s) => /^(?:[a-z0-9-]+\.)+[a-z]{2,}(?:\/|$)/i.test(s);
+  while (lines.length) {
+    const line = lines[lines.length - 1].trim();
+    if (!line) { lines.pop(); continue; }
+    const parts = line.split(/\s+[—–]\s+/);
+    let href = "";
+    let label = "";
+    if (parts.length === 2 && (isUrl(parts[1]) || isDomainish(parts[1]))) {
+      href = isUrl(parts[1]) ? parts[1] : "https://" + parts[1];
+      label = parts[0].trim();
+    } else if (isUrl(line) && !line.includes(" ")) {
+      href = line;
+    } else {
+      break;
+    }
+    try {
+      const u = new URL(href);
+      if (!label) label = u.host.replace(/^www\./, "");
+      href = u.href;
+    } catch {
+      break;
+    }
+    if (!seen.has(href)) {
+      seen.add(href);
+      sources.unshift({ label, href });
+    }
+    lines.pop();
+  }
+  return { text: lines.join("\n").trim(), sources };
+}
+
+/** Оформить текст новости: абзацы + кликабельные источники вместо сырых URL. */
+function renderNewsBody(el, raw) {
+  const { text, sources } = extractNewsSources(raw);
+  const parts = [];
+  for (const p of text.split(/\n{2,}/)) {
+    const t = p.replace(/[ \t]+$/gm, "").trim();
+    if (t) parts.push(`<p>${escapeHtml(t)}</p>`);
+  }
+  if (!parts.length) parts.push(`<p>—</p>`);
+  if (sources.length) {
+    const items = sources
+      .map((s) => `<li><a href="${escapeHtml(s.href)}" target="_blank" rel="noopener noreferrer">${escapeHtml(s.label)}</a></li>`)
+      .join("");
+    parts.push(`<div class="news-sources"><span class="news-sources__title">Источники:</span><ul class="news-sources__list">${items}</ul></div>`);
+  }
+  el.innerHTML = parts.join("");
+}
+
 async function initNewsPage() {
   const root = document.querySelector("[data-news-page]");
   const grid = document.querySelector("[data-news-grid]");
@@ -340,11 +394,10 @@ async function initNewsPage() {
       const pubId = String(it.publication_id || "");
       card.id = pubId;
       const dt = fmtDate(it.published_at_utc);
-      const pubFmt = String(pubId || "").padStart(5, "0");
       card.innerHTML = `
         <div class="news-meta">
           <span class="news-meta__left">${it.pinned ? "📎 Закреплено" : ""}</span>
-          <time datetime="${String(it.published_at_utc || "")}">${dt} (${escapeHtml(pubFmt)})</time>
+          <time datetime="${String(it.published_at_utc || "")}">${dt}</time>
         </div>
         <div class="news-text" data-news-body>Загрузка…</div>
       `;
@@ -353,8 +406,7 @@ async function initNewsPage() {
       fetch(it.url || "")
         .then((r) => r.text())
         .then((t) => {
-          const raw = String(t || "").trim();
-          if (bodyEl) bodyEl.textContent = raw;
+          if (bodyEl) renderNewsBody(bodyEl, t);
         })
         .catch(() => {
           if (bodyEl) bodyEl.textContent = "Не удалось загрузить текст.";

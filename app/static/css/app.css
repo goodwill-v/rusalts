@@ -1557,3 +1557,118 @@ html.a11y * {
   transition: none !important;
   animation: none !important;
 }
+
+/* --------------------------- */
+/* Консультант (layout-app): светлая тема в стиле сайта. */
+/* VK-виджет (layout-widget) остаётся в тёмной теме. */
+/* --------------------------- */
+body.layout-app {
+  background: var(--site-bg);
+  color: var(--site-text);
+}
+
+body.layout-app .brand {
+  color: var(--site-heading);
+}
+
+body.layout-app .tagline,
+body.layout-app .muted,
+body.layout-app .hint,
+body.layout-app .file-names,
+body.layout-app .file-pill {
+  color: var(--site-text);
+  opacity: 0.75;
+}
+
+body.layout-app .panel {
+  background: var(--site-surface);
+  border: 1px solid var(--site-border);
+  box-shadow: 0 2px 10px rgba(17, 24, 39, 0.06);
+}
+
+body.layout-app .panel h2 {
+  color: var(--site-heading);
+}
+
+body.layout-app .chat-log {
+  background: var(--site-bg);
+  border: 1px solid var(--site-border);
+}
+
+body.layout-app .msg.user {
+  background: rgba(26, 92, 138, 0.08);
+  border-left: 3px solid var(--site-primary);
+  color: var(--site-text);
+}
+
+body.layout-app .msg.bot {
+  background: var(--site-surface);
+  border: 1px solid var(--site-border);
+  border-left: 3px solid var(--site-accent);
+  color: var(--site-text);
+}
+
+body.layout-app .msg .label {
+  color: var(--site-primary);
+}
+
+body.layout-app .chat-form textarea {
+  background: var(--site-surface);
+  border: 1px solid var(--site-border);
+  color: var(--site-text);
+}
+
+body.layout-app .chat-form textarea:focus {
+  outline-color: var(--site-primary);
+}
+
+body.layout-app .btn {
+  background: var(--site-surface);
+  border: 1px solid var(--site-border);
+  color: var(--site-heading);
+}
+
+body.layout-app .btn.primary {
+  background: linear-gradient(45deg, var(--grad-a), var(--grad-b));
+  border-color: transparent;
+  color: #fff;
+}
+
+body.layout-app .template-list a {
+  color: var(--site-primary);
+}
+
+/* Источники в карточке новости */
+.news-text p {
+  margin: 0 0 0.75rem;
+  white-space: pre-line;
+}
+
+.news-sources {
+  margin-top: 0.5rem;
+  padding-top: 0.6rem;
+  border-top: 1px solid var(--site-border);
+  font-size: 0.88rem;
+}
+
+.news-sources__title {
+  font-weight: 600;
+  color: var(--site-heading);
+}
+
+.news-sources__list {
+  margin: 0.35rem 0 0;
+  padding-left: 1.15rem;
+  display: grid;
+  gap: 0.2rem;
+}
+
+.news-sources__list a {
+  color: var(--site-primary);
+  text-decoration: none;
+  word-break: break-all;
+}
+
+.news-sources__list a:hover {
+  text-decoration: underline;
+}
