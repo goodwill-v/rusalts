@@ -1,6 +1,6 @@
 """Billing admin API — управление подписками и учётом.
 
-Все эндпоинты защищены Basic Auth (admin / 20rusalt13).
+Все эндпоинты защищены Basic Auth (admin, пароль из .env).
 Центральная точка для:
   - Просмотра всех подписок и расхода
   - Выдачи бесплатного/пробного доступа
@@ -49,7 +49,7 @@ def _require_admin_auth(credentials: HTTPBasicCredentials | None = Depends(_basi
             headers={"WWW-Authenticate": "Basic"},
         )
     ok_user = secrets.compare_digest(credentials.username or "", "admin")
-    ok_pass = secrets.compare_digest(credentials.password or "", "20rusalt13")
+    ok_pass = secrets.compare_digest(credentials.password or "", config.ADMIN_PASSWORD)
     if not (ok_user and ok_pass):
         raise HTTPException(
             status_code=http_status.HTTP_401_UNAUTHORIZED,
