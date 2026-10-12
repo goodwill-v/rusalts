@@ -1,0 +1,460 @@
+/* components.css — переиспользуемые компоненты (чат-виджет, карточки-табы, плавающий бот, тема консультанта).
+   Загружается после app.css (layout), до pages.css. */
+
+.panel {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 1rem 1.1rem;
+}
+
+.panel h2 {
+  font-size: 1.1rem;
+  margin: 0 0 0.75rem;
+}
+
+.chat-log {
+  min-height: 180px;
+  max-height: 360px;
+  overflow-y: auto;
+  padding: 0.5rem 0.25rem;
+  margin-bottom: 0.75rem;
+  border: 1px dashed var(--border);
+  border-radius: 8px;
+  background: rgba(0, 0, 0, 0.2);
+}
+
+.chat-panel {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+
+.chat-panel .chat-log {
+  flex: 1;
+  min-height: 0;
+  max-height: none;
+}
+
+.chat-panel .chat-form {
+  margin-top: auto;
+}
+
+.layout-widget .chat-log {
+  min-height: 140px;
+  max-height: 280px;
+}
+
+.msg {
+  margin-bottom: 0.75rem;
+  padding: 0.5rem 0.65rem;
+  border-radius: 8px;
+  font-size: 0.92rem;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.msg.user {
+  background: rgba(76, 141, 255, 0.15);
+  border-left: 3px solid var(--accent);
+}
+
+.msg.bot {
+  background: rgba(255, 255, 255, 0.04);
+  border-left: 3px solid var(--muted);
+}
+
+.msg .label {
+  display: block;
+  font-size: 0.72rem;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--muted);
+  margin-bottom: 0.25rem;
+}
+
+.chat-form textarea {
+  width: 100%;
+  resize: vertical;
+  min-height: 72px;
+  padding: 0.65rem 0.75rem;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  background: #0d1218;
+  color: var(--text);
+  font: inherit;
+}
+
+.chat-form textarea:focus {
+  outline: 2px solid var(--accent-dim);
+  outline-offset: 1px;
+}
+
+.chat-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  align-items: center;
+  justify-content: space-between;
+  margin-top: 0.5rem;
+}
+
+.file-names {
+  flex: 1;
+  min-width: 140px;
+  padding: 0 0.25rem;
+  color: var(--muted);
+  font-size: 0.85rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.btn {
+  font: inherit;
+  cursor: pointer;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  padding: 0.45rem 1rem;
+  background: #243044;
+  color: var(--text);
+}
+
+.btn.primary {
+  background: var(--accent);
+  border-color: transparent;
+  color: #fff;
+  font-weight: 600;
+}
+
+.btn.primary:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.file-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  font-size: 0.88rem;
+  color: var(--muted);
+  cursor: pointer;
+}
+
+.file-pill input {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  border: 0;
+}
+
+
+.template-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.template-list li {
+  margin-bottom: 0.5rem;
+}
+
+.template-list.compact li {
+  margin-bottom: 0.35rem;
+}
+
+.template-list a {
+  color: var(--accent);
+  text-decoration: none;
+  font-size: 0.92rem;
+}
+
+.template-list.compact a {
+  font-size: 0.85rem;
+}
+
+.template-list a:hover {
+  text-decoration: underline;
+}
+
+
+.widget-wrap {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+}
+
+/* Полноэкранная высота для /consultant и виджета */
+.layout-app .shell,
+.layout-widget .shell {
+  min-height: 100dvh;
+}
+
+.layout-app .grid-main,
+.layout-widget .widget-wrap {
+  min-height: 100dvh;
+}
+
+@media (max-width: 520px) {
+  .layout-app .shell {
+    padding: 0.75rem 0.75rem 1rem;
+  }
+  .chat-form textarea {
+    min-height: 56px;
+  }
+}
+
+.widget-head {
+  padding: 0.25rem 0 0.5rem;
+  border-bottom: 1px solid var(--border);
+  margin-bottom: 0.5rem;
+}
+
+
+.news-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.45rem;
+}
+
+.tab {
+  font: inherit;
+  cursor: pointer;
+  border-radius: 999px;
+  border: 1px solid var(--site-border);
+  padding: 0.35rem 0.7rem;
+  background: #fff;
+  color: var(--site-heading);
+}
+
+.tab.is-active {
+  border-color: rgba(26, 92, 138, 0.5);
+  background: rgba(26, 92, 138, 0.08);
+}
+
+
+/* Плавающий чат: полноэкранная обёртка + flex-end — стабильнее position:fixed у кнопки на iOS/Android */
+.altbot-root {
+  position: fixed;
+  inset: 0;
+  z-index: 10000;
+  pointer-events: none;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+  align-items: flex-end;
+  padding: 0 max(1rem, env(safe-area-inset-right, 0px)) calc(1rem + env(safe-area-inset-bottom, 0px))
+    max(1rem, env(safe-area-inset-left, 0px));
+  box-sizing: border-box;
+}
+
+.altbot-root .altbot {
+  position: static;
+  display: grid;
+  gap: 0.75rem;
+  justify-items: end;
+  width: max-content;
+  max-width: 100%;
+  pointer-events: auto;
+}
+
+.altbot__fab {
+  justify-self: end;
+  width: 56px;
+  height: 56px;
+  padding: 0;
+  border-radius: 50%;
+  border: none;
+  background: linear-gradient(45deg, var(--grad-a), var(--grad-b));
+  box-shadow: 0 14px 32px rgba(26, 92, 138, 0.4);
+  cursor: pointer;
+  box-sizing: border-box;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: #fff;
+  font: inherit;
+  font-weight: 800;
+  font-size: 0.92rem;
+  line-height: 1.05;
+  text-align: center;
+  letter-spacing: 0.02em;
+}
+
+.altbot__fab:hover {
+  filter: brightness(1.05);
+}
+
+@media (max-width: 520px) {
+  .altbot__fab {
+    width: 48px;
+    height: 48px;
+    font-size: 0.8rem;
+  }
+}
+
+/* Авторский display:grid иначе перебивает [hidden] в ряде браузеров — явно скрываем */
+.altbot__panel[hidden] {
+  display: none !important;
+}
+
+.altbot__panel:not([hidden]) {
+  display: grid;
+  grid-template-rows: auto 1fr auto;
+}
+
+.altbot__panel {
+  width: min(360px, calc(100vw - 2rem));
+  height: 480px;
+  background: #fff;
+  border: 1px solid var(--site-border);
+  border-radius: 16px;
+  box-shadow: 0 22px 60px rgba(17, 24, 39, 0.22);
+  overflow: hidden;
+}
+
+.altbot__head {
+  padding: 0.7rem 0.85rem;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  border-bottom: 1px solid var(--site-border);
+}
+
+.altbot__title {
+  font-weight: 800;
+  color: var(--site-heading);
+}
+
+.altbot__close {
+  width: 36px;
+  height: 36px;
+  border-radius: 10px;
+  border: 1px solid var(--site-border);
+  background: transparent;
+  cursor: pointer;
+  font-size: 1.25rem;
+  line-height: 1;
+}
+
+.altbot__log {
+  padding: 0.75rem 0.85rem;
+  overflow: auto;
+  background: #fff;
+}
+
+.altbot__form {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 0.5rem;
+  padding: 0.75rem 0.85rem;
+  border-top: 1px solid var(--site-border);
+}
+
+.altbot__form input {
+  width: 100%;
+  border: 1px solid var(--site-border);
+  border-radius: 12px;
+  padding: 0.6rem 0.75rem;
+  font: inherit;
+}
+
+.layout-site .msg.user {
+  background: rgba(107, 182, 255, 0.18);
+  border-left-color: #6bb6ff;
+  color: var(--site-text);
+}
+
+.layout-site .msg.bot {
+  background: rgba(17, 24, 39, 0.04);
+  border-left-color: rgba(17, 24, 39, 0.35);
+  color: var(--site-text);
+}
+
+.layout-site .msg .label {
+  color: rgba(55, 65, 81, 0.7);
+}
+
+
+/* Консультант (layout-app): светлая тема в стиле сайта.
+   VK-виджет (layout-widget) остаётся в тёмной теме. */
+body.layout-app {
+  background: var(--site-bg);
+  color: var(--site-text);
+}
+
+body.layout-app .brand {
+  color: var(--site-heading);
+}
+
+body.layout-app .tagline,
+body.layout-app .muted,
+body.layout-app .hint,
+body.layout-app .file-names,
+body.layout-app .file-pill {
+  color: var(--site-text);
+  opacity: 0.75;
+}
+
+body.layout-app .panel {
+  background: var(--site-surface);
+  border: 1px solid var(--site-border);
+  box-shadow: 0 2px 10px rgba(17, 24, 39, 0.06);
+}
+
+body.layout-app .panel h2 {
+  color: var(--site-heading);
+}
+
+body.layout-app .chat-log {
+  background: var(--site-bg);
+  border: 1px solid var(--site-border);
+}
+
+body.layout-app .msg.user {
+  background: rgba(26, 92, 138, 0.08);
+  border-left: 3px solid var(--site-primary);
+  color: var(--site-text);
+}
+
+body.layout-app .msg.bot {
+  background: var(--site-surface);
+  border: 1px solid var(--site-border);
+  border-left: 3px solid var(--site-accent);
+  color: var(--site-text);
+}
+
+body.layout-app .msg .label {
+  color: var(--site-primary);
+}
+
+body.layout-app .chat-form textarea {
+  background: var(--site-surface);
+  border: 1px solid var(--site-border);
+  color: var(--site-text);
+}
+
+body.layout-app .chat-form textarea:focus {
+  outline-color: var(--site-primary);
+}
+
+body.layout-app .btn {
+  background: var(--site-surface);
+  border: 1px solid var(--site-border);
+  color: var(--site-heading);
+}
+
+body.layout-app .btn.primary {
+  background: linear-gradient(45deg, var(--grad-a), var(--grad-b));
+  border-color: transparent;
+  color: #fff;
+}
+
+body.layout-app .template-list a {
+  color: var(--site-primary);
+}
+
