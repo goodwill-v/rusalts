@@ -35,7 +35,7 @@
 
 **Доступ (Basic Auth):**
 - login: `admin`
-- password: `20rusalt13`
+- password: берётся из `ADMIN_PASSWORD` в `.env` (в разработке — `20rusalt13`)
 
 Важно: Basic Auth отправляется браузером при каждом запросе к защищённой странице. Используйте HTTPS в продакшене.
 

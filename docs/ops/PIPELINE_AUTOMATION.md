@@ -64,7 +64,7 @@ docker compose exec -T web python /app/scripts/enqueue_parser_content_once.py --
 ### 1) Очередь черновиков (должны появиться элементы)
 
 ```bash
-curl -sS -u admin:20rusalt13 http://127.0.0.1:8000/api/content/queue | head
+curl -sS -u "admin:${ADMIN_PASSWORD:-20rusalt13}" http://127.0.0.1:8000/api/content/queue | head
 ```
 
 ### 2) Логи воркеров

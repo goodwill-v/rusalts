@@ -18,7 +18,7 @@ _basic = HTTPBasic()
 
 def _require_admin_auth(credentials: HTTPBasicCredentials = Depends(_basic)) -> str:
     ok_user = secrets.compare_digest(credentials.username or "", "admin")
-    ok_pass = secrets.compare_digest(credentials.password or "", "20rusalt13")
+    ok_pass = secrets.compare_digest(credentials.password or "", config.ADMIN_PASSWORD)
     if not (ok_user and ok_pass):
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,

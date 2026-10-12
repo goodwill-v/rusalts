@@ -40,6 +40,9 @@ ROUTERAI_CHEAP_MODEL = os.getenv("ROUTERAI_CHEAP_MODEL", "gpt-4o-mini")
 ROUTERAI_REASONING_MODEL = os.getenv("ROUTERAI_REASONING_MODEL", "")
 ROUTERAI_EMBEDDINGS_MODEL = os.getenv("ROUTERAI_EMBEDDINGS_MODEL", "")
 
+# Basic Auth для админ-эндпоинтов (пароль задаётся в .env, в разработке — '20rusalt13')
+ADMIN_PASSWORD = os.getenv("ADMIN_PASSWORD", "20rusalt13")
+
 
 def _float_env(name: str, default: float) -> float:
     try:
