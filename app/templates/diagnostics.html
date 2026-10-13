@@ -1,0 +1,197 @@
+{% extends "base.html" %}
+
+{% block body %}
+<main class="site-main">
+  <section class="section diagnostics-page">
+    <h1 class="page-title">Сократи свой рабочий день с ИИ — начни с диагностики</h1>
+
+    <div class="diagnostics-intro">
+      <p>Каждый день вы тратите часы на рутину: отвечаете на одни и те же вопросы, собираете данные из десятка источников, вручную формируете отчёты. <strong>А если часть этой работы можно передать ИИ-агентам уже завтра?</strong></p>
+
+      <p>Диагностика АЛТ — это быстрый аудит, который покажет:</p>
+      <ol>
+        <li><strong>Где вы теряете время</strong> — какие процессы можно автоматизировать прямо сейчас.</li>
+        <li><strong>Что принесёт быстрый результат</strong> — задачи, которые ИИ-агент закроет за неделю.</li>
+        <li><strong>Какие риски вы заодно снимете</strong> — 152-ФЗ, блокировки, зависимость от зарубежных платформ (бонус надёжности).</li>
+      </ol>
+      <blockquote>
+        <p>Надёжность и безопасность — не главная цель, а естественное следствие грамотной автоматизации.</p>
+      </blockquote>
+    </div>
+
+    <!-- Кому подходит -->
+    <div class="diagnostics-block">
+      <h2>Кому подходит диагностика</h2>
+      <blockquote>
+        <p>«Если вы пользуетесь мессенджерами для работы, храните данные клиентов или ведёте соцсети — диагностика покажет, какие шаги нужны прямо сейчас.»</p>
+      </blockquote>
+      <div class="diagnostics-table">
+        <table>
+          <tr><th>Ваш профиль</th><th>Что вы получите</th></tr>
+          <tr><td>ИП, самозанятый, блогер</td><td>Перестанете тонуть в сообщениях — чат-бот + ИИ закроют 80% диалогов</td></tr>
+          <tr><td>Владелец малого бизнеса (до 15 чел.)</td><td>Сократите время на рутину в 2–3 раза — ИИ-ассистент вместо второго сотрудника</td></tr>
+          <tr><td>Руководитель компании (от 15 чел.)</td><td>Поймёте, какие отделы можно автономизировать, и получите дорожную карту</td></tr>
+        </table>
+      </div>
+    </div>
+
+    <!-- Как это работает -->
+    <div class="diagnostics-block">
+      <h2>Как это работает</h2>
+      <div class="diagnostics-steps">
+        <div class="step-card">
+          <span class="step-number">1</span>
+          <h3>Анкетирование</h3>
+          <p>10–20 вопросов о ваших процессах: где вы тратите время, что делаете вручную, какие задачи повторяются. Занимает 5–15 минут.</p>
+        </div>
+        <div class="step-card">
+          <span class="step-number">2</span>
+          <h3>Анализ</h3>
+          <p>ИИ-система оценивает ваши процессы: что можно автоматизировать, что передать агентам, что оставить человеку. Считает экономию времени и денег.</p>
+        </div>
+        <div class="step-card">
+          <span class="step-number">3</span>
+          <h3>Рекомендации</h3>
+          <p>Вы получаете PDF-отчёт: что автоматизировать, в каком порядке, сколько это сэкономит времени. Пошаговый план внедрения.</p>
+        </div>
+      </div>
+    </div>
+
+    <!-- Три варианта -->
+    <div class="diagnostics-block">
+      <h2>Выберите подходящий вариант</h2>
+      <div class="diagnostics-cards">
+        <div class="diag-card diag-card--free">
+          <div class="diag-card__header">
+            <span class="diag-card__badge">Бесплатно</span>
+            <h3>Бесплатная диагностика</h3>
+          </div>
+          <div class="diag-card__price">0 ₽</div>
+          <ul class="diag-card__features">
+            <li>🏢 Владельцам бизнеса</li>
+            <li>🤖 Список задач для ИИ + план внедрения</li>
+            <li>⏱ 10 минут</li>
+            <li>📬 Отчёт на email</li>
+          </ul>
+          <button class="btn-diagnostic btn-diagnostic--action" onclick="location.href='/diagnostics/free/'">
+            Пройти бесплатную диагностику →
+          </button>
+        </div>
+
+        <div class="diag-card diag-card--your">
+          <div class="diag-card__header">
+            <span class="diag-card__badge">Бесплатно</span>
+            <h3>Ваше дело — 5 минут</h3>
+          </div>
+          <div class="diag-card__price">0 ₽</div>
+          <ul class="diag-card__features">
+            <li>👤 ИП, блогерам, самозанятым</li>
+            <li>📋 Чек-лист «5 шагов к свободному времени»</li>
+            <li>⏱ 5 минут</li>
+            <li>📬 Чек-лист на email</li>
+          </ul>
+          <button class="btn-diagnostic btn-diagnostic--info" onclick="location.href='/diagnostics/your-business/'">
+            Ваше дело →
+          </button>
+        </div>
+
+        <div class="diag-card diag-card--paid">
+          <div class="diag-card__header">
+            <span class="diag-card__badge diag-card__badge--paid">3 000 ₽</span>
+            <h3>Анализ процессов предприятия</h3>
+          </div>
+          <div class="diag-card__price diag-card__price--paid">3 000 ₽</div>
+          <ul class="diag-card__features">
+            <li>🏢 Руководителям компаний (от 15 чел.)</li>
+            <li>📊 Полный аудит + стратегия автономизации</li>
+            <li>⏱ 15–20 минут</li>
+            <li>📄 PDF-отчёт с дорожной картой 1/3/6 мес</li>
+          </ul>
+          <button class="btn-diagnostic btn-diagnostic--action" id="btn-pay-diagnostics">
+            Получить стратегию автономизации — 3 000 ₽ →
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Футер-призыв -->
+    <div class="diagnostics-cta">
+      <p>Не знаете, с чего начать? Пройдите <strong>бесплатную диагностику</strong> — это займёт 10 минут и покажет, сколько времени вы можете вернуть в свой рабочий день.</p>
+    </div>
+  </section>
+</main>
+
+<!-- Модалка оплаты (как на витрине) -->
+<div id="payment-modal" class="modal" style="display:none">
+  <div class="modal__overlay"></div>
+  <div class="modal__content">
+    <button class="modal__close" onclick="closeModal()">✕</button>
+    <h2 id="modal-title">Оплата</h2>
+    <p id="modal-desc">Глубокий аудит бизнес-процессов, ИТ-инфраструктуры и юридических рисков. Результат — PDF-отчёт с пошаговым планом.</p>
+    <div class="modal__price">
+      <span id="modal-amount">3 000 ₽ / разово</span>
+    </div>
+    <div id="modal-customer-field" class="modal__field">
+      <label for="modal-customer">Email для отправки отчёта:</label>
+      <input id="modal-customer" type="email" placeholder="ваш email" />
+    </div>
+    <p class="modal__methods">💳 Карта · 📱 СБП · 🔒 ЮKassa</p>
+    <button id="modal-pay-btn" class="btn-buy btn-buy--large">Оплатить 3 000 ₽</button>
+    <p class="modal__note">После оплаты вы перейдёте к заполнению анкеты.</p>
+  </div>
+</div>
+
+<script>
+const ALL_PRODUCTS = {{ all_buyable | tojson }};
+
+document.getElementById('btn-pay-diagnostics')?.addEventListener('click', () => {
+  document.getElementById('payment-modal').style.display = 'flex';
+});
+
+async function startDiagnosticsPayment() {
+  const btn = document.getElementById('modal-pay-btn');
+  const email = document.getElementById('modal-customer').value.trim();
+  if (!email || !email.includes('@')) {
+    document.getElementById('modal-desc').textContent = '❌ Укажите корректный email для отправки отчёта';
+    return;
+  }
+  btn.textContent = '⏳ Подготовка...';
+  btn.disabled = true;
+  try {
+    const PAY_BASE = '{{ request.base_url | string | tojson }}'.replace(/\/+$/, '');
+    const resp = await fetch('/api/create-payment', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({
+        product_id: 'anketa_diagnostics',
+        amount_rub: 3000,
+        customer_id: email,
+        return_url: PAY_BASE + '/diagnostics/paid-form/'
+      })
+    });
+    const data = await resp.json();
+    if (data.confirmation_url) {
+      window.location.href = data.confirmation_url;
+    } else {
+      alert('Ошибка: ' + (data.error || 'нет ссылки для оплаты'));
+      closeModal();
+    }
+  } catch(e) {
+    alert('Ошибка соединения: ' + e.message);
+    closeModal();
+  }
+}
+
+document.getElementById('modal-pay-btn')?.addEventListener('click', startDiagnosticsPayment);
+
+function closeModal() {
+  document.getElementById('payment-modal').style.display = 'none';
+  document.getElementById('modal-pay-btn').textContent = 'Оплатить 3 000 ₽';
+  document.getElementById('modal-pay-btn').disabled = false;
+  document.getElementById('modal-customer').value = '';
+  document.getElementById('modal-desc').textContent = 'Глубокий аудит бизнес-процессов, ИТ-инфраструктуры и юридических рисков. Результат — PDF-отчёт с пошаговым планом.';
+}
+
+document.querySelector('.modal__overlay')?.addEventListener('click', closeModal);
+</script>
+{% endblock %}
