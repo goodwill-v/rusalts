@@ -98,6 +98,18 @@ PRODUCTS: dict[str, dict[str, Any]] = {
         "bot_url": "",
         "status": "free",  # бесплатно до решения проблемы парсинга
     },
+    "anketa_diagnostics": {
+        "id": "anketa_diagnostics",
+        "name": "Анализ процессов предприятия",
+        "description": "Глубокий аудит бизнес-процессов, ИТ-инфраструктуры и юридических рисков. Результат — PDF-отчёт (5–10 стр.) с пошаговым планом миграции. Заполнение анкеты ~15–20 минут.",
+        "price_rub": 3000,
+        "period_days": 0,
+        "trial_days": 0,
+        "category": "service",
+        "platform": "Веб-форма + PDF",
+        "bot_url": "",
+        "status": "available",
+    },
     "openclaw": {
         "id": "openclaw",
         "name": "OpenClaw — универсальный ассистент",

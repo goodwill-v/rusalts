@@ -5,31 +5,33 @@
     max-width: 800px; margin: 0 auto; padding: 40px 20px;
   }
   .product-hero h1 {
-    font-size: 2em; margin-bottom: 0.3em;
+    font-size: 2em; margin-bottom: 0.3em; color: var(--site-heading);
   }
   .product-hero .subtitle {
-    font-size: 1.15em; color: var(--text-strong); margin-bottom: 2em;
+    font-size: 1.15em; color: var(--site-text); margin-bottom: 2em;
   }
   .feature-grid {
-    display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+    display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
     gap: 24px; margin: 2em 0;
   }
   .feature-card {
-    background: var(--card); border-radius: var(--radius); padding: 20px;
-    border: 1px solid var(--border);
+    background: var(--site-surface); border-radius: var(--radius); padding: 20px;
+    border: 1px solid var(--site-border);
+    box-shadow: 0 2px 10px rgba(17, 24, 39, 0.05);
   }
   .feature-card h3 {
-    font-size: 1.15em; margin: 0 0 0.5em;
+    font-size: 1.15em; margin: 0 0 0.5em; color: var(--site-heading);
   }
   .feature-card p {
-    margin: 0; color: var(--text); font-size: 0.92em; line-height: 1.5;
+    margin: 0; color: var(--site-text); font-size: 0.92em; line-height: 1.5;
   }
   .feature-card .icon {
     font-size: 1.6em; display: block; margin-bottom: 0.2em;
   }
   .highlight-box {
-    background: var(--accent-fill); border-left: 4px solid var(--accent);
+    background: rgba(26, 92, 138, 0.06); border-left: 4px solid var(--site-primary);
     padding: 16px 20px; border-radius: 8px; margin: 1.5em 0;
+    color: var(--site-text);
   }
   .highlight-box p { margin: 0; }
   .cta-section {
@@ -37,27 +39,29 @@
   }
   .cta-button {
     display: inline-block;
-    background: var(--accent-fill); color: var(--accent-fg);
+    background: var(--site-accent); color: #ffffff;
     padding: 14px 36px; border-radius: var(--radius);
     font-size: 1.1em; font-weight: 600; text-decoration: none;
     transition: filter .15s;
   }
-  .cta-button:hover { filter: brightness(1.12); }
+  .cta-button:hover { filter: brightness(0.92); }
   .spec-table {
     width: 100%; border-collapse: collapse; margin: 1.5em 0;
+    color: var(--site-text);
   }
   .spec-table th, .spec-table td {
-    padding: 12px 16px; border: 1px solid var(--border);
+    padding: 12px 16px; border: 1px solid var(--site-border);
     text-align: left; vertical-align: top;
   }
   .spec-table thead th {
-    background: var(--accent-fill); font-weight: 600;
+    background: rgba(26, 92, 138, 0.08); font-weight: 600; color: var(--site-heading);
   }
   .spec-table tr:nth-child(even) td {
-    background: var(--card);
+    background: var(--site-surface);
   }
   @media (max-width: 640px) {
     .feature-grid { grid-template-columns: 1fr; }
+    .product-hero { padding: 24px 16px; }
   }
 </style>
 {% endblock %}
@@ -249,8 +253,8 @@
 
   <!-- Техническое (мелко) -->
   <details>
-    <summary style="cursor:pointer; color: var(--muted);">Технические детали</summary>
-    <p style="font-size: 0.85em; color: var(--muted);">
+    <summary style="cursor:pointer; color: var(--site-muted);">Технические детали</summary>
+    <p style="font-size: 0.85em; color: var(--site-muted);">
       Модель: openai/gpt-5-mini (через RouterAI).
       Распознавание речи: Whisper Large v3 Turbo.
       Озвучка: Google Gemini TTS, голос Kore.

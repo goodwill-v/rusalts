@@ -105,6 +105,12 @@ async def techologis(request: Request, payment: str = "") -> HTMLResponse:
     services_list = [
         p for p in PRODUCTS.values() if p["category"] == "service" or p.get("status") == "dev"
     ]
+    # Все оплачиваемые товары и услуги (для JS-модалки на витрине)
+    all_buyable = [
+        p for p in PRODUCTS.values()
+        if p["status"] == "available" and p["price_rub"] > 0
+        and p["id"] != "italidia_test"
+    ]
 
     tariffs_info = {}
     for pid, t in TARIFFS.items():
@@ -115,6 +121,20 @@ async def techologis(request: Request, payment: str = "") -> HTMLResponse:
             "trial_tokens": format_token_allowance(t.trial_tokens) if t.trial_tokens else "нет",
             "subscription_text": get_subscription_text(pid),
         }
+
+    # Плитки-иконки карточек витрины (эмодзи вместо бинарных картинок)
+    icons = {
+        "vezhpom": "📡",
+        "italidia": "🇮🇹",
+        "neyrosotrudnik": "🤖",
+        "alt_expert": "⚖️",
+        "kupec": "🛒",
+        "anketa_diagnostics": "📋",
+        "openclaw": "🦉",
+        "ozhivlenie": "🎨",
+        "site": "🌐",
+        "techologis": "⚙️",
+    }
 
     return templates.TemplateResponse(
         request,
@@ -130,17 +150,69 @@ async def techologis(request: Request, payment: str = "") -> HTMLResponse:
             "is_sandbox": config.IS_YOOKASSA_SANDBOX,
             "tariffs_info": tariffs_info,
             "billing_enabled": True,
+            "all_buyable": all_buyable,
+            "icons": icons,
         },
     )
 
 
 @router.get("/diagnostics/", response_class=HTMLResponse)
-async def diagnostics(request: Request) -> HTMLResponse:
+async def diagnostics(request: Request, payment: str = "") -> HTMLResponse:
+    """Страница диагностики с тремя вариантами (бесплатно, ваше дело, платный анализ)."""
+    from app.payments import PRODUCTS
+
+    all_buyable = [
+        p for p in PRODUCTS.values()
+        if p["status"] == "available" and p["price_rub"] > 0
+        and p["id"] != "italidia_test"
+    ]
+
+    return templates.TemplateResponse(
+        request,
+        "diagnostics.html",
+        {
+            "vk_app_id": config.VK_APP_ID or None,
+            "is_widget": False,
+            "layout_class": "layout-site",
+            "page_title": "Диагностика — АЛЬТЕРНАТИВА (АЛТ)",
+            "all_buyable": all_buyable,
+            "payment_status": payment,
+        },
+    )
+
+
+@router.get("/diagnostics/free/", response_class=HTMLResponse)
+async def diagnostics_free(request: Request) -> HTMLResponse:
+    """Бесплатная диагностика — форма анкеты."""
     return _site_page(
         request,
-        h1="Диагностика",
-        description="Публичная страница: описание услуги диагностики.",
+        h1="Бесплатная диагностика",
+        description="Анкета для диагностики бизнес-процессов.",
+        hint="Форма анкеты будет реализована в этой итерации (см. /opt/alt/alt_diagnostics/anketa_free.md).",
     )
+
+
+@router.get("/diagnostics/your-business/", response_class=HTMLResponse)
+async def diagnostics_your_business(request: Request) -> HTMLResponse:
+    """«Ваше дело» — форма анкеты для ИП/блогеров."""
+    return _site_page(
+        request,
+        h1="Ваше дело",
+        description="Анкета для определения болевых точек предпринимателя.",
+        hint="Форма анкеты будет реализована в этой итерации (см. /opt/alt/alt_diagnostics/anketa_your_business.md).",
+    )
+
+
+@router.get("/diagnostics/paid-form/", response_class=HTMLResponse)
+async def diagnostics_paid_form(request: Request) -> HTMLResponse:
+    """Форма платной диагностики (после оплаты 3 000 ₽)."""
+    return _site_page(
+        request,
+        h1="Анализ процессов предприятия",
+        description="Подробная анкета после оплаты.",
+        hint="Форма анкеты будет реализована в этой итерации (см. /opt/alt/alt_diagnostics/anketa_paid.md). После заполнения — PDF-отчёт на email.",
+    )
+
 
 
 @router.get("/channels/", response_class=HTMLResponse)
