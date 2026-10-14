@@ -187,36 +187,75 @@ async def diagnostics(request: Request, payment: str = "") -> HTMLResponse:
     )
 
 
+def _diagnostics_form(
+    request: Request,
+    *,
+    form_kind: str,
+    form_title: str,
+    form_meta: str,
+    submit_label: str,
+    api_endpoint: str,
+    payment: str = "",
+) -> HTMLResponse:
+    """Общий рендер трёх форм анкет диагностики (ТЗ 5.4.2)."""
+    return templates.TemplateResponse(
+        request,
+        "diagnostics_form.html",
+        {
+            "vk_app_id": config.VK_APP_ID or None,
+            "is_widget": False,
+            "layout_class": "layout-site",
+            "page_title": f"{form_title} — АЛЬТЕРНАТИВА (АЛТ)",
+            "form_kind": form_kind,
+            "form_title": form_title,
+            "form_meta": form_meta,
+            "submit_label": submit_label,
+            "api_endpoint": api_endpoint,
+            "is_paid": form_kind == "paid",
+            "payment_status": payment,
+        },
+    )
+
+
 @router.get("/diagnostics/free/", response_class=HTMLResponse)
 async def diagnostics_free(request: Request) -> HTMLResponse:
     """Бесплатная диагностика — форма анкеты."""
-    return _site_page(
+    return _diagnostics_form(
         request,
-        h1="Бесплатная диагностика",
-        description="Анкета для диагностики бизнес-процессов.",
-        hint="Форма анкеты будет реализована в этой итерации (см. /opt/alt/alt_diagnostics/anketa_free.md).",
+        form_kind="free",
+        form_title="Бесплатная диагностика — автоматизация процессов",
+        form_meta="⏱ ~10 минут · Результат: карта процессов для автоматизации и рекомендации — на email. Бесплатно.",
+        submit_label="Отправить анкету",
+        api_endpoint="/api/diagnostics/free",
     )
 
 
 @router.get("/diagnostics/your-business/", response_class=HTMLResponse)
 async def diagnostics_your_business(request: Request) -> HTMLResponse:
     """«Ваше дело» — форма анкеты для ИП/блогеров."""
-    return _site_page(
+    return _diagnostics_form(
         request,
-        h1="Ваше дело",
-        description="Анкета для определения болевых точек предпринимателя.",
-        hint="Форма анкеты будет реализована в этой итерации (см. /opt/alt/alt_diagnostics/anketa_your_business.md).",
+        form_kind="your_business",
+        form_title="Ваше дело — болевые точки предпринимателя",
+        form_meta="⏱ 5 минут · 8 вопросов · Результат: чек-лист решений под вашу ситуацию — на email. Бесплатно.",
+        submit_label="Получить чек-лист",
+        api_endpoint="/api/diagnostics/your-business",
     )
 
 
 @router.get("/diagnostics/paid-form/", response_class=HTMLResponse)
-async def diagnostics_paid_form(request: Request) -> HTMLResponse:
+async def diagnostics_paid_form(
+    request: Request, payment: str = ""
+) -> HTMLResponse:
     """Форма платной диагностики (после оплаты 3 000 ₽)."""
-    return _site_page(
+    return _diagnostics_form(
         request,
-        h1="Анализ процессов предприятия",
-        description="Подробная анкета после оплаты.",
-        hint="Форма анкеты будет реализована в этой итерации (см. /opt/alt/alt_diagnostics/anketa_paid.md). После заполнения — PDF-отчёт на email.",
+        form_kind="paid",
+        form_title="Анализ процессов предприятия",
+        form_meta="⏱ 15–20 минут · Результат: PDF-отчёт 5–10 стр. — зрелость процессов, комплаенс 152-ФЗ/168-ФЗ, дорожная карта на 1/3/6 месяцев.",
+        submit_label="Отправить и получить отчёт",
+        api_endpoint="/api/diagnostics/paid",
+        payment=payment,
     )
 
 

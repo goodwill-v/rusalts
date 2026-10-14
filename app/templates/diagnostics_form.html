@@ -1,0 +1,444 @@
+{% extends "base.html" %}
+{% block extra_head %}
+<style>
+  .diag-form-wrap {
+    max-width: 760px;
+    margin: 0 auto;
+    padding: 1.5rem 1rem 3rem;
+  }
+  .diag-form-wrap h1 {
+    color: var(--site-heading);
+    font-size: 1.7rem;
+    margin: 0 0 0.35rem;
+  }
+  .diag-form-meta {
+    color: var(--site-muted, #6b7280);
+    font-size: 0.9rem;
+    margin-bottom: 1.25rem;
+  }
+  .diag-section {
+    background: var(--site-surface, #fff);
+    border: 1px solid var(--site-border);
+    border-radius: 12px;
+    padding: 1.1rem 1.25rem;
+    margin-bottom: 1rem;
+  }
+  .diag-section h2 {
+    font-size: 1.05rem;
+    color: var(--site-primary);
+    margin: 0 0 0.75rem;
+  }
+  .diag-field { margin-bottom: 0.85rem; }
+  .diag-field > label {
+    display: block;
+    font-size: 0.85rem;
+    font-weight: 600;
+    color: var(--site-heading);
+    margin-bottom: 0.3rem;
+  }
+  .diag-field input[type="text"],
+  .diag-field input[type="email"],
+  .diag-field input[type="tel"],
+  .diag-field select,
+  .diag-field textarea {
+    width: 100%;
+    font: inherit;
+    font-size: 0.92rem;
+    padding: 0.5rem 0.65rem;
+    border: 1px solid var(--site-border);
+    border-radius: 8px;
+    background: var(--site-surface, #fff);
+    color: var(--site-text);
+    box-sizing: border-box;
+  }
+  .diag-field textarea { min-height: 4rem; resize: vertical; }
+  .diag-checks { display: flex; flex-wrap: wrap; gap: 0.4rem 1rem; }
+  .diag-checks label {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.35rem;
+    font-size: 0.9rem;
+    color: var(--site-text);
+  }
+  .diag-required { color: #991b1b; }
+  .diag-actions {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    margin-top: 1.25rem;
+  }
+  .diag-submit {
+    font: inherit;
+    font-weight: 700;
+    font-size: 1rem;
+    padding: 0.75rem 1.75rem;
+    border: none;
+    border-radius: 10px;
+    background: var(--site-accent);
+    color: #ffffff;
+    cursor: pointer;
+  }
+  .diag-submit:hover { filter: brightness(0.92); }
+  .diag-msg { font-weight: 600; font-size: 0.92rem; }
+  .diag-msg--ok { color: #166534; }
+  .diag-msg--err { color: #991b1b; }
+  .diag-paid-banner {
+    background: #dcfce7;
+    border: 1px solid #86efac;
+    color: #166534;
+    border-radius: 10px;
+    padding: 0.75rem 1rem;
+    margin-bottom: 1rem;
+    font-weight: 600;
+  }
+  @media (max-width: 640px) {
+    .diag-form-wrap { padding: 1rem 0.75rem 2.5rem; }
+  }
+</style>
+{% endblock %}
+
+{% block body %}
+<main class="site-main">
+  <div class="diag-form-wrap">
+    <h1>{{ form_title }}</h1>
+    <p class="diag-form-meta">{{ form_meta }}</p>
+
+    {% if is_paid and payment_status == "success" %}
+    <div class="diag-paid-banner">✅ Оплата получена (3 000 ₽). Заполните анкету — PDF-отчёт придёт на email.</div>
+    {% elif is_paid %}
+    <div class="diag-paid-banner" style="background:#dbeafe;border-color:#93c5fd;color:#1e40af">
+      ℹ️ Эта анкета — после оплаты «Анализ процессов предприятия» (3 000 ₽).
+      Если вы ещё не оплатили, вернитесь на <a class="link" href="/diagnostics/">страницу диагностики</a>.
+    </div>
+    {% endif %}
+
+    <form id="diag-form" novalidate>
+      <div class="diag-section">
+        <h2>Контакты</h2>
+        <div class="diag-field">
+          <label>Имя <span class="diag-required">*</span></label>
+          <input type="text" name="name" required />
+        </div>
+        <div class="diag-field">
+          <label>Email (куда прислать результат) <span class="diag-required">*</span></label>
+          <input type="email" name="email" required />
+        </div>
+        <div class="diag-field">
+          <label>Телефон {% if form_kind == 'paid' %}<span class="diag-required">*</span>{% else %}(опционально){% endif %}</label>
+          <input type="tel" name="phone" />
+        </div>
+        {% if form_kind != 'your_business' %}
+        <div class="diag-field">
+          <label>{% if form_kind == 'paid' %}Название организации <span class="diag-required">*</span>{% else %}Название компании / проекта <span class="diag-required">*</span>{% endif %}</label>
+          <input type="text" name="company" required />
+        </div>
+        {% endif %}
+
+        {% if form_kind == 'free' %}
+        <div class="diag-field">
+          <label>Сфера деятельности</label>
+          <select name="answers.sphere">
+            <option>Ритейл/E-commerce</option><option>Образование</option>
+            <option>Медиа/Блогинг</option><option>ИТ/Разработка</option>
+            <option>Консалтинг/Услуги</option><option>НКО/Сообщество</option>
+            <option>Производство</option><option>Другое</option>
+          </select>
+        </div>
+        <div class="diag-field">
+          <label>Размер команды</label>
+          <select name="answers.team_size">
+            <option>Я один</option><option>2–5</option><option>6–15</option>
+            <option>16–50</option><option>50+</option>
+          </select>
+        </div>
+        {% elif form_kind == 'your_business' %}
+        <div class="diag-field">
+          <label>Род деятельности</label>
+          <select name="answers.occupation">
+            <option>Блогер/Инфлюенсер</option><option>Консультант/Коуч</option>
+            <option>Мастер/Ремесленник</option><option>Продавец на маркетплейсах</option>
+            <option>Фрилансер</option><option>Услуги</option><option>Другое</option>
+          </select>
+        </div>
+        <div class="diag-field">
+          <label>Где вы работаете (площадки)</label>
+          <div class="diag-checks">
+            {% for p in ['VK', 'Instagram*', 'Telegram', 'YouTube', 'Wildberries/Ozon', 'свой сайт'] %}
+            <label><input type="checkbox" name="answers.platforms" value="{{ p }}" /> {{ p }}</label>
+            {% endfor %}
+          </div>
+        </div>
+        {% elif form_kind == 'paid' %}
+        <div class="diag-field">
+          <label>Должность</label>
+          <input type="text" name="answers.position" />
+        </div>
+        <div class="diag-field">
+          <label>ИНН (опционально, для договора)</label>
+          <input type="text" name="answers.inn" />
+        </div>
+        <div class="diag-field">
+          <label>Сфера деятельности</label>
+          <input type="text" name="answers.sphere" />
+        </div>
+        <div class="diag-field">
+          <label>Количество сотрудников</label>
+          <select name="answers.employees">
+            <option>1–5</option><option>6–15</option><option>16–50</option>
+            <option>51–200</option><option>200+</option>
+          </select>
+        </div>
+        <div class="diag-field">
+          <label>ИТ-отдел</label>
+          <select name="answers.it_dept">
+            <option>штатный</option><option>аутсорс</option><option>нет</option>
+          </select>
+        </div>
+        {% endif %}
+      </div>
+
+      {% if form_kind == 'free' %}
+      <div class="diag-section">
+        <h2>Коммуникации</h2>
+        <div class="diag-field">
+          <label>Мессенджеры для работы</label>
+          <div class="diag-checks">
+            {% for m in ['WhatsApp', 'Telegram', 'Viber', 'VK/MAX', 'Sferum', 'Slack/Discord'] %}
+            <label><input type="checkbox" name="answers.messengers" value="{{ m }}" /> {{ m }}</label>
+            {% endfor %}
+          </div>
+        </div>
+        <div class="diag-field">
+          <label>Каналы связи с клиентами</label>
+          <div class="diag-checks">
+            {% for c in ['личные сообщения', 'групповые чаты', 'соцсети', 'email', 'телефон', 'видеоконференции', 'свой сайт'] %}
+            <label><input type="checkbox" name="answers.channels" value="{{ c }}" /> {{ c }}</label>
+            {% endfor %}
+          </div>
+        </div>
+        <div class="diag-field">
+          <label>Сколько человек нуждаются в корпоративных коммуникациях?</label>
+          <input type="text" name="answers.comm_people" placeholder="например, 3" />
+        </div>
+        <div class="diag-field">
+          <label>Есть ли чат-боты / автоответчики?</label>
+          <select name="answers.bots"><option>нет</option><option>да</option><option>планируем</option></select>
+        </div>
+      </div>
+      <div class="diag-section">
+        <h2>ИТ-инфраструктура</h2>
+        <div class="diag-field">
+          <label>Где хранятся данные?</label>
+          <select name="answers.data_storage">
+            <option>локально</option><option>NAS</option><option>российское облако</option>
+            <option>зарубежное облако</option><option>CRM</option>
+          </select>
+        </div>
+        <div class="diag-field">
+          <label>Отечественные ИТ-решения</label>
+          <select name="answers.ru_it">
+            <option>Яндекс 360</option><option>VK</option><option>MAX</option>
+            <option>Rutube/RuStore</option><option>нет, но хотим</option>
+          </select>
+        </div>
+        <div class="diag-field">
+          <label>ИИ-инструменты</label>
+          <select name="answers.ai_tools">
+            <option>ChatGPT/Claude</option><option>российские LLM</option>
+            <option>ИИ-ассистент</option><option>нет, но интересно</option>
+          </select>
+        </div>
+      </div>
+      <div class="diag-section">
+        <h2>Комплаенс и риски</h2>
+        <div class="diag-field">
+          <label>Работаете с персональными данными клиентов?</label>
+          <select name="answers.pdn"><option>да</option><option>нет</option><option>не уверен(а)</option></select>
+        </div>
+        <div class="diag-field">
+          <label>Знакомы с 152-ФЗ?</label>
+          <select name="answers.fz152">
+            <option>полностью соблюдаем</option><option>знаем, но не уверены</option>
+            <option>слышали</option><option>впервые слышу</option>
+          </select>
+        </div>
+        <div class="diag-field">
+          <label>Зарубежные платформы для контента/рекламы</label>
+          <input type="text" name="answers.foreign_platforms" placeholder="например, Instagram, YouTube" />
+        </div>
+      </div>
+      <div class="diag-section">
+        <h2>Цели</h2>
+        <div class="diag-field">
+          <label>Что важнее всего в ближайшие 6 месяцев?</label>
+          <select name="answers.goal6m">
+            <option>автоматизировать процессы</option><option>обеспечить комплаенс</option>
+            <option>запустить продажи</option><option>снизить риски</option>
+          </select>
+        </div>
+        <div class="diag-field">
+          <label>Бюджет на услуги АЛТ</label>
+          <select name="answers.budget">
+            <option>0</option><option>до 15 000 ₽</option>
+            <option>15–75 тыс. ₽</option><option>от 75 тыс. ₽</option><option>затрудняюсь</option>
+          </select>
+        </div>
+        <div class="diag-field">
+          <label>Откуда узнали об АЛТ?</label>
+          <input type="text" name="answers.source" />
+        </div>
+      </div>
+      {% elif form_kind == 'your_business' %}
+      <div class="diag-section">
+        <h2>Болевые точки (выберите 1–3)</h2>
+        <div class="diag-field">
+          <div class="diag-checks" style="flex-direction:column;align-items:flex-start;gap:0.5rem">
+            <label><input type="checkbox" name="answers.pain_points" value="Блокировки — мои каналы/страницы блокируют" /> 🔒 Блокировки — мои каналы/страницы блокируют</label>
+            <label><input type="checkbox" name="answers.pain_points" value="Риски штрафов — не знаю, соблюдаю ли законы (152-ФЗ, 168-ФЗ)" /> ⚖️ Риски штрафов — не знаю, соблюдаю ли законы</label>
+            <label><input type="checkbox" name="answers.pain_points" value="Сложности с платежами — клиентам неудобно платить" /> 💳 Сложности с платежами</label>
+            <label><input type="checkbox" name="answers.pain_points" value="Нет времени на рутину — отвечаю на одно и то же вручную" /> ⏳ Нет времени на рутину</label>
+            <label><input type="checkbox" name="answers.pain_points" value="Риск потери данных" /> 💾 Риск потери данных</label>
+            <label><input type="checkbox" name="answers.pain_points" value="Хочу разобраться в ИИ — не знаю, как применять" /> 🤖 Хочу разобраться в ИИ</label>
+          </div>
+        </div>
+        <div class="diag-field">
+          <label>Что хотите улучшить в первую очередь?</label>
+          <textarea name="answers.wishes" placeholder="пара слов о задаче (необязательно)"></textarea>
+        </div>
+      </div>
+      {% elif form_kind == 'paid' %}
+      <div class="diag-section">
+        <h2>Коммуникации</h2>
+        <div class="diag-field">
+          <label>Мессенджеры внутренние и внешние</label>
+          <input type="text" name="answers.messengers" />
+        </div>
+        <div class="diag-field">
+          <label>Диалогов в день (примерно)</label>
+          <input type="text" name="answers.dialogs_per_day" />
+        </div>
+        <div class="diag-field">
+          <label>Скрипты ответов / CRM</label>
+          <input type="text" name="answers.scripts_crm" placeholder="например, скриптов нет, CRM — Битрикс24" />
+        </div>
+      </div>
+      <div class="diag-section">
+        <h2>ИТ-инфраструктура</h2>
+        <div class="diag-field">
+          <label>Серверы</label>
+          <select name="answers.servers">
+            <option>локальные</option><option>российское облако</option>
+            <option>зарубежное облако</option><option>смешанно</option>
+          </select>
+        </div>
+        <div class="diag-field">
+          <label>Домены / почта</label>
+          <select name="answers.domains">
+            <option>российские</option><option>зарубежные</option><option>смешанно</option>
+          </select>
+        </div>
+        <div class="diag-field">
+          <label>SaaS-сервисы и ИИ-инструменты</label>
+          <textarea name="answers.saas" placeholder="перечислите основные"></textarea>
+        </div>
+      </div>
+      <div class="diag-section">
+        <h2>Персональные данные</h2>
+        <div class="diag-field">
+          <label>Категории данных клиентов</label>
+          <input type="text" name="answers.pdn_categories" placeholder="контакты, заказы, документы..." />
+        </div>
+        <div class="diag-field">
+          <label>Уведомление РКН подано?</label>
+          <select name="answers.rkn"><option>да</option><option>нет</option><option>не знаю</option></select>
+        </div>
+        <div class="diag-field">
+          <label>Согласия на обработку ПДн / договор с оператором</label>
+          <input type="text" name="answers.pdn_consent" />
+        </div>
+      </div>
+      <div class="diag-section">
+        <h2>Маркировка рекламы (168-ФЗ)</h2>
+        <div class="diag-field">
+          <label>Размещаете интернет-рекламу?</label>
+          <select name="answers.ads"><option>да</option><option>нет</option><option>планируем</option></select>
+        </div>
+        <div class="diag-field">
+          <label>Используете ОРД?</label>
+          <select name="answers.ord"><option>да</option><option>нет</option><option>не знаю</option></select>
+        </div>
+      </div>
+      <div class="diag-section">
+        <h2>Цели и бюджет</h2>
+        <div class="diag-field">
+          <label>Задачи на 6 месяцев</label>
+          <textarea name="answers.goals"></textarea>
+        </div>
+        <div class="diag-field">
+          <label>Бюджет и сроки</label>
+          <input type="text" name="answers.budget" />
+        </div>
+      </div>
+      {% endif %}
+
+      <div class="diag-actions">
+        <button type="submit" class="diag-submit">{{ submit_label }}</button>
+        <span class="diag-msg" id="diag-msg"></span>
+      </div>
+    </form>
+  </div>
+</main>
+
+<script>
+document.getElementById("diag-form").addEventListener("submit", async (e) => {
+  e.preventDefault();
+  const form = e.target;
+  const msg = document.getElementById("diag-msg");
+  const data = { name: "", email: "", phone: "", company: "", answers: {} };
+  for (const el of form.elements) {
+    if (!el.name) continue;
+    if (el.name.startsWith("answers.")) {
+      const key = el.name.slice(8);
+      if (el.type === "checkbox") {
+        if (el.checked) {
+          (data.answers[key] = data.answers[key] || []).push(el.value);
+        }
+      } else if (el.value.trim()) {
+        data.answers[key] = el.value.trim();
+      }
+    } else {
+      data[el.name] = el.value.trim();
+    }
+  }
+  if (!data.name || !data.email || !data.email.includes("@")) {
+    msg.textContent = "Укажите имя и корректный email.";
+    msg.className = "diag-msg diag-msg--err";
+    return;
+  }
+  const btn = form.querySelector(".diag-submit");
+  btn.disabled = true;
+  btn.textContent = "Отправляем...";
+  try {
+    const resp = await fetch("{{ api_endpoint }}", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(data),
+    });
+    const res = await resp.json();
+    if (res.ok) {
+      msg.textContent = res.message;
+      msg.className = "diag-msg diag-msg--ok";
+      form.reset();
+    } else {
+      msg.textContent = res.error || "Ошибка отправки.";
+      msg.className = "diag-msg diag-msg--err";
+    }
+  } catch (err) {
+    msg.textContent = "Ошибка соединения: " + err.message;
+    msg.className = "diag-msg diag-msg--err";
+  }
+  btn.disabled = false;
+  btn.textContent = "{{ submit_label }}";
+});
+</script>
+{% endblock %}

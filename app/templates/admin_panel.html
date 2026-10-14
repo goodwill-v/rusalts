@@ -339,6 +339,7 @@ const STATUSES_RU = {
   beta: "Бета", dev: "В разработке", draft: "Черновик", archived: "Архив",
   pending: "Ожидает", succeeded: "Оплачен", canceled: "Отменён",
   waiting_for_capture: "Ожидает подтверждения", active: "активна", expired: "истекла",
+  your_business: "Ваше дело", paid: "Анализ процессов (платная)", new: "новая",
 };
 
 const $ = (sel) => document.querySelector(sel);
@@ -624,7 +625,7 @@ async function loadDiagnostics() {
   const data = await api("/admin/api/diagnostics");
   if (data.note) $("#dg-note").textContent = data.note;
   $("#dg-tbody").innerHTML = (data.items || []).map((d) => `
-    <tr><td>${d.id}</td><td>${esc(d.created_at || "")}</td><td>${esc(d.type || "")}</td><td>${esc(d.contact || d.email || "")}</td><td>${esc(d.status || "")}</td></tr>`
+    <tr><td>${d.id}</td><td>${esc(d.created_at || "")}</td><td>${esc(STATUSES_RU[d.kind] || d.kind || "")}</td><td>${esc(d.name || "")}<br><small class="admin-note">${esc(d.email || "")}</small></td><td>${esc(d.status || "new")}</td></tr>`
   ).join("") || '<tr><td colspan="5" class="admin-note">Пока пусто — анкеты диагностик появятся после реализации ТЗ 5.4.</td></tr>';
 }
 </script>
