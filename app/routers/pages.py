@@ -30,6 +30,9 @@ def _require_admin_auth(credentials: HTTPBasicCredentials = Depends(_basic)) -> 
 
 @router.get("/", response_class=HTMLResponse)
 async def index(request: Request) -> HTMLResponse:
+    from app import site_settings
+
+    settings = site_settings.get_all()
     # Starlette 1.x: TemplateResponse(request, name, context) — request первым.
     return templates.TemplateResponse(
         request,
@@ -39,6 +42,10 @@ async def index(request: Request) -> HTMLResponse:
             "is_widget": False,
             "layout_class": "layout-site",
             "page_title": "АЛЬТЕРНАТИВА (АЛТ) — альтернативные легальные технологии",
+            "hero_title": settings["hero_title"],
+            "hero_subtitle": settings["hero_subtitle"],
+            "hero_cta_text": settings["hero_cta_text"],
+            "hero_cta_url": settings["hero_cta_url"],
         },
     )
 
@@ -92,24 +99,20 @@ async def news(request: Request) -> HTMLResponse:
 async def techologis(request: Request, payment: str = "") -> HTMLResponse:
     """Каталог инструментов АЛТ с токен-биллингом (витрина v2)."""
     from app.billing import TARIFFS, Tariff, get_subscription_text, format_token_allowance
-    from app.payments import PRODUCTS
+    from app.products_store import catalog
 
+    all_catalog = catalog()
     product_order = ["italidia", "vezhpom"]
     products_list = sorted(
-        [
-            p for p in PRODUCTS.values()
-            if p["category"] == "product" and p["status"] != "dev" and p["id"] != "italidia_test"
-        ],
+        [p for p in all_catalog if p["category"] == "product" and p.get("status") != "dev"],
         key=lambda p: product_order.index(p["id"]) if p["id"] in product_order else len(product_order),
     )
     services_list = [
-        p for p in PRODUCTS.values() if p["category"] == "service" or p.get("status") == "dev"
+        p for p in all_catalog if p["category"] == "service" or p.get("status") == "dev"
     ]
     # Все оплачиваемые товары и услуги (для JS-модалки на витрине)
     all_buyable = [
-        p for p in PRODUCTS.values()
-        if p["status"] == "available" and p["price_rub"] > 0
-        and p["id"] != "italidia_test"
+        p for p in all_catalog if p["status"] == "available" and p["price_rub"] > 0
     ]
 
     tariffs_info = {}
@@ -123,7 +126,7 @@ async def techologis(request: Request, payment: str = "") -> HTMLResponse:
         }
 
     # Плитки-иконки карточек витрины (эмодзи вместо бинарных картинок)
-    icons = {
+    static_icons = {
         "vezhpom": "📡",
         "italidia": "🇮🇹",
         "neyrosotrudnik": "🤖",
@@ -134,6 +137,9 @@ async def techologis(request: Request, payment: str = "") -> HTMLResponse:
         "ozhivlenie": "🎨",
         "site": "🌐",
         "techologis": "⚙️",
+    }
+    icons = {
+        p["id"]: p.get("icon") or static_icons.get(p["id"], "🧩") for p in all_catalog
     }
 
     return templates.TemplateResponse(
@@ -221,16 +227,6 @@ async def channels(request: Request) -> HTMLResponse:
         request,
         h1="Каналы",
         description="Публичная страница: взаимодействие с мессенджерами и соцсетями.",
-    )
-
-
-@router.get("/admin/", response_class=HTMLResponse, dependencies=[Depends(_require_admin_auth)])
-async def admin(request: Request) -> HTMLResponse:
-    return _site_page(
-        request,
-        h1="Админ",
-        description="Страница с авторизацией: управление сайтом.",
-        hint="Доступ ограничен. Здесь появятся инструменты управления сайтом.",
     )
 
 
