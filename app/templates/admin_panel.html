@@ -1,0 +1,631 @@
+{% extends "base.html" %}
+{% block extra_head %}
+<link rel="stylesheet" href="/static/css/admin.css" />
+{% endblock %}
+
+{% block body %}
+<main class="site-main">
+  <div class="admin-shell">
+    <h1>⚙️ Админ-панель АЛТ</h1>
+
+    <nav class="admin-tabs" role="tablist">
+      <button class="admin-tab-btn is-active" data-tab="home">🏠 Главная</button>
+      <button class="admin-tab-btn" data-tab="products">📦 Товары</button>
+      <button class="admin-tab-btn" data-tab="orders">🧾 Заказы и подписки</button>
+      <button class="admin-tab-btn" data-tab="billing">💳 Биллинг</button>
+      <button class="admin-tab-btn" data-tab="content">📰 Публикации</button>
+      <button class="admin-tab-btn" data-tab="diagnostics">📋 Диагностики</button>
+    </nav>
+
+    <!-- ═══ Таб 1: Главная (редакция страницы) ═══ -->
+    <section id="tab-home" class="admin-tab-content is-active">
+      <div class="admin-panel">
+        <h2>Герой главной страницы</h2>
+        <p class="admin-note">Тексты первого экрана на <a class="link" href="/">главной</a>. Пустое поле = значение по умолчанию.</p>
+        <div class="admin-form-grid">
+          <div class="admin-field" style="grid-column: 1 / -1;">
+            <label for="hs-title">Заголовок (H1)</label>
+            <textarea id="hs-title" rows="2">{{ home_settings.hero_title }}</textarea>
+          </div>
+          <div class="admin-field" style="grid-column: 1 / -1;">
+            <label for="hs-subtitle">Подзаголовок</label>
+            <textarea id="hs-subtitle" rows="2">{{ home_settings.hero_subtitle }}</textarea>
+          </div>
+          <div class="admin-field">
+            <label for="hs-cta-text">Текст CTA-кнопки</label>
+            <input id="hs-cta-text" value="{{ home_settings.hero_cta_text }}" />
+          </div>
+          <div class="admin-field">
+            <label for="hs-cta-url">Ссылка CTA-кнопки</label>
+            <input id="hs-cta-url" value="{{ home_settings.hero_cta_url }}" />
+          </div>
+        </div>
+        <div class="admin-actions">
+          <button class="admin-btn admin-btn--action" id="hs-save">💾 Сохранить</button>
+          <span class="admin-msg" id="hs-msg"></span>
+        </div>
+      </div>
+    </section>
+
+    <!-- ═══ Таб 2: Товары (CRUD) ═══ -->
+    <section id="tab-products" class="admin-tab-content">
+      <div class="admin-panel">
+        <h2>Каталог витрины</h2>
+        <p class="admin-note">Статические товары из payments.py + записи из БД (переопределение по ID). «Черновик» и «Архив» скрыты с витрины.</p>
+        <div class="admin-actions" style="margin: 0.5rem 0 0.75rem;">
+          <button class="admin-btn admin-btn--action" id="prod-new">＋ Добавить товар</button>
+          <button class="admin-btn" id="prod-refresh">↻ Обновить</button>
+          <span class="admin-msg" id="prod-msg"></span>
+        </div>
+        <div class="admin-table-wrap">
+          <table class="admin-table">
+            <thead>
+              <tr><th>ID</th><th></th><th>Название</th><th>Категория</th><th>Платформа</th><th>Цена</th><th>Статус</th><th>Действия</th></tr>
+            </thead>
+            <tbody id="prod-tbody"></tbody>
+          </table>
+        </div>
+      </div>
+
+      <div class="admin-panel" id="prod-form-panel" hidden>
+        <h2 id="prod-form-title">Товар</h2>
+        <div class="admin-form-grid">
+          <div class="admin-field">
+            <label for="pf-id">ID (латиницей, неизменяемый)</label>
+            <input id="pf-id" placeholder="например, my_product" />
+          </div>
+          <div class="admin-field">
+            <label for="pf-name">Название</label>
+            <input id="pf-name" />
+          </div>
+          <div class="admin-field" style="grid-column: 1 / -1;">
+            <label for="pf-desc">Описание</label>
+            <textarea id="pf-desc" rows="3"></textarea>
+          </div>
+          <div class="admin-field">
+            <label for="pf-price">Цена, ₽ (0 = бесплатно)</label>
+            <input id="pf-price" type="number" min="0" value="0" />
+          </div>
+          <div class="admin-field">
+            <label for="pf-period">Период, дней (30 = /мес, 0 = разово)</label>
+            <input id="pf-period" type="number" min="0" value="30" />
+          </div>
+          <div class="admin-field">
+            <label for="pf-trial">Триал, дней</label>
+            <input id="pf-trial" type="number" min="0" value="0" />
+          </div>
+          <div class="admin-field">
+            <label for="pf-category">Категория</label>
+            <select id="pf-category">
+              <option value="product">Продукт (подписка)</option>
+              <option value="service">Услуга (под заказ)</option>
+            </select>
+          </div>
+          <div class="admin-field">
+            <label for="pf-status">Статус</label>
+            <select id="pf-status">
+              <option value="available">Активен</option>
+              <option value="free">Бесплатно</option>
+              <option value="coming">Скоро</option>
+              <option value="inquiry">По запросу</option>
+              <option value="beta">Бета</option>
+              <option value="dev">В разработке</option>
+              <option value="draft">Черновик</option>
+              <option value="archived">Архив</option>
+            </select>
+          </div>
+          <div class="admin-field">
+            <label for="pf-icon">Картинка (эмодзи)</label>
+            <input id="pf-icon" placeholder="🤖" maxlength="8" />
+          </div>
+          <div class="admin-field">
+            <label for="pf-platform">Платформа</label>
+            <input id="pf-platform" placeholder="MAX (бот) / Telegram / ВК" />
+          </div>
+          <div class="admin-field">
+            <label for="pf-bot">Ссылка на бота</label>
+            <input id="pf-bot" placeholder="https://..." />
+          </div>
+          <div class="admin-field">
+            <label for="pf-detail">Страница «Подробнее» (URL)</label>
+            <input id="pf-detail" placeholder="/techologis/.../" />
+          </div>
+          <div class="admin-field">
+            <label for="pf-sort">Порядок сортировки</label>
+            <input id="pf-sort" type="number" value="100" />
+          </div>
+        </div>
+        <div class="admin-actions">
+          <button class="admin-btn admin-btn--action" id="pf-save">💾 Сохранить</button>
+          <button class="admin-btn" id="pf-cancel">Отмена</button>
+          <span class="admin-msg" id="pf-msg"></span>
+        </div>
+      </div>
+    </section>
+
+    <!-- ═══ Таб 3: Заказы и подписки ═══ -->
+    <section id="tab-orders" class="admin-tab-content">
+      <div class="admin-panel">
+        <h2>Заказы (платежи ЮKassa)</h2>
+        <div class="admin-form-grid">
+          <div class="admin-field">
+            <label for="ord-from">Дата с</label>
+            <input id="ord-from" type="date" />
+          </div>
+          <div class="admin-field">
+            <label for="ord-to">Дата по</label>
+            <input id="ord-to" type="date" />
+          </div>
+          <div class="admin-field">
+            <label for="ord-product">Продукт</label>
+            <select id="ord-product"><option value="">— все —</option></select>
+          </div>
+          <div class="admin-field">
+            <label for="ord-status">Статус оплаты</label>
+            <select id="ord-status"><option value="">— все —</option></select>
+          </div>
+        </div>
+        <div class="admin-actions">
+          <button class="admin-btn admin-btn--primary" id="ord-apply">Показать</button>
+          <span class="admin-msg" id="ord-msg"></span>
+        </div>
+        <div class="admin-table-wrap" style="margin-top: 0.75rem;">
+          <table class="admin-table">
+            <thead>
+              <tr><th>№</th><th>Дата</th><th>Продукт</th><th>Сумма</th><th>Оплата</th><th>Клиент</th><th>Подписка</th><th>Действия</th></tr>
+            </thead>
+            <tbody id="ord-tbody"><tr><td colspan="8" class="admin-note">Нажмите «Показать».</td></tr></tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+
+    <!-- ═══ Таб 4: Биллинг ═══ -->
+    <section id="tab-billing" class="admin-tab-content">
+      <div class="admin-panel">
+        <h2>📊 Сводка</h2>
+        <div class="admin-grid" id="bl-stats"></div>
+      </div>
+
+      <div class="admin-panel">
+        <h2>🎁 Выдать доступ (триал / бесплатно)</h2>
+        <div class="admin-form-grid">
+          <div class="admin-field">
+            <label for="bl-cid">Customer ID (или email)</label>
+            <input id="bl-cid" placeholder="123456789" />
+          </div>
+          <div class="admin-field">
+            <label for="bl-pid">Продукт</label>
+            <select id="bl-pid"></select>
+          </div>
+          <div class="admin-field">
+            <label for="bl-tokens">Токены (0 = по тарифу)</label>
+            <input id="bl-tokens" type="number" min="0" value="0" />
+          </div>
+          <div class="admin-field">
+            <label for="bl-days">Дней (0 = 30)</label>
+            <input id="bl-days" type="number" min="0" value="0" />
+          </div>
+          <div class="admin-field">
+            <label for="bl-reason">Причина</label>
+            <input id="bl-reason" placeholder="учитель / админ / тест" />
+          </div>
+        </div>
+        <div class="admin-actions">
+          <button class="admin-btn admin-btn--action" id="bl-grant">✅ Выдать доступ</button>
+          <span class="admin-msg" id="bl-grant-msg"></span>
+        </div>
+      </div>
+
+      <div class="admin-panel">
+        <h2>📋 Все подписки (балансы токенов)</h2>
+        <div class="admin-table-wrap">
+          <table class="admin-table">
+            <thead>
+              <tr><th>Клиент</th><th>Продукт</th><th>Выдано</th><th>Использовано</th><th>Остаток</th><th>%</th><th>Истекает</th><th>Статус</th><th></th></tr>
+            </thead>
+            <tbody id="bl-sub-tbody"></tbody>
+          </table>
+        </div>
+      </div>
+
+      <div class="admin-panel">
+        <h2>📊 Расход по продуктам</h2>
+        <div class="admin-table-wrap">
+          <table class="admin-table">
+            <thead><tr><th>Продукт</th><th>Запросов</th><th>Prompt</th><th>Completion</th><th>Стоимость, ₽</th></tr></thead>
+            <tbody id="bl-usage-tbody"></tbody>
+          </table>
+        </div>
+      </div>
+
+      <div class="admin-panel">
+        <h2>📈 История расхода (30 дней)</h2>
+        <div class="admin-table-wrap">
+          <table class="admin-table">
+            <thead><tr><th>День</th><th>Токенов</th><th>Стоимость, ₽</th></tr></thead>
+            <tbody id="bl-hist-tbody"></tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+
+    <!-- ═══ Таб 5: Публикации ═══ -->
+    <section id="tab-content" class="admin-tab-content">
+      <div class="admin-panel">
+        <h2>Режим публикаций</h2>
+        <div class="admin-actions" style="margin: 0;">
+          <label class="admin-switch">
+            <input type="checkbox" id="ap-toggle" />
+            <span class="admin-switch__track"></span>
+            <span class="admin-switch__label">Автоматическая публикация новых новостей (без ручного одобрения)</span>
+          </label>
+          <span class="admin-msg" id="ap-msg"></span>
+        </div>
+        <p class="admin-note" style="margin-bottom: 0;">Когда включено — сгенерированные новости публикуются на сайт сразу после генерации.</p>
+      </div>
+
+      <div class="admin-panel">
+        <div class="approv" data-publapprov>
+          <div class="approv-processing-banner" data-approv-processing-banner hidden role="status" aria-live="polite"></div>
+          <div class="approv-item approv--corporate" data-corp-panel>
+            <h2 class="approv-section-title">Публикация корпоративной новости</h2>
+            <div class="approv-item__head">
+              <div class="approv-item__flags">
+                <label class="approv-flag"><input type="checkbox" data-corp-pin /> Закрепить</label>
+              </div>
+            </div>
+            <p class="muted-site" style="margin: 0 0 0.5rem">В ленте и на главной показываются первые ~200 знаков <strong>первого абзаца</strong> текста для сайта; отдельного заголовка нет.</p>
+            <div class="approv-grid">
+              <div class="approv-col">
+                <div class="approv-col__title">Сайт</div>
+                <textarea class="approv-textarea" rows="10" data-corp-site placeholder="Текст для сайта: первый абзац — зацепка (до ~200 знаков), далее основной текст."></textarea>
+              </div>
+              <div class="approv-col">
+                <div class="approv-col__title">ВКонтакте</div>
+                <textarea class="approv-textarea" rows="10" data-corp-vk placeholder="Текст для ВК (если пусто — подставится из текста сайта)"></textarea>
+              </div>
+            </div>
+            <label class="approv-label">Источники (URL, по одному в строке)</label>
+            <textarea class="approv-textarea" rows="3" data-corp-sources style="min-height: 4.5rem"></textarea>
+            <label class="approv-label">Внутренняя заметка</label>
+            <textarea class="approv-textarea" rows="2" data-corp-note style="min-height: 3.5rem"></textarea>
+            <div class="approv-actions">
+              <button class="btn-site btn-site--primary" type="button" data-corp-save>Сохранить</button>
+              <button class="btn-site" type="button" data-corp-publish>Опубликовать</button>
+              <span class="muted-site" data-corp-status></span>
+            </div>
+          </div>
+
+          <div class="approv__toolbar">
+            <button class="btn-site btn-site--primary" type="button" data-approv-refresh>Обновить</button>
+            <button class="btn-site" type="button" data-approv-approve-all>Одобрить всё</button>
+            <button class="admin-btn admin-btn--danger" type="button" id="clear-queue-btn">🗑 Очистить очередь</button>
+            <span class="muted-site" data-approv-status></span>
+          </div>
+
+          <p class="muted-site" style="margin: 0 0 0.35rem">Опубликованные новости на сайте: отметьте галочкой и нажмите «Удалить» или «Закрепить».</p>
+          <div class="approv__published-tools">
+            <button class="btn-site" type="button" data-site-batch-delete>Удалить</button>
+            <button class="btn-site" type="button" data-site-batch-pin>Закрепить</button>
+            <button class="btn-site" type="button" data-site-batch-unpin>Снять закрепление</button>
+          </div>
+          <div class="approv__published" data-published-list></div>
+
+          <div class="approv__list" data-approv-list></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ═══ Таб 6: Диагностики (заглушка) ═══ -->
+    <section id="tab-diagnostics" class="admin-tab-content">
+      <div class="admin-panel">
+        <h2>📋 Пройденные диагностики</h2>
+        <p class="admin-note" id="dg-note">Раздел в разработке (ТЗ 5.4): формы анкет → БД diagnostics.db → PDF/email. Здесь появится список лидов: контакт, тип диагностики, статус.</p>
+        <div class="admin-table-wrap">
+          <table class="admin-table">
+            <thead><tr><th>ID</th><th>Дата</th><th>Тип</th><th>Контакт</th><th>Статус</th></tr></thead>
+            <tbody id="dg-tbody"></tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+  </div>
+</main>
+
+<script>
+const STATUSES_RU = {
+  available: "Активен", free: "Бесплатно", coming: "Скоро", inquiry: "По запросу",
+  beta: "Бета", dev: "В разработке", draft: "Черновик", archived: "Архив",
+  pending: "Ожидает", succeeded: "Оплачен", canceled: "Отменён",
+  waiting_for_capture: "Ожидает подтверждения", active: "активна", expired: "истекла",
+};
+
+const $ = (sel) => document.querySelector(sel);
+const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({
+  "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;",
+}[c]));
+const badge = (s) => `<span class="admin-badge admin-badge--${esc(s)}">${esc(STATUSES_RU[s] || s || "—")}</span>`;
+
+async function api(url, opts = {}) {
+  const res = await fetch(url, {
+    headers: { "Content-Type": "application/json" },
+    ...opts,
+  });
+  if (res.status === 401) { alert("Требуется авторизация (admin)"); throw new Error("401"); }
+  return res.json();
+}
+
+function setMsg(el, text, ok) {
+  el.textContent = text;
+  el.className = "admin-msg " + (ok ? "admin-msg--ok" : "admin-msg--err");
+  if (text) setTimeout(() => { el.textContent = ""; }, 6000);
+}
+
+// ─── Табы ────────────────────────────────────────────────────────────────
+const loaded = {};
+document.querySelectorAll(".admin-tab-btn").forEach((btn) => {
+  btn.addEventListener("click", () => {
+    document.querySelectorAll(".admin-tab-btn").forEach((b) => b.classList.remove("is-active"));
+    document.querySelectorAll(".admin-tab-content").forEach((t) => t.classList.remove("is-active"));
+    btn.classList.add("is-active");
+    $("#tab-" + btn.dataset.tab).classList.add("is-active");
+    if (!loaded[btn.dataset.tab]) {
+      loaded[btn.dataset.tab] = true;
+      const loaders = { products: loadProducts, billing: loadBilling, content: loadContentTab, diagnostics: loadDiagnostics };
+      if (loaders[btn.dataset.tab]) loaders[btn.dataset.tab]();
+    }
+  });
+});
+
+// ─── Таб 1: Главная ──────────────────────────────────────────────────────
+$("#hs-save").addEventListener("click", async () => {
+  try {
+    await api("/admin/api/home-settings", {
+      method: "POST",
+      body: JSON.stringify({
+        hero_title: $("#hs-title").value,
+        hero_subtitle: $("#hs-subtitle").value,
+        hero_cta_text: $("#hs-cta-text").value,
+        hero_cta_url: $("#hs-cta-url").value,
+      }),
+    });
+    setMsg($("#hs-msg"), "Сохранено ✓", true);
+  } catch (e) { setMsg($("#hs-msg"), "Ошибка: " + e.message, false); }
+});
+
+// ─── Таб 2: Товары ───────────────────────────────────────────────────────
+let productsCache = [];
+let editingId = null; // null = новый
+
+async function loadProducts() {
+  const data = await api("/admin/api/products");
+  productsCache = data.products || [];
+  const tb = $("#prod-tbody");
+  tb.innerHTML = productsCache.map((p) => `
+    <tr>
+      <td><code>${esc(p.id)}</code></td>
+      <td>${esc(p.icon || "")}</td>
+      <td>${esc(p.name)}</td>
+      <td>${p.category === "service" ? "Услуга" : "Продукт"}</td>
+      <td>${esc(p.platform || "—")}</td>
+      <td>${p.status === "free" ? "—" : esc(p.price_rub) + " ₽"}</td>
+      <td>${badge(p.status)}</td>
+      <td style="white-space:nowrap">
+        <button class="admin-btn admin-btn--small" onclick="editProduct('${esc(p.id)}')">Изменить</button>
+        <button class="admin-btn admin-btn--small admin-btn--danger" onclick="removeProduct('${esc(p.id)}')">Удалить</button>
+      </td>
+    </tr>`).join("") || '<tr><td colspan="8" class="admin-note">Каталог пуст.</td></tr>';
+}
+
+window.editProduct = (pid) => {
+  const p = productsCache.find((x) => x.id === pid) || {};
+  editingId = pid;
+  $("#prod-form-title").textContent = "Товар: " + pid;
+  $("#pf-id").value = pid; $("#pf-id").disabled = true;
+  $("#pf-name").value = p.name || "";
+  $("#pf-desc").value = p.description || "";
+  $("#pf-price").value = p.price_rub ?? 0;
+  $("#pf-period").value = p.period_days ?? 30;
+  $("#pf-trial").value = p.trial_days ?? 0;
+  $("#pf-category").value = p.category || "product";
+  $("#pf-status").value = p.status || "draft";
+  $("#pf-icon").value = p.icon || "";
+  $("#pf-platform").value = p.platform || "";
+  $("#pf-bot").value = p.bot_url || "";
+  $("#pf-detail").value = p.detail_url || "";
+  $("#pf-sort").value = p.sort_order ?? 100;
+  $("#prod-form-panel").hidden = false;
+  $("#prod-form-panel").scrollIntoView({ behavior: "smooth" });
+};
+
+$("#prod-new").addEventListener("click", () => {
+  editingId = null;
+  $("#prod-form-title").textContent = "Новый товар";
+  ["pf-name","pf-desc","pf-icon","pf-platform","pf-bot","pf-detail"].forEach((id) => $("#" + id).value = "");
+  $("#pf-id").value = ""; $("#pf-id").disabled = false;
+  $("#pf-price").value = 0; $("#pf-period").value = 30; $("#pf-trial").value = 0;
+  $("#pf-category").value = "product"; $("#pf-status").value = "draft"; $("#pf-sort").value = 100;
+  $("#prod-form-panel").hidden = false;
+});
+
+$("#pf-cancel").addEventListener("click", () => { $("#prod-form-panel").hidden = true; });
+
+$("#pf-save").addEventListener("click", async () => {
+  const body = {
+    name: $("#pf-name").value,
+    description: $("#pf-desc").value,
+    price_rub: +$("#pf-price").value || 0,
+    period_days: +$("#pf-period").value || 0,
+    trial_days: +$("#pf-trial").value || 0,
+    category: $("#pf-category").value,
+    status: $("#pf-status").value,
+    icon: $("#pf-icon").value,
+    platform: $("#pf-platform").value,
+    bot_url: $("#pf-bot").value,
+    detail_url: $("#pf-detail").value,
+    sort_order: +$("#pf-sort").value || 100,
+  };
+  try {
+    if (editingId) {
+      await api("/admin/api/products/" + encodeURIComponent(editingId), { method: "PUT", body: JSON.stringify(body) });
+    } else {
+      body.id = $("#pf-id").value.trim();
+      await api("/admin/api/products", { method: "POST", body: JSON.stringify(body) });
+    }
+    $("#prod-form-panel").hidden = true;
+    setMsg($("#prod-msg"), "Сохранено ✓", true);
+    loadProducts();
+  } catch (e) { setMsg($("#pf-msg"), "Ошибка: " + (e.error || e.message), false); }
+});
+
+window.removeProduct = async (pid) => {
+  if (!confirm("Удалить товар " + pid + " из БД? (статические товары не удаляются — переведите их в «Архив»)")) return;
+  const data = await api("/admin/api/products/" + encodeURIComponent(pid), { method: "DELETE" });
+  if (data.ok) { setMsg($("#prod-msg"), "Удалено ✓", true); loadProducts(); }
+  else alert(data.error || "Не удалось удалить");
+};
+
+$("#prod-refresh").addEventListener("click", loadProducts);
+
+// ─── Таб 3: Заказы ───────────────────────────────────────────────────────
+async function loadOrders() {
+  const q = new URLSearchParams();
+  if ($("#ord-from").value) q.set("date_from", $("#ord-from").value);
+  if ($("#ord-to").value) q.set("date_to", $("#ord-to").value);
+  if ($("#ord-product").value) q.set("product", $("#ord-product").value);
+  if ($("#ord-status").value) q.set("pay_status", $("#ord-status").value);
+  const data = await api("/admin/api/orders?" + q.toString());
+  if (!loaded._ordOpts) {
+    loaded._ordOpts = true;
+    for (const p of data.product_options || []) {
+      $("#ord-product").insertAdjacentHTML("beforeend", `<option value="${esc(p)}">${esc(p)}</option>`);
+    }
+    for (const s of data.status_options || []) {
+      $("#ord-status").insertAdjacentHTML("beforeend", `<option value="${esc(s)}">${esc(STATUSES_RU[s] || s)}</option>`);
+    }
+  }
+  const tb = $("#ord-tbody");
+  tb.innerHTML = (data.orders || []).map((o) => `
+    <tr>
+      <td>${o.id}</td>
+      <td>${esc(o.created_at)}</td>
+      <td><code>${esc(o.product_id)}</code></td>
+      <td>${esc(o.amount_rub)} ₽</td>
+      <td>${badge(o.status)}</td>
+      <td>${esc(o.customer_email || o.customer_id || "—")}</td>
+      <td>${o.subscription_status ? badge(o.subscription_status) + (o.subscription_expires ? "<br><small>до " + esc(o.subscription_expires) + "</small>" : "") : "—"}</td>
+      <td><button class="admin-btn admin-btn--small admin-btn--action" onclick='activateTrial(${JSON.stringify({id: o.id, customer_id: o.customer_id, email: o.customer_email, product: o.product_id})})'>Триал</button></td>
+    </tr>`).join("") || '<tr><td colspan="8" class="admin-note">Заказы не найдены.</td></tr>';
+}
+$("#ord-apply").addEventListener("click", loadOrders);
+
+window.activateTrial = async (o) => {
+  const cid = prompt("Customer ID для активации триала:", o.customer_id || o.email || "");
+  if (!cid) return;
+  const data = await api(`/admin/api/orders/${o.id}/activate-trial`, {
+    method: "POST",
+    body: JSON.stringify({ customer_id: cid }),
+  });
+  if (data.ok) {
+    alert(`Триал активирован: ${data.granted.product_id}, ${data.granted.tokens_text}, ${data.granted.period_days} дн.`);
+    loadOrders();
+  } else alert(data.error || "Ошибка активации");
+};
+
+// ─── Таб 4: Биллинг ──────────────────────────────────────────────────────
+async function loadBilling() {
+  const [ov, hist] = await Promise.all([
+    api("/api/billing/overview"),
+    api("/admin/api/billing/history"),
+  ]);
+  const st = ov.stats || {};
+  $("#bl-stats").innerHTML = `
+    <div class="stat-card"><div class="stat-card__value">${st.active ?? 0}</div><div class="stat-card__label">активных подписок</div></div>
+    <div class="stat-card"><div class="stat-card__value">${st.expired ?? 0}</div><div class="stat-card__label">истёкших</div></div>
+    <div class="stat-card"><div class="stat-card__value">${st.total ?? 0}</div><div class="stat-card__label">всего балансов</div></div>
+    <div class="stat-card"><div class="stat-card__value">${st.monthly_revenue_est ?? 0} ₽</div><div class="stat-card__label">MRR (оценка)</div></div>`;
+
+  const tariffNames = {};
+  for (const [pid, t] of Object.entries(ov.tariffs || {})) tariffNames[pid] = `${t.name} (${t.price} ₽)`;
+  $("#bl-pid").innerHTML = Object.entries(ov.tariffs || {})
+    .map(([pid, t]) => `<option value="${esc(pid)}">${esc(t.name)} — ${esc(t.price)} ₽</option>`).join("");
+
+  $("#bl-sub-tbody").innerHTML = (ov.subscriptions || []).map((s) => `
+    <tr>
+      <td>${esc(s.customer_id)}</td>
+      <td><code>${esc(s.product_id)}</code></td>
+      <td>${s.allowance_tokens?.toLocaleString("ru")}</td>
+      <td>${s.used_tokens?.toLocaleString("ru")}</td>
+      <td>${s.remaining_tokens?.toLocaleString("ru")}</td>
+      <td>${esc(s.percent_used)}%</td>
+      <td>${esc(s.expires_at || "—")}</td>
+      <td>${badge(s.status)}</td>
+      <td><button class="admin-btn admin-btn--small admin-btn--danger" onclick="revokeSub('${esc(s.customer_id)}','${esc(s.product_id)}')">Отозвать</button></td>
+    </tr>`).join("") || '<tr><td colspan="9" class="admin-note">Балансов нет.</td></tr>';
+
+  $("#bl-usage-tbody").innerHTML = Object.entries(ov.usage_by_product || {}).map(([pid, u]) => `
+    <tr><td><code>${esc(pid)}</code></td><td>${u.requests}</td><td>${u.prompt?.toLocaleString("ru")}</td><td>${u.completion?.toLocaleString("ru")}</td><td>${u.cost}</td></tr>`
+  ).join("") || '<tr><td colspan="5" class="admin-note">Расхода нет.</td></tr>';
+
+  $("#bl-hist-tbody").innerHTML = (hist.history || []).map((h) => `
+    <tr><td>${esc(h.day)}</td><td>${h.tokens.toLocaleString("ru")}</td><td>${h.cost}</td></tr>`
+  ).join("") || '<tr><td colspan="3" class="admin-note">За последние 30 дней расхода нет.</td></tr>';
+}
+
+window.revokeSub = async (cid, pid) => {
+  if (!confirm(`Отозвать подписку ${pid} у ${cid}?`)) return;
+  const data = await api("/api/billing/revoke", {
+    method: "POST",
+    body: JSON.stringify({ customer_id: cid, product_id: pid }),
+  });
+  if (data.ok) loadBilling(); else alert(data.error || "Ошибка отзыва");
+};
+
+$("#bl-grant").addEventListener("click", async () => {
+  try {
+    const data = await api("/api/billing/grant-access", {
+      method: "POST",
+      body: JSON.stringify({
+        customer_id: $("#bl-cid").value.trim(),
+        product_id: $("#bl-pid").value,
+        tokens: +$("#bl-tokens").value || 0,
+        period_days: +$("#bl-days").value || 0,
+        reason: $("#bl-reason").value,
+      }),
+    });
+    setMsg($("#bl-grant-msg"), data.ok ? `Выдано: ${data.balance.allowance_tokens} токенов` : (data.error || "Ошибка"), data.ok);
+  } catch (e) { setMsg($("#bl-grant-msg"), "Ошибка: " + e.message, false); }
+});
+
+// ─── Таб 5: Публикации ───────────────────────────────────────────────────
+async function loadContentTab() {
+  const data = await api("/admin/api/content/settings");
+  $("#ap-toggle").checked = !!data.auto_publish;
+}
+
+$("#ap-toggle").addEventListener("change", async (e) => {
+  const data = await api("/admin/api/content/settings", {
+    method: "POST",
+    body: JSON.stringify({ auto_publish: e.target.checked }),
+  });
+  setMsg($("#ap-msg"), data.auto_publish ? "Автопубликация ВКЛЮЧЕНА" : "Автопубликация выключена", true);
+});
+
+$("#clear-queue-btn").addEventListener("click", async () => {
+  if (!confirm("Сбросить ВСЮ очередь публикаций? Ожидающие элементы будут помечены отменёнными.")) return;
+  const data = await api("/admin/api/content/clear-queue", { method: "POST" });
+  alert(`Очищено: ${data.cleared} шт.`);
+  document.querySelector("[data-approv-refresh]")?.click();
+});
+
+// ─── Таб 6: Диагностики ──────────────────────────────────────────────────
+async function loadDiagnostics() {
+  const data = await api("/admin/api/diagnostics");
+  if (data.note) $("#dg-note").textContent = data.note;
+  $("#dg-tbody").innerHTML = (data.items || []).map((d) => `
+    <tr><td>${d.id}</td><td>${esc(d.created_at || "")}</td><td>${esc(d.type || "")}</td><td>${esc(d.contact || d.email || "")}</td><td>${esc(d.status || "")}</td></tr>`
+  ).join("") || '<tr><td colspan="5" class="admin-note">Пока пусто — анкеты диагностик появятся после реализации ТЗ 5.4.</td></tr>';
+}
+</script>
+{% endblock %}

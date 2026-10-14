@@ -97,8 +97,16 @@ async def submit_content(request: Request, body: SubmitContentRequest) -> Submit
     save_item(item)
 
     # Local MVP mode: skip email workflow and auto-approve + publish to site.
-    if config.CONTENT_APPROVAL_MODE == "local_autoapprove":
-        set_status(pub_id, status="approved", message_id="local_autoapprove")
+    # Плюс тумблер «Автоматическая публикация» из админ-панели (/admin/).
+    auto_publish = False
+    try:
+        from app import site_settings
+        auto_publish = site_settings.get_auto_publish()
+    except Exception:
+        auto_publish = False
+
+    if config.CONTENT_APPROVAL_MODE == "local_autoapprove" or auto_publish:
+        set_status(pub_id, status="approved", message_id="auto")
         item = load_item(pub_id)
         try:
             pub_at, url_path = publish_to_site(item)

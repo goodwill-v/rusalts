@@ -1,0 +1,327 @@
+/* ==========================================================================
+   Admin panel — единая админка /admin/ (табы, таблицы, формы)
+   Наследует тему сайта через :root-переменные app.css.
+   ========================================================================== */
+
+.admin-shell {
+  max-width: 1200px;
+  margin: 1.5rem auto 3rem;
+  padding: 0 1rem;
+}
+
+.admin-shell h1 {
+  font-size: 1.5rem;
+  font-weight: 800;
+  color: var(--site-heading);
+  margin: 0 0 1rem;
+}
+
+/* ─── Табы ─────────────────────────────────────────────────────────────── */
+
+.admin-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+  border-bottom: 2px solid var(--site-border);
+  margin-bottom: 1.25rem;
+}
+
+.admin-tab-btn {
+  font: inherit;
+  font-size: 0.95rem;
+  font-weight: 600;
+  padding: 0.55rem 1rem;
+  border: none;
+  background: transparent;
+  color: var(--site-muted, #6b7280);
+  cursor: pointer;
+  border-radius: 8px 8px 0 0;
+  border-bottom: 3px solid transparent;
+  margin-bottom: -2px;
+  transition: color 0.2s, background 0.2s;
+}
+
+.admin-tab-btn:hover {
+  color: var(--site-primary);
+  background: rgba(26, 92, 138, 0.05);
+}
+
+.admin-tab-btn.is-active {
+  color: var(--site-primary);
+  border-bottom-color: var(--site-primary);
+}
+
+.admin-tab-content {
+  display: none;
+}
+
+.admin-tab-content.is-active {
+  display: block;
+}
+
+/* ─── Панели и формы ───────────────────────────────────────────────────── */
+
+.admin-panel {
+  background: var(--site-surface, #ffffff);
+  border: 1px solid var(--site-border);
+  border-radius: 12px;
+  padding: 1.25rem;
+  margin-bottom: 1.25rem;
+}
+
+.admin-panel h2 {
+  font-size: 1.1rem;
+  font-weight: 700;
+  color: var(--site-heading);
+  margin: 0 0 0.75rem;
+}
+
+.admin-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+  gap: 0.75rem;
+  margin-bottom: 1rem;
+}
+
+.admin-field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.admin-field label {
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: var(--site-muted, #6b7280);
+}
+
+.admin-field input,
+.admin-field select,
+.admin-field textarea {
+  font: inherit;
+  font-size: 0.9rem;
+  padding: 0.45rem 0.6rem;
+  border: 1px solid var(--site-border);
+  border-radius: 8px;
+  background: var(--site-surface, #fff);
+  color: var(--site-text);
+  box-sizing: border-box;
+}
+
+.admin-field textarea {
+  resize: vertical;
+  min-height: 3rem;
+}
+
+.admin-field input:focus,
+.admin-field select:focus,
+.admin-field textarea:focus {
+  outline: 2px solid var(--site-primary);
+  outline-offset: 1px;
+}
+
+.admin-form-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  gap: 0.75rem;
+}
+
+.admin-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  align-items: center;
+  margin-top: 0.75rem;
+}
+
+.admin-note {
+  font-size: 0.82rem;
+  color: var(--site-muted, #6b7280);
+}
+
+.admin-msg {
+  font-size: 0.85rem;
+  font-weight: 600;
+}
+
+.admin-msg--ok { color: #166534; }
+.admin-msg--err { color: #991b1b; }
+
+/* ─── Кнопки ───────────────────────────────────────────────────────────── */
+
+.admin-btn {
+  font: inherit;
+  font-size: 0.88rem;
+  font-weight: 600;
+  padding: 0.5rem 1rem;
+  border-radius: 8px;
+  border: 1px solid var(--site-border);
+  background: var(--site-surface, #fff);
+  color: var(--site-heading);
+  cursor: pointer;
+  transition: filter 0.15s, background 0.15s;
+}
+
+.admin-btn:hover { filter: brightness(0.97); }
+
+.admin-btn--primary {
+  background: var(--site-primary);
+  border-color: var(--site-primary);
+  color: #ffffff;
+}
+
+/* изумруд — только для действий пользователя */
+.admin-btn--action {
+  background: var(--site-accent);
+  border-color: var(--site-accent);
+  color: #ffffff;
+}
+
+.admin-btn--danger {
+  border-color: #fca5a5;
+  color: #991b1b;
+}
+
+.admin-btn--danger:hover { background: #fee2e2; }
+
+.admin-btn--small {
+  font-size: 0.78rem;
+  padding: 0.3rem 0.6rem;
+}
+
+/* ─── Таблицы ──────────────────────────────────────────────────────────── */
+
+.admin-table-wrap {
+  overflow-x: auto;
+}
+
+table.admin-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.87rem;
+}
+
+.admin-table th,
+.admin-table td {
+  padding: 0.5rem 0.65rem;
+  border: 1px solid var(--site-border);
+  text-align: left;
+  vertical-align: top;
+}
+
+.admin-table thead th {
+  background: rgba(26, 92, 138, 0.06);
+  font-weight: 700;
+  color: var(--site-heading);
+  white-space: nowrap;
+}
+
+.admin-table tbody tr:nth-child(even) td {
+  background: rgba(248, 249, 252, 0.6);
+}
+
+/* ─── Бейджи статусов ──────────────────────────────────────────────────── */
+
+.admin-badge {
+  display: inline-block;
+  padding: 0.12rem 0.5rem;
+  border-radius: 6px;
+  font-size: 0.75rem;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.admin-badge--active { background: #dcfce7; color: #166534; }
+.admin-badge--free { background: #dcfce7; color: #166534; }
+.admin-badge--coming { background: #fef3c7; color: #92400e; }
+.admin-badge--inquiry { background: #f3f4f6; color: #4b5563; }
+.admin-badge--beta { background: #ede9fe; color: #5b21b6; }
+.admin-badge--dev { background: #f3f4f6; color: #9ca3af; }
+.admin-badge--draft { background: #fef9c3; color: #854d0e; }
+.admin-badge--archived { background: #e5e7eb; color: #6b7280; }
+.admin-badge--pending { background: #dbeafe; color: #1e40af; }
+.admin-badge--succeeded { background: #dcfce7; color: #166534; }
+.admin-badge--canceled { background: #fee2e2; color: #991b1b; }
+.admin-badge--waiting_for_capture { background: #fef3c7; color: #92400e; }
+
+/* ─── Стат-карточки (биллинг) ──────────────────────────────────────────── */
+
+.stat-card {
+  background: #f3f4f6;
+  border-radius: 10px;
+  padding: 0.75rem 1rem;
+  text-align: center;
+}
+
+.stat-card__value {
+  font-size: 1.6rem;
+  font-weight: 800;
+  color: var(--site-heading);
+}
+
+.stat-card__label {
+  font-size: 0.78rem;
+  color: var(--site-muted, #6b7280);
+  margin-top: 0.2rem;
+}
+
+/* ─── Тумблер автопубликации ───────────────────────────────────────────── */
+
+.admin-switch {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  cursor: pointer;
+  user-select: none;
+}
+
+.admin-switch input {
+  position: absolute;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.admin-switch__track {
+  width: 42px;
+  height: 24px;
+  border-radius: 999px;
+  background: #d1d5db;
+  position: relative;
+  transition: background 0.2s;
+  flex-shrink: 0;
+}
+
+.admin-switch__track::after {
+  content: "";
+  position: absolute;
+  top: 3px;
+  left: 3px;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: #ffffff;
+  transition: left 0.2s;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.25);
+}
+
+.admin-switch input:checked + .admin-switch__track {
+  background: var(--site-accent);
+}
+
+.admin-switch input:checked + .admin-switch__track::after {
+  left: 21px;
+}
+
+.admin-switch__label {
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: var(--site-heading);
+}
+
+/* ─── Диалог подтверждения триала ──────────────────────────────────────── */
+
+@media (max-width: 640px) {
+  .admin-shell { padding: 0 0.6rem; }
+  .admin-tab-btn { font-size: 0.85rem; padding: 0.45rem 0.7rem; }
+  .admin-form-grid { grid-template-columns: 1fr; }
+}
