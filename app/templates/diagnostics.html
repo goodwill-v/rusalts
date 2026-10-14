@@ -166,7 +166,7 @@ async function startDiagnosticsPayment() {
         product_id: 'anketa_diagnostics',
         amount_rub: 3000,
         customer_id: email,
-        return_url: PAY_BASE + '/diagnostics/paid-form/'
+        return_url: PAY_BASE + '/diagnostics/paid-form/?payment=success'
       })
     });
     const data = await resp.json();
