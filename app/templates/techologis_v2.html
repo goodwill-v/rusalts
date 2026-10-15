@@ -81,7 +81,9 @@
               {% endif %}
               {% if p.trial_days %}
               {% set tt = (tariffs_info.get(p.id) or {}).get('trial_tokens') %}
-        <a class="prod-meta__trial" href="{{ p.bot_url }}" target="_blank" rel="noopener noreferrer">🎁 {{ p.trial_days }} дней Пробный период{% if tt %} ({{ tt }}){% endif %}</a>
+              {% set d = p.trial_days %}
+              {% set dword = 'день' if d == 1 else ('дня' if d < 5 else 'дней') %}
+        <a class="prod-meta__trial" href="{{ p.bot_url }}" target="_blank" rel="noopener noreferrer">🎁 {{ d }} {{ dword }} Пробный период{% if tt %} ({{ tt }}){% endif %}</a>
               {% endif %}
             </div>
 
@@ -163,7 +165,9 @@
               {% endif %}
               {% if s.trial_days %}
               {% set tt_s = (tariffs_info.get(s.id) or {}).get('trial_tokens') %}
-        <a class="prod-meta__trial" href="{{ s.bot_url }}" target="_blank" rel="noopener noreferrer">🎁 {{ s.trial_days }} дней Пробный период{% if tt_s %} ({{ tt_s }}){% endif %}</a>
+              {% set ds = s.trial_days %}
+              {% set dword_s = 'день' if ds == 1 else ('дня' if ds < 5 else 'дней') %}
+        <a class="prod-meta__trial" href="{{ s.bot_url }}" target="_blank" rel="noopener noreferrer">🎁 {{ ds }} {{ dword_s }} Пробный период{% if tt_s %} ({{ tt_s }}){% endif %}</a>
               {% endif %}
             </div>
 
