@@ -61,6 +61,21 @@ async def italidia_product_page(request: Request):
     )
 
 
+@router.get("/techologis/neyrosotrudnik/")
+async def neyrosotrudnik_product_page(request: Request):
+    """Страница подробнее о продукте НейроСотрудник."""
+    return templates.TemplateResponse(
+        request,
+        "neyrosotrudnik_product.html",
+        {
+            "vk_app_id": config.VK_APP_ID or None,
+            "is_widget": False,
+            "layout_class": "layout-site",
+            "page_title": "НейроСотрудник — ИИ-ассистент в МАКС — АЛТ",
+        },
+    )
+
+
 # ---------------------------------------------------------------------------
 # Payment API
 # ---------------------------------------------------------------------------

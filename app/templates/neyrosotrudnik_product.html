@@ -1,0 +1,240 @@
+{% extends "base.html" %}
+{% block extra_head %}
+<style>
+  .product-hero {
+    max-width: 800px; margin: 0 auto; padding: 40px 20px;
+  }
+  .product-hero h1 {
+    font-size: 2em; margin-bottom: 0.3em; color: var(--site-heading);
+  }
+  .product-hero .subtitle {
+    font-size: 1.15em; color: var(--site-text); margin-bottom: 2em;
+  }
+  .feature-grid {
+    display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+    gap: 24px; margin: 2em 0;
+  }
+  .feature-card {
+    background: var(--site-surface); border-radius: var(--radius); padding: 20px;
+    border: 1px solid var(--site-border);
+    box-shadow: 0 2px 10px rgba(17, 24, 39, 0.05);
+  }
+  .feature-card h3 {
+    font-size: 1.15em; margin: 0 0 0.5em; color: var(--site-heading);
+  }
+  .feature-card p {
+    margin: 0; color: var(--site-text); font-size: 0.92em; line-height: 1.5;
+  }
+  .feature-card .icon {
+    font-size: 1.6em; display: block; margin-bottom: 0.2em;
+  }
+  .highlight-box {
+    background: rgba(26, 92, 138, 0.06); border-left: 4px solid var(--site-primary);
+    padding: 16px 20px; border-radius: 8px; margin: 1.5em 0;
+    color: var(--site-text);
+  }
+  .highlight-box p { margin: 0; }
+  .cta-section {
+    text-align: center; padding: 2em 0; margin: 2em 0;
+  }
+  .cta-button {
+    display: inline-block;
+    background: var(--site-accent); color: #ffffff;
+    padding: 14px 36px; border-radius: var(--radius);
+    font-size: 1.1em; font-weight: 600; text-decoration: none;
+    transition: filter .15s;
+  }
+  .cta-button:hover { filter: brightness(0.92); }
+  .cta-button--secondary {
+    background: var(--site-surface); color: var(--site-text);
+    border: 1px solid var(--site-border);
+  }
+  .spec-table {
+    width: 100%; border-collapse: collapse; margin: 1.5em 0;
+    color: var(--site-text);
+  }
+  .spec-table th, .spec-table td {
+    padding: 12px 16px; border: 1px solid var(--site-border);
+    text-align: left; vertical-align: top;
+  }
+  .spec-table thead th {
+    background: rgba(26, 92, 138, 0.08); font-weight: 600; color: var(--site-heading);
+  }
+  .spec-table tr:nth-child(even) td {
+    background: var(--site-surface);
+  }
+  .agent-switcher {
+    background: linear-gradient(135deg, rgba(26, 92, 138, 0.04), rgba(17, 24, 39, 0.04));
+    border: 1px solid var(--site-border);
+    border-radius: var(--radius);
+    padding: 20px;
+    margin: 1.5em 0;
+  }
+  .agent-switcher h3 {
+    margin-top: 0;
+  }
+  .model-badge {
+    display: inline-block;
+    background: rgba(26, 92, 138, 0.1);
+    padding: 4px 12px;
+    border-radius: 6px;
+    font-size: 0.85em;
+    color: var(--site-text);
+  }
+  @media (max-width: 640px) {
+    .feature-grid { grid-template-columns: 1fr; }
+    .product-hero { padding: 24px 16px; }
+  }
+</style>
+{% endblock %}
+
+{% block body %}
+<div class="product-hero">
+
+  <h1>🤖 НейроСотрудник — ваш ИИ-ассистент в МАКС</h1>
+  <p class="subtitle">
+    Умный ассистент в мессенджере МАКС. Отвечает на вопросы, помогает с текстами,
+    анализирует данные и решает практические задачи.
+    <strong>Переключает «мозги»</strong> — между разными AI-агентами и моделями,
+    чтобы подобрать лучший инструмент под вашу задачу.
+  </p>
+
+  <div class="highlight-box">
+    <p><strong>✨ Для кого?</strong>
+    Для предпринимателей, менеджеров и всех, кто хочет иметь
+    <strong>личного ассистента</strong> в кармане — без привязки к кабинету,
+    без сложных настроек. Просто открываете МАКС и работаете.</p>
+  </div>
+
+  <!-- Чем отличается -->
+  <h2>🧠 Уникальность: переключение между агентами</h2>
+
+  <p>
+    НейроСотрудник — не просто чат-бот с одной нейросетью.
+    Это <strong>оркестратор</strong>, который подключает нужного специалиста
+    под задачу: аналитика, кодера, консультанта, переводчика.
+    Каждый агент — отдельный ИИ-эксперт со своим профилем и моделью.
+  </p>
+
+  <div class="agent-switcher">
+    <h3>🔄 Сменные флагманские агенты</h3>
+    <p>
+      <strong>OpenClaw</strong> — универсальный ассистент для работы
+      с файлами, кодом и сложными сценариями. Может писать и запускать
+      код, обрабатывать данные, интегрироваться с внешними сервисами.
+    </p>
+    <p style="margin-top: 0.5em;">
+      <strong>Другие агенты</strong> — подключаются по мере необходимости:
+      <br>
+      🛒 Купец — анализ маркетплейсов и конкурентов<br>
+      📡 ВежПом — мониторинг доступности сайтов и серверов<br>
+      ⚖️ АЛТ-эксперт — профессиональные консультации
+    </p>
+  </div>
+
+  <!-- Модели -->
+  <div class="highlight-box">
+    <p><strong>🧬 Гибрид моделей ИИ</strong><br>
+    НейроСотрудник использует как <strong>отечественные</strong>, так и
+    <strong>зарубежные</strong> языковые модели — выбор зависит от задачи
+    и доступности:</p>
+    <ul>
+      <li><span class="model-badge">🇷🇺 GigaChat (Сбер)</span> — российская модель, полный суверенитет данных</li>
+      <li><span class="model-badge">🌍 OpenAI GPT / Claude</span> — международные модели для креативных задач</li>
+      <li><span class="model-badge">🧪 Qwen, DeepSeek и другие</span> — для специализированных сценариев</li>
+    </ul>
+  </div>
+
+  <!-- Как это работает -->
+  <h2>🚀 Как это работает</h2>
+
+  <div class="feature-grid">
+    <div class="feature-card">
+      <span class="icon">💬</span>
+      <h3>Пишете — он отвечает</h3>
+      <p>Открываете чат с ботом в МАКС, задаёте вопрос —
+      получаете ответ. Поддерживает диалог, помнит контекст беседы.</p>
+    </div>
+    <div class="feature-card">
+      <span class="icon">🔀</span>
+      <h3>Автовыбор агента</h3>
+      <p>Система сама определяет, какой агент нужен для задачи:
+      аналитика → Купец, код → OpenClaw, вопрос по ИТ → эксперт.
+      Или вы переключаете вручную командой.</p>
+    </div>
+    <div class="feature-card">
+      <span class="icon">📄</span>
+      <h3>Работа с файлами</h3>
+      <p>Прикрепите документ, таблицу, изображение — ассистент
+      прочитает, проанализирует и ответит по содержанию.
+      Поддерживает .pdf, .docx, .xlsx, .txt, изображения.</p>
+    </div>
+    <div class="feature-card">
+      <span class="icon">🔧</span>
+      <h3>Инструменты и код</h3>
+      <p>OpenClaw может писать и запускать код, парсить сайты,
+      работать с API. Результат — сразу в чат.</p>
+    </div>
+    <div class="feature-card">
+      <span class="icon">🔒</span>
+      <h3>Данные под контролем</h3>
+      <p>Все данные хранятся на серверах в РФ. Можно очистить
+      историю диалога командой. Вы решаете, что остаётся в памяти.</p>
+    </div>
+    <div class="feature-card">
+      <span class="icon">🛡</span>
+      <h3>Отказоустойчивость</h3>
+      <p>Если одна модель недоступна — ассистент переключится
+      на другую. Серверный сервис работает 24/7 с авто-восстановлением.</p>
+    </div>
+  </div>
+
+  <!-- Цены -->
+  <h2>💰 Подписка</h2>
+
+  <table class="spec-table">
+    <thead>
+      <tr><th>Параметр</th><th>Значение</th></tr>
+    </thead>
+    <tbody>
+      <tr><td>Стоимость</td><td>500 ₽ в месяц</td></tr>
+      <tr><td>Пробный период</td><td>🎁 1 день / 375 000 токенов — бесплатно</td></tr>
+      <tr><td>Что входит</td><td>Доступ ко всем агентам и моделям.
+        Фиксированный объём токенов на месяц (800K).
+        Все инструменты: файлы, код, анализ, консультации.</td></tr>
+      <tr><td>Как оплатить</td><td>Команда <code>/pay</code> в боте → ссылка на оплату →
+        ЮKassa (карты, СБП, ЮMoney). Подписка активируется сразу.</td></tr>
+    </tbody>
+  </table>
+
+  <div class="highlight-box">
+    <p><strong>💡 Попробуйте бесплатно</strong>
+    → напишите боту в МАКС:
+    <a href="https://web.max.ru/428555001" target="_blank"><strong>НейроСотрудник</strong></a>.
+    Пробный период на 1 день или 375 000 токенов включается автоматически.</p>
+  </div>
+
+  <!-- Техническое (мелко) -->
+  <details>
+    <summary style="cursor:pointer; color: var(--site-muted);">Технические детали</summary>
+    <p style="font-size: 0.85em; color: var(--site-muted);">
+      Платформа: OpenClaw / GigaChat (Сбер) / RouterAI.
+      Ведущая модель: openai/gpt-4o-mini (через RouterAI).
+      Российская модель: GigaChat Pro (Сбер) через OAuth 2.0.
+      Дополнительно: Qwen, DeepSeek, Claude (по запросу).
+      База данных: SQLite / PostgreSQL (на ваших серверах).
+      Инфраструктура: РФ, Екатеринбург.
+    </p>
+  </details>
+
+  <div class="cta-section">
+    <a href="https://web.max.ru/428555001" class="cta-button" target="_blank">
+      🚀 Начать бесплатный пробный период
+    </a>
+    <p style="margin-top: 1em; font-size: 0.9em;">
+      1 день бесплатно · 375 000 токенов · Без привязки карты
+    </p>
+  </div>
+
+</div>
+{% endblock %}
