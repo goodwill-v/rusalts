@@ -80,7 +80,7 @@
               <span class="prod-meta__platform">📡 {{ p.platform }}</span>
               {% endif %}
               {% if p.trial_days %}
-        <a class="prod-meta__trial" href="{{ p.bot_url }}">🎁 {{ p.trial_days }} дней Пробный период ({{ tariffs_info[p.id].trial_tokens }})</a>
+        <a class="prod-meta__trial" href="{{ p.bot_url }}" target="_blank" rel="noopener noreferrer">🎁 {{ p.trial_days }} дней Пробный период ({{ tariffs_info[p.id].trial_tokens }})</a>
               {% endif %}
             </div>
 
@@ -108,7 +108,7 @@
               <div class="prod-card__price">
                 <span class="price-value price-value--free">Бесплатно</span>
               </div>
-              <a class="btn-buy btn-buy--secondary" href="{{ p.bot_url }}">
+              <a class="btn-buy btn-buy--secondary" href="{{ p.bot_url }}" target="_blank" rel="noopener noreferrer">
                 Открыть →
               </a>
               {% elif p.status == "coming" or p.status == "beta" %}
