@@ -74,7 +74,7 @@ def send_to_chief(*, subject: str, body: str) -> None:
     msg["Subject"] = subject
     msg["To"] = config.CHIEF_EMAIL_TO
     msg["From"] = (config.SMTP_FROM or config.SMTP_USER)
-    msg.set_content(body)
+    msg.set_content(body, subtype="plain", charset="utf-8")
 
     with smtplib.SMTP(config.SMTP_HOST, config.SMTP_PORT, timeout=20) as s:
         if config.SMTP_TLS:

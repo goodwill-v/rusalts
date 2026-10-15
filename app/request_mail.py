@@ -28,7 +28,7 @@ def send_request_email(*, subject: str, body: str) -> None:
     msg["Subject"] = subject
     msg["To"] = ", ".join(recipients)
     msg["From"] = from_addr
-    msg.set_content(body)
+    msg.set_content(body, subtype="plain", charset="utf-8")
 
     with smtplib.SMTP(config.SMTP_HOST, config.SMTP_PORT, timeout=20) as s:
         if config.SMTP_TLS:
