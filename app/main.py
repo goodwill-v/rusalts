@@ -9,7 +9,7 @@ from fastapi.staticfiles import StaticFiles
 from app import config
 from app.middleware import EmbedSecurityMiddleware
 from app.observability import RequestIdMiddleware
-from app.routers import admin, api, billing_admin, content, diagnostics, pages, parser, sandbox_shop, talk
+from app.routers import admin, api, billing_admin, content, diagnostics, pages, parser, request_form, sandbox_shop, talk
 
 config.ensure_data_dirs()
 
@@ -36,6 +36,7 @@ app.include_router(content.router)
 app.include_router(diagnostics.router)
 app.include_router(parser.router)
 app.include_router(talk.router)
+app.include_router(request_form.router)
 app.include_router(billing_admin.router)
 app.include_router(sandbox_shop.router)
 

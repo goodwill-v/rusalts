@@ -137,6 +137,9 @@ IS_YOOKASSA_SANDBOX = YOOKASSA_SHOP_ID in ("", "test_shop_id", "test")
 # Content approvals via email (Chief)
 CHIEF_EMAIL_TO = os.getenv("CHIEF_EMAIL_TO", "v.devops@yandex.ru").strip()
 
+# Обратная связь с сайта: куда дублировать заявки (помимо CHIEF_EMAIL_TO)
+REQUEST_EMAIL_CC = os.getenv("REQUEST_EMAIL_CC", "akord@bk.ru").strip()
+
 SMTP_HOST = os.getenv("SMTP_HOST", "").strip()
 SMTP_PORT = int(os.getenv("SMTP_PORT", "587"))
 SMTP_USER = os.getenv("SMTP_USER", "").strip()

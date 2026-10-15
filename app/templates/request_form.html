@@ -1,0 +1,136 @@
+{% extends "base.html" %}
+{% block extra_head %}
+<style>
+  .request-shell {
+    max-width: 720px; margin: 0 auto; padding: 40px 20px;
+  }
+  .request-shell h1 {
+    font-size: 1.8em; margin-bottom: 0.3em; color: var(--site-heading);
+  }
+  .request-shell .subtitle {
+    font-size: 1.05em; color: var(--site-text); margin-bottom: 2em;
+  }
+  .request-card {
+    background: var(--site-surface);
+    border: 1px solid var(--site-border);
+    border-radius: var(--radius);
+    padding: 28px;
+    box-shadow: 0 2px 10px rgba(17, 24, 39, 0.05);
+  }
+  .request-field { margin-bottom: 1.2em; }
+  .request-field label {
+    display: block; font-weight: 600; margin-bottom: 0.4em;
+    color: var(--site-heading); font-size: 0.95em;
+  }
+  .request-field label .req { color: #dc2626; }
+  .request-field input[type="text"],
+  .request-field input[type="email"],
+  .request-field textarea {
+    width: 100%; padding: 10px 12px;
+    border: 1px solid var(--site-border);
+    border-radius: 8px; font-size: 1em;
+    background: var(--site-surface); color: var(--site-text);
+    box-sizing: border-box;
+  }
+  .request-field textarea { min-height: 120px; resize: vertical; }
+  .request-channels { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 0.4em; }
+  .request-channel {
+    display: inline-flex; align-items: center; gap: 6px;
+    border: 1px solid var(--site-border);
+    border-radius: 20px; padding: 6px 14px;
+    cursor: pointer; user-select: none;
+    background: var(--site-surface); color: var(--site-text);
+    font-size: 0.92em;
+  }
+  .request-channel input { accent-color: var(--site-accent); }
+  .request-submit {
+    display: inline-block;
+    background: var(--site-accent); color: #ffffff;
+    padding: 13px 34px; border: none; border-radius: var(--radius);
+    font-size: 1.05em; font-weight: 600; cursor: pointer;
+    transition: filter .15s;
+  }
+  .request-submit:hover { filter: brightness(0.92); }
+  .request-success {
+    background: rgba(34, 197, 94, 0.1);
+    border-left: 4px solid #22c55e;
+    padding: 16px 20px; border-radius: 8px; margin: 1.5em 0;
+    color: var(--site-text);
+  }
+  .request-success p { margin: 0.3em 0; }
+  .request-error {
+    background: rgba(220, 38, 38, 0.08);
+    border-left: 4px solid #dc2626;
+    padding: 12px 16px; border-radius: 8px; margin: 1em 0;
+    color: var(--site-text);
+  }
+  .request-hint { font-size: 0.85em; color: var(--site-muted); margin-top: 0.3em; }
+  @media (max-width: 640px) {
+    .request-shell { padding: 24px 14px; }
+    .request-card { padding: 18px; }
+  }
+</style>
+{% endblock %}
+
+{% block body %}
+<div class="request-shell">
+
+  {% if sent %}
+  <h1>✅ Заявка отправлена!</h1>
+  <div class="request-success">
+    {% if request_id %}<p><strong>Номер заявки:</strong> #{{ request_id }}</p>{% endif %}
+    <p>Спасибо! Мы получили вашу заявку и свяжемся с вами в ближайшее время.</p>
+    <p><a href="/">← Вернуться на главную</a> · <a href="/techologis/">← На витрину</a></p>
+  </div>
+  {% if mail_error %}
+  <div class="request-error">
+    ⚠️ Заявка сохранена, но письмо-уведомление временно не ушло ({{ mail_error }}).
+    Мы обязательно её увидим в админ-панели.
+  </div>
+  {% endif %}
+  {% else %}
+
+  <h1>📩 Запросить функционал</h1>
+  <p class="subtitle">
+    Опишите кратко ваши задачи — и мы подберём готовое решение
+    или создадим инструмент под вас.
+  </p>
+
+  {% if error %}
+  <div class="request-error">⚠️ {{ error }}</div>
+  {% endif %}
+
+  <form method="post" action="/request/" class="request-card">
+    <div class="request-field">
+      <label for="req-name">Ваше имя <span class="request-hint">(необязательно)</span></label>
+      <input type="text" id="req-name" name="name" value="{{ form.get('name', '') if form else '' }}" placeholder="Как к вам обращаться" />
+    </div>
+
+    <div class="request-field">
+      <label for="req-email">Электронная почта <span class="req">*</span></label>
+      <input type="email" id="req-email" name="email" value="{{ form.get('email', '') if form else '' }}" placeholder="you@example.com" required />
+      <p class="request-hint">Обязательное поле — на него придёт ответ.</p>
+    </div>
+
+    <div class="request-field">
+      <label>Желаемые каналы связи <span class="request-hint">(необязательно)</span></label>
+      <div class="request-channels">
+        {% for ch_id, ch_label in channels %}
+        <label class="request-channel">
+          <input type="checkbox" name="ch_{{ ch_id }}" value="1" /> {{ ch_label }}
+        </label>
+        {% endfor %}
+      </div>
+    </div>
+
+    <div class="request-field">
+      <label for="req-message">Кратко опишите ваши задачи</label>
+      <textarea id="req-message" name="message" placeholder="Например: нужен ИИ-ассистент для обработки заявок клиентов, 2–3 канала, до 500 диалогов в день…">{{ form.get('message', '') if form else '' }}</textarea>
+    </div>
+
+    <button type="submit" class="request-submit">Запросить →</button>
+  </form>
+
+  {% endif %}
+</div>
+{% endblock %}
