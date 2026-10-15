@@ -49,6 +49,9 @@ async def techologis_v2_redirect():
 @router.get("/techologis/italidia/")
 async def italidia_product_page(request: Request):
     """Страница подробнее о продукте ItaLidia."""
+    from app.products_store import catalog
+
+    prod = next((p for p in catalog() if p["id"] == "italidia"), {})
     return templates.TemplateResponse(
         request,
         "italidia_product.html",
@@ -57,6 +60,8 @@ async def italidia_product_page(request: Request):
             "is_widget": False,
             "layout_class": "layout-site",
             "page_title": "ItaLidia — ассистент итальянского языка — АЛТ",
+            "bot_url": prod.get("bot_url", ""),
+            "name": prod.get("name", "ItaLidia"),
         },
     )
 
@@ -64,6 +69,9 @@ async def italidia_product_page(request: Request):
 @router.get("/techologis/neyrosotrudnik/")
 async def neyrosotrudnik_product_page(request: Request):
     """Страница подробнее о продукте НейроСотрудник."""
+    from app.products_store import catalog
+
+    prod = next((p for p in catalog() if p["id"] == "neyrosotrudnik"), {})
     return templates.TemplateResponse(
         request,
         "neyrosotrudnik_product.html",
@@ -72,6 +80,8 @@ async def neyrosotrudnik_product_page(request: Request):
             "is_widget": False,
             "layout_class": "layout-site",
             "page_title": "НейроСотрудник — ИИ-ассистент в МАКС — АЛТ",
+            "bot_url": prod.get("bot_url", ""),
+            "name": prod.get("name", "НейроСотрудник"),
         },
     )
 

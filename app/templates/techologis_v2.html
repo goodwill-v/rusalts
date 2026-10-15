@@ -80,7 +80,8 @@
               <span class="prod-meta__platform">📡 {{ p.platform }}</span>
               {% endif %}
               {% if p.trial_days %}
-        <a class="prod-meta__trial" href="{{ p.bot_url }}" target="_blank" rel="noopener noreferrer">🎁 {{ p.trial_days }} дней Пробный период ({{ tariffs_info[p.id].trial_tokens }})</a>
+              {% set tt = (tariffs_info.get(p.id) or {}).get('trial_tokens') %}
+        <a class="prod-meta__trial" href="{{ p.bot_url }}" target="_blank" rel="noopener noreferrer">🎁 {{ p.trial_days }} дней Пробный период{% if tt %} ({{ tt }}){% endif %}</a>
               {% endif %}
             </div>
 
@@ -116,6 +117,16 @@
                 <span class="price-value price-value--coming">от {{ p.price_rub }} ₽/мес</span>
               </div>
               <button class="btn-buy btn-buy--disabled" disabled>Скоро</button>
+              {% elif p.status == "inquiry" %}
+              <div class="prod-card__price">
+                <span class="price-value price-value--inquiry">Цена по запросу</span>
+              </div>
+              <a class="btn-buy btn-buy--secondary" href="/request/">Запросить →</a>
+              {% elif p.status == "dev" %}
+              <div class="prod-card__price">
+                <span class="price-value price-value--coming">В разработке</span>
+              </div>
+              <a class="btn-buy btn-buy--secondary" href="/request/">Запросить →</a>
               {% endif %}
             </div>
           </article>
@@ -150,31 +161,54 @@
               {% if s.platform %}
               <span class="prod-meta__platform">📡 {{ s.platform }}</span>
               {% endif %}
+              {% if s.trial_days %}
+              {% set tt_s = (tariffs_info.get(s.id) or {}).get('trial_tokens') %}
+        <a class="prod-meta__trial" href="{{ s.bot_url }}" target="_blank" rel="noopener noreferrer">🎁 {{ s.trial_days }} дней Пробный период{% if tt_s %} ({{ tt_s }}){% endif %}</a>
+              {% endif %}
             </div>
 
             <div class="prod-card__footer">
               <div class="prod-card__price">
-                {% if s.status == "inquiry" %}
-                <span class="price-value--inquiry">Цена по запросу</span>
-                {% elif s.status == "available" and s.price_rub > 0 %}
+                {% if s.status == "available" and s.price_rub > 0 %}
                 <span class="price-value">{{ s.price_rub }} ₽</span>
                 {% if s.period_days and s.period_days != 30 %}
                 <span class="price-period">/{{ s.period_days }} дн.</span>
                 {% elif s.period_days %}
                 <span class="price-period">/мес</span>
                 {% endif %}
+                {% elif s.status == "free" %}
+                <span class="price-value price-value--free">Бесплатно</span>
+                {% elif s.status == "inquiry" %}
+                <span class="price-value price-value--inquiry">Цена по запросу</span>
+                {% elif s.status == "dev" %}
+                <span class="price-value price-value--coming">В разработке</span>
+                {% elif s.status == "coming" or s.status == "beta" %}
+                <span class="price-value price-value--coming">от {{ s.price_rub }} ₽/мес</span>
                 {% else %}
                 <span class="price-value--coming">Уточняется</span>
                 {% endif %}
               </div>
               {% if s.status == "available" and s.price_rub > 0 %}
-              <button class="btn-buy" data-product="{{ s.id }}" data-price="{{ s.price_rub }}">
-                Оплатить
-              </button>
+              <div class="prod-card__actions">
+                {% if s.detail_url %}
+                <a class="btn-buy btn-buy--secondary" href="{{ s.detail_url }}">Подробнее</a>
+                {% endif %}
+                <button class="btn-buy" data-product="{{ s.id }}" data-price="{{ s.price_rub }}">
+                  Оплатить
+                </button>
+              </div>
+              {% elif s.status == "free" %}
+              <a class="btn-buy btn-buy--secondary" href="{{ s.bot_url or '/request/' }}" target="_blank" rel="noopener noreferrer">
+                Открыть →
+              </a>
+              {% elif s.status == "inquiry" %}
+              <a class="btn-buy btn-buy--secondary" href="/request/">Запросить →</a>
+              {% elif s.status == "dev" %}
+              <a class="btn-buy btn-buy--secondary" href="/request/">Запросить →</a>
+              {% elif s.status == "coming" or s.status == "beta" %}
+              <button class="btn-buy btn-buy--disabled" disabled>Скоро</button>
               {% else %}
-              <button class="btn-buy btn-buy--secondary" onclick="location.href='/#contacts'">
-                Запросить →
-              </button>
+              <a class="btn-buy btn-buy--secondary" href="/request/">Запросить →</a>
               {% endif %}
             </div>
           </article>
