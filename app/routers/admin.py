@@ -350,29 +350,8 @@ async def api_home_settings_update(
 
 @router.get("/admin/api/diagnostics")
 async def api_diagnostics(_user: str = Depends(_require_admin_auth)) -> JSONResponse:
-    """Список пройденных диагностик. Пока — заглушка: если БД есть, читаем."""
-    db_path = config.DATA_DIR / "diagnostics.db"
-    items: list[dict[str, Any]] = []
-    if db_path.exists():
-        try:
-            with closing(sqlite3.connect(str(db_path))) as db:
-                db.row_factory = sqlite3.Row
-                cols = [
-                    r[1]
-                    for r in db.execute("PRAGMA table_info(diagnostics)").fetchall()
-                ]
-                if cols:
-                    rows = db.execute(
-                        "SELECT * FROM diagnostics ORDER BY id DESC LIMIT 200"
-                    ).fetchall()
-                    items = [dict(r) for r in rows]
-        except sqlite3.Error:
-            items = []
-    return JSONResponse(
-        {
-            "ok": True,
-            "items": items,
-            "stub": True,
-            "note": "Раздел в разработке (ТЗ 5.4): форма → БД diagnostics.db → PDF/email.",
-        }
-    )
+    """Список заявок диагностик: скоринг/триггеры, PDF, контакты."""
+    from app.diagnostics_store import list_diagnostics
+
+    items = list_diagnostics()
+    return JSONResponse({"ok": True, "items": items})
