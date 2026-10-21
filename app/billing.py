@@ -160,7 +160,30 @@ TARIFFS: dict[str, Tariff] = {
 
 
 def get_tariff(product_id: str) -> Tariff | None:
-    """Вернуть тариф продукта или None."""
+    """Вернуть эффективный тариф: БД (админка, shop.db.tariffs) → код (TARIFFS, фолбэк)."""
+    try:
+        from app import tariffs_store
+
+        row = tariffs_store.get_tariff_row(product_id)
+    except Exception:
+        row = None
+    if row:
+        base = TARIFFS.get(product_id)
+        return Tariff(
+            product_id=product_id,
+            name=row.get("name") or (base.name if base else product_id),
+            price_rub=int(row.get("price_rub") or 0),
+            token_allowance=int(row.get("token_allowance") or 0),
+            routerai_model_id=row.get("model") or (base.routerai_model_id if base else ""),
+            routerai_prompt_price_per_1m=float(row.get("prompt_price_per_1m") or 0.0),
+            routerai_completion_price_per_1m=float(row.get("completion_price_per_1m") or 0.0),
+            token_cost_ratio=float(row.get("token_cost_ratio") or 0.6),
+            estimated_dialogues=row.get("estimated_dialogues")
+            or (base.estimated_dialogues if base else ""),
+            trial_tokens=int(row.get("trial_tokens") or 0),
+            period_days=int(row.get("period_days") or 30),
+            additional_token_price_per_1m=float(row.get("additional_token_price_per_1m") or 0.0),
+        )
     return TARIFFS.get(product_id)
 
 

@@ -43,6 +43,9 @@ ROUTERAI_EMBEDDINGS_MODEL = os.getenv("ROUTERAI_EMBEDDINGS_MODEL", "")
 # Basic Auth для админ-эндпоинтов (пароль задаётся в .env, в разработке — '20rusalt13')
 ADMIN_PASSWORD = os.getenv("ADMIN_PASSWORD", "20rusalt13")
 
+# Сервисные ключи ботов для API витрины (X-API-Key), через запятую (Этап A3)
+VITRINA_API_KEYS = [k.strip() for k in os.getenv("VITRINA_API_KEYS", "").split(",") if k.strip()]
+
 
 def _float_env(name: str, default: float) -> float:
     try:

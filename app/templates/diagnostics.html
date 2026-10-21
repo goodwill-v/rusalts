@@ -3,7 +3,7 @@
 {% block body %}
 <main class="site-main">
   <section class="section diagnostics-page">
-    <h1 class="page-title">Сократи свой рабочий день с ИИ — начни с диагностики</h1>
+    <h1 class="page-title">{{ content_block('diagnostics', 'h1', 'Сократи свой рабочий день с ИИ — начни с диагностики') }}</h1>
 
     <div class="diagnostics-intro">
       <p>Каждый день вы тратите часы на рутину: отвечаете на одни и те же вопросы, собираете данные из десятка источников, вручную формируете отчёты. <strong>А если часть этой работы можно передать ИИ-агентам уже завтра?</strong></p>
@@ -74,7 +74,7 @@
             <li>📬 Отчёт на email</li>
           </ul>
           <button class="btn-diagnostic btn-diagnostic--action" onclick="location.href='/diagnostics/free/'">
-            Пройти бесплатную диагностику →
+            {{ content_block('diagnostics', 'btn_free', 'Пройти бесплатную диагностику →') }}
           </button>
         </div>
 
@@ -91,7 +91,7 @@
             <li>📬 Чек-лист на email</li>
           </ul>
           <button class="btn-diagnostic btn-diagnostic--info" onclick="location.href='/diagnostics/your-business/'">
-            Ваше дело →
+            {{ content_block('diagnostics', 'btn_your_business', 'Ваше дело →') }}
           </button>
         </div>
 
@@ -108,7 +108,7 @@
             <li>📄 PDF-отчёт с дорожной картой 1/3/6 мес</li>
           </ul>
           <button class="btn-diagnostic btn-diagnostic--action" id="btn-pay-diagnostics">
-            Получить стратегию автономизации — 3 000 ₽ →
+            {{ content_block('diagnostics', 'btn_paid', 'Получить стратегию автономизации — 3 000 ₽ →') }}
           </button>
         </div>
       </div>

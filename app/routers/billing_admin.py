@@ -16,7 +16,6 @@ from datetime import datetime, timezone
 from fastapi import APIRouter, Depends, HTTPException, Request, status as http_status
 from fastapi.responses import HTMLResponse, JSONResponse
 from fastapi.security import HTTPBasic, HTTPBasicCredentials
-from fastapi.templating import Jinja2Templates
 
 from app import config
 from app.billing import (
@@ -35,9 +34,21 @@ from app.billing import (
 )
 
 router = APIRouter(tags=["billing-admin"])
-templates = Jinja2Templates(directory=str(config.BASE_DIR / "app" / "templates"))
+from app.templating import templates  # noqa: E402  — общий экземпляр с content_block
 
 _basic = HTTPBasic(auto_error=False)
+
+
+def _require_service_key(request: Request) -> None:
+    """Авторизация ботов по заголовку X-API-Key (VITRINA_API_KEYS в .env)."""
+    key = (request.headers.get("X-API-Key") or "").strip()
+    for allowed in config.VITRINA_API_KEYS:
+        if secrets.compare_digest(key, allowed):
+            return
+    raise HTTPException(
+        status_code=http_status.HTTP_401_UNAUTHORIZED,
+        detail="invalid or missing X-API-Key",
+    )
 
 
 def _require_admin_auth(credentials: HTTPBasicCredentials | None = Depends(_basic)) -> str:
@@ -369,3 +380,39 @@ async def api_customer_detail(customer_id: str):
         "subscriptions": [dict(r) for r in rows],
         "usage": [dict(u) for u in usage],
     })
+
+# ─── API: тариф продукта (для ботов, Этап A3) ─────────────────────────────
+
+
+@router.get("/api/tariff/{product_id}", dependencies=[Depends(_require_service_key)])
+async def api_tariff(product_id: str) -> JSONResponse:
+    """Актуальный тариф из БД (админки) по спецификации TZ_Monetization_Unified_Block."""
+    from app import tariffs_store
+    from app.billing import format_token_allowance, get_tariff
+
+    row = tariffs_store.get_tariff_row(product_id)
+    if not row:
+        raise HTTPException(status_code=404, detail=f"tariff not found: {product_id}")
+    t = get_tariff(product_id)
+    return JSONResponse(
+        {
+            "product_id": product_id,
+            "name": row.get("name") or "",
+            "price_rub": int(row.get("price_rub") or 0),
+            "period_days": int(row.get("period_days") or 30),
+            "trial_days": int(row.get("trial_days") or 0),
+            "allowance_tokens": int(row.get("token_allowance") or 0),
+            "allowance_tokens_text": format_token_allowance(int(row.get("token_allowance") or 0)),
+            "trial_tokens": int(row.get("trial_tokens") or 0),
+            "trial_tokens_text": format_token_allowance(int(row.get("trial_tokens") or 0)),
+            "model": row.get("model") or "",
+            "routerai_prompt_price_per_1m": float(row.get("prompt_price_per_1m") or 0.0),
+            "routerai_completion_price_per_1m": float(row.get("completion_price_per_1m") or 0.0),
+            "additional_token_price_per_1m": float(
+                row.get("additional_token_price_per_1m") or 0.0
+            ),
+            "estimated_dialogues": row.get("estimated_dialogues") or "",
+            "margin_rub": t.margin_rub if t else 0,
+            "updated_at": row.get("updated_at") or "",
+        }
+    )

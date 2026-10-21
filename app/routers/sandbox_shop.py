@@ -7,7 +7,6 @@ import secrets
 
 from fastapi import APIRouter, HTTPException, Request
 from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse
-from fastapi.templating import Jinja2Templates
 from datetime import datetime
 
 from app import config
@@ -29,7 +28,7 @@ from app.billing import (
 from app.payments import PRODUCTS, create_payment, get_payment_record, record_payment, update_payment_status
 
 router = APIRouter()
-templates = Jinja2Templates(directory=str(config.BASE_DIR / "app" / "templates"))
+from app.templating import templates  # noqa: E402  — общий экземпляр с content_block
 
 
 # ---------------------------------------------------------------------------

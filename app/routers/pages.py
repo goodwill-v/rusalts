@@ -5,13 +5,12 @@ import secrets
 from fastapi import APIRouter, Request
 from fastapi import Depends, HTTPException, status
 from fastapi.responses import FileResponse, HTMLResponse
-from fastapi.templating import Jinja2Templates
 from fastapi.security import HTTPBasic, HTTPBasicCredentials
 
 from app import config
 
 router = APIRouter()
-templates = Jinja2Templates(directory=str(config.BASE_DIR / "app" / "templates"))
+from app.templating import templates  # noqa: E402  — общий экземпляр с content_block
 
 _basic = HTTPBasic()
 
