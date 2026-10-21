@@ -147,6 +147,20 @@ def catalog(*, include_hidden: bool = False) -> list[dict[str, Any]]:
             items[row["id"]] = dict(row)
 
     result = list(items.values())
+    # Единый источник правды: тарифы (shop.db.tariffs) переопределяют
+    # цену/период/триал витринных карточек (Этап A — централизация).
+    try:
+        from app import tariffs_store
+
+        tariff_rows = {t["product_id"]: t for t in tariffs_store.list_tariffs()}
+        for p in result:
+            t = tariff_rows.get(p["id"])
+            if t:
+                p["price_rub"] = int(t.get("price_rub") or p.get("price_rub") or 0)
+                p["period_days"] = int(t.get("period_days") or p.get("period_days") or 0)
+                p["trial_days"] = int(t.get("trial_days") or p.get("trial_days") or 0)
+    except Exception:
+        pass
     if not include_hidden:
         result = [p for p in result if p.get("status") in VISIBLE_STATUSES]
     return result

@@ -10,6 +10,7 @@
 
     <nav class="admin-tabs" role="tablist">
       <button class="admin-tab-btn is-active" data-tab="home">🏠 Главная</button>
+      <button class="admin-tab-btn" data-tab="pagecontent">📝 Контент</button>
       <button class="admin-tab-btn" data-tab="products">📦 Товары</button>
       <button class="admin-tab-btn" data-tab="orders">🧾 Заказы и подписки</button>
       <button class="admin-tab-btn" data-tab="billing">💳 Биллинг</button>
@@ -43,6 +44,25 @@
         <div class="admin-actions">
           <button class="admin-btn admin-btn--action" id="hs-save">💾 Сохранить</button>
           <span class="admin-msg" id="hs-msg"></span>
+        </div>
+      </div>
+    </section>
+
+    <!-- ═══ Таб: Контент страниц (Этап A1) ═══ -->
+    <section id="tab-pagecontent" class="admin-tab-content">
+      <div class="admin-panel">
+        <h2>Тексты страниц и кнопок</h2>
+        <p class="admin-note">Изменения применяются сразу на сайте (Ctrl+F5 для проверки). Пустое поле = значение по умолчанию.</p>
+        <div class="admin-actions" style="margin:0 0 0.75rem;">
+          <label class="admin-field" style="min-width:260px">
+            <label for="cb-page">Страница</label>
+            <select id="cb-page"></select>
+          </label>
+        </div>
+        <div class="admin-form-grid" id="cb-fields"></div>
+        <div class="admin-actions">
+          <button class="admin-btn admin-btn--action" id="cb-save">💾 Сохранить</button>
+          <span class="admin-msg" id="cb-msg"></span>
         </div>
       </div>
     </section>
@@ -182,6 +202,23 @@
 
     <!-- ═══ Таб 4: Биллинг ═══ -->
     <section id="tab-billing" class="admin-tab-content">
+      <div class="admin-panel">
+        <h2>🎚 Тарифы (действуют сразу, без рестартов ботов)</h2>
+        <p class="admin-note">Источник правды — БД; боты получают значения через <code>GET /api/tariff/{id}</code> (X-API-Key). Изменения применяются ≤60 с.</p>
+        <div class="admin-table-wrap">
+          <table class="admin-table" id="tar-table">
+            <thead>
+              <tr><th>Продукт</th><th>Цена, ₽</th><th>Период, дн</th><th>Триал, дн</th><th>Токены/мес</th><th>Триал, токены</th><th>Модель</th><th>Доп. токен, ₽/1M</th><th>Себест. ratio</th></tr>
+            </thead>
+            <tbody id="tar-tbody"></tbody>
+          </table>
+        </div>
+        <div class="admin-actions">
+          <button class="admin-btn admin-btn--action" id="tar-save">💾 Сохранить тарифы</button>
+          <span class="admin-msg" id="tar-msg"></span>
+        </div>
+      </div>
+
       <div class="admin-panel">
         <h2>📊 Сводка</h2>
         <div class="admin-grid" id="bl-stats"></div>
@@ -374,7 +411,7 @@ document.querySelectorAll(".admin-tab-btn").forEach((btn) => {
     $("#tab-" + btn.dataset.tab).classList.add("is-active");
     if (!loaded[btn.dataset.tab]) {
       loaded[btn.dataset.tab] = true;
-      const loaders = { products: loadProducts, billing: loadBilling, content: loadContentTab, diagnostics: loadDiagnostics };
+      const loaders = { products: loadProducts, billing: loadBilling, content: loadContentTab, diagnostics: loadDiagnostics, pagecontent: loadContentBlocks };
       if (loaders[btn.dataset.tab]) loaders[btn.dataset.tab]();
     }
   });
@@ -620,6 +657,81 @@ $("#clear-queue-btn").addEventListener("click", async () => {
   alert(`Очищено: ${data.cleared} шт.`);
   document.querySelector("[data-approv-refresh]")?.click();
 });
+
+// ─── Таб «Контент» (Этап A1) ──────────────────────────────────────────────
+let cbSchema = null, cbValues = null;
+
+async function loadContentBlocks() {
+  const data = await api("/admin/api/content-blocks");
+  cbSchema = data.schema; cbValues = data.values;
+  const sel = $("#cb-page");
+  sel.innerHTML = (data.pages || []).map((pg) => `<option value="${esc(pg.id)}">${esc(pg.title)}</option>`).join("");
+  renderCbFields();
+  sel.onchange = renderCbFields;
+}
+
+function renderCbFields() {
+  const page = $("#cb-page").value;
+  if (!page || !cbSchema) return;
+  $("#cb-fields").innerHTML = (cbSchema[page] || []).map((f) => `
+    <div class="admin-field" style="${f.type === "textarea" ? "grid-column: 1 / -1;" : ""}">
+      <label for="cb-${esc(f.key)}">${esc(f.label)}</label>
+      ${f.type === "textarea"
+        ? `<textarea id="cb-${esc(f.key)}" rows="2">${esc((cbValues[page] || {})[f.key] ?? f.default)}</textarea>`
+        : `<input id="cb-${esc(f.key)}" value="${esc((cbValues[page] || {})[f.key] ?? f.default)}" />`}
+    </div>`).join("");
+}
+
+$("#cb-save").addEventListener("click", async () => {
+  const page = $("#cb-page").value;
+  if (!page) return;
+  const blocks = {};
+  for (const f of cbSchema[page] || []) blocks[f.key] = $("#cb-" + f.key).value;
+  try {
+    await api("/admin/api/content-blocks", { method: "POST", body: JSON.stringify({ page, blocks }) });
+    setMsg($("#cb-msg"), "Сохранено ✓ (на сайте — после Ctrl+F5)", true);
+  } catch (e) { setMsg($("#cb-msg"), "Ошибка: " + e.message, false); }
+});
+
+// ─── Тарифы (Этап A2/A4, внутри таба Биллинг) ─────────────────────────────
+const TAR_COLS = [
+  ["price_rub", "цена"], ["period_days", "период"], ["trial_days", "триал-дни"],
+  ["token_allowance", "allowance"], ["trial_tokens", "триал-токены"],
+  ["model", "модель"], ["additional_token_price_per_1m", "доп ₽/1M"],
+  ["token_cost_ratio", "ratio"],
+];
+
+function renderTariffs(rows) {
+  $("#tar-tbody").innerHTML = rows.map((r) => `
+    <tr data-pid="${esc(r.product_id)}">
+      <td><code>${esc(r.product_id)}</code><br><small class="admin-note">${esc(r.name || "")}</small></td>
+      ${TAR_COLS.map(([k]) => `<td><input data-k="${k}" value="${esc(r[k] ?? "")}" style="width:100%;font:inherit;font-size:0.85rem;border:1px solid var(--site-border);border-radius:6px;padding:0.25rem" /></td>`).join("")}
+    </tr>`).join("") || '<tr><td colspan="9" class="admin-note">Тарифов нет.</td></tr>';
+}
+
+async function loadTariffs() {
+  const data = await api("/admin/api/tariffs");
+  renderTariffs(data.tariffs || []);
+}
+
+$("#tar-save").addEventListener("click", async () => {
+  const payload = {};
+  document.querySelectorAll("#tar-tbody tr[data-pid]").forEach((tr) => {
+    const pid = tr.dataset.pid;
+    const fields = {};
+    tr.querySelectorAll("input[data-k]").forEach((inp) => { fields[inp.dataset.k] = inp.value; });
+    payload[pid] = fields;
+  });
+  try {
+    const data = await api("/admin/api/tariffs", { method: "POST", body: JSON.stringify({ tariffs: payload }) });
+    setMsg($("#tar-msg"), `Сохранено: ${data.saved} ✓`, true);
+    loadTariffs();
+  } catch (e) { setMsg($("#tar-msg"), "Ошибка: " + e.message, false); }
+});
+
+// тарифы грузим вместе с биллингом
+const _loadBillingBase = loadBilling;
+loadBilling = async () => { await Promise.all([_loadBillingBase(), loadTariffs()]); };
 
 // ─── Таб 6: Диагностики ──────────────────────────────────────────────────
 function diagResultCell(d) {

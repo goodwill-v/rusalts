@@ -19,14 +19,13 @@ from typing import Any
 
 from fastapi import APIRouter, Request
 from fastapi.responses import HTMLResponse, RedirectResponse
-from fastapi.templating import Jinja2Templates
 
 from app import config
 from app.request_mail import send_request_email
 
 router = APIRouter(tags=["request"])
 
-templates = Jinja2Templates(directory=str(config.BASE_DIR / "app" / "templates"))
+from app.templating import templates  # noqa: E402  — общий экземпляр с content_block
 
 DB_PATH = config.DATA_DIR / "requests.db"
 

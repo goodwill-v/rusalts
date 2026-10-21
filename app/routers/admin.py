@@ -17,7 +17,6 @@ from typing import Any
 from fastapi import APIRouter, Depends, HTTPException, Request, status
 from fastapi.responses import HTMLResponse, JSONResponse
 from fastapi.security.http import HTTPBasic, HTTPBasicCredentials
-from fastapi.templating import Jinja2Templates
 
 from app import config, site_settings
 from app.products_store import (
@@ -28,7 +27,7 @@ from app.products_store import (
     upsert_product,
 )
 
-templates = Jinja2Templates(directory=str(config.BASE_DIR / "app" / "templates"))
+from app.templating import templates  # noqa: E402  — общий экземпляр с content_block
 
 router = APIRouter(tags=["admin"])
 _basic = HTTPBasic(auto_error=False)
@@ -343,6 +342,90 @@ async def api_home_settings_update(
         return JSONResponse({"ok": False, "error": "invalid JSON"}, status_code=400)
     settings = site_settings.update(body)
     return JSONResponse({"ok": True, "settings": settings})
+
+
+# ─── Контент-блоки страниц (Этап A1) ─────────────────────────────────────
+
+
+@router.get("/admin/api/content-blocks")
+async def api_content_blocks(
+    page: str = "", _user: str = Depends(_require_admin_auth)
+) -> JSONResponse:
+    from app import content_blocks
+
+    if page and page not in content_blocks.SCHEMA:
+        return JSONResponse({"ok": False, "error": "неизвестная страница"}, status_code=400)
+    pids = [pid for pid in content_blocks.SCHEMA if not page or pid == page]
+    schema = {
+        pid: [
+            {"key": key, "label": label, "type": ftype, "default": default}
+            for key, label, ftype, default in content_blocks.SCHEMA[pid]
+        ]
+        for pid in pids
+    }
+    values = {pid: content_blocks.blocks_for(pid) for pid in pids}
+    return JSONResponse(
+        {
+            "ok": True,
+            "pages": [
+                {"id": pid, "title": content_blocks.PAGE_TITLES.get(pid, pid)}
+                for pid in pids
+            ],
+            "schema": schema,
+            "values": values,
+        }
+    )
+
+
+@router.post("/admin/api/content-blocks")
+async def api_content_blocks_save(
+    request: Request, _user: str = Depends(_require_admin_auth)
+):
+    from app import content_blocks
+
+    try:
+        body = await request.json()
+    except Exception:
+        return JSONResponse({"ok": False, "error": "invalid JSON"}, status_code=400)
+    page = str(body.get("page") or "")
+    blocks = body.get("blocks")
+    if page not in content_blocks.SCHEMA or not isinstance(blocks, dict):
+        return JSONResponse({"ok": False, "error": "некорректный запрос"}, status_code=400)
+    content_blocks.set_blocks(page, blocks)
+    # hero-ключи дублируем в site_settings — старый таб «Главная» остаётся согласован
+    if page == "index":
+        try:
+            site_settings.update(blocks)
+        except Exception:
+            pass
+    return JSONResponse({"ok": True, "values": content_blocks.blocks_for(page)})
+
+
+# ─── Тарифы (Этап A2/A4) ─────────────────────────────────────────────────
+
+
+@router.get("/admin/api/tariffs")
+async def api_tariffs(_user: str = Depends(_require_admin_auth)) -> JSONResponse:
+    from app import tariffs_store
+
+    return JSONResponse({"ok": True, "tariffs": tariffs_store.list_tariffs(force=True)})
+
+
+@router.post("/admin/api/tariffs")
+async def api_tariffs_save(
+    request: Request, _user: str = Depends(_require_admin_auth)
+):
+    from app import tariffs_store
+
+    try:
+        body = await request.json()
+    except Exception:
+        return JSONResponse({"ok": False, "error": "invalid JSON"}, status_code=400)
+    values = body.get("tariffs")
+    if not isinstance(values, dict):
+        return JSONResponse({"ok": False, "error": "некорректный запрос"}, status_code=400)
+    saved = tariffs_store.upsert_tariffs(values)
+    return JSONResponse({"ok": True, "saved": saved})
 
 
 # ─── Диагностики: заглушка (раздел 5.4 ТЗ) ────────────────────────────────

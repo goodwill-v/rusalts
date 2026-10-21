@@ -3,12 +3,12 @@
 <main id="home" class="site-main">
   <section class="hero" aria-label="Первый экран">
     <div class="hero__content">
-      <h1 class="hero__title">{{ hero_title }}</h1>
+      <h1 class="hero__title">{{ content_block('index', 'hero_title', hero_title) }}</h1>
       <p class="hero__subtitle">
-        {{ hero_subtitle }}
+        {{ content_block('index', 'hero_subtitle', hero_subtitle) }}
       </p>
       <div class="hero__actions">
-        <a class="btn-site btn-site--lg btn-site--primary" href="{{ hero_cta_url }}">{{ hero_cta_text }}</a>
+        <a class="btn-site btn-site--lg btn-site--primary" href="{{ content_block('index', 'hero_cta_url', hero_cta_url) }}">{{ content_block('index', 'hero_cta_text', hero_cta_text) }}</a>
         <a class="btn-site btn-site--lg btn-site--outline" href="/techologis/">Наши продукты</a>
       </div>
     </div>
