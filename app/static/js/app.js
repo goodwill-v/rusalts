@@ -702,6 +702,27 @@ async function initPublApprov() {
     }
   });
 
+  // «Опубликовать всё»: вся очередь → одобрение + публикация на сайт и VK в один клик
+  const publishAllBtn = root.querySelector("[data-approv-publish-all]");
+  publishAllBtn?.addEventListener("click", async () => {
+    if (!confirm("Опубликовать ВСЮ очередь на сайте и в VK?")) return;
+    try {
+      if (status) status.textContent = "Публикуем всю очередь…";
+      const res = await fetchJson("/api/content/queue/approve-all", { method: "POST" });
+      const failed = Number(res.failed || 0);
+      const approved = Number(res.approved || 0);
+      const vkOk = (res.items || []).filter((i) => i.vk_published).length;
+      if (status) {
+        status.textContent = failed
+          ? `Опубликовано: ${approved}, с ошибками: ${failed}`
+          : `Опубликовано: ${approved} (VK: ${vkOk})`;
+      }
+      await load();
+    } catch (e) {
+      if (status) status.textContent = `Ошибка: ${errText(e)}`;
+    }
+  });
+
   list.addEventListener("click", async (ev) => {
     const btn = ev.target?.closest?.("button");
     if (!btn) return;
