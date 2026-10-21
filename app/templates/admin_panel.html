@@ -317,14 +317,14 @@
       </div>
     </section>
 
-    <!-- ═══ Таб 6: Диагностики (заглушка) ═══ -->
+    <!-- ═══ Таб 6: Диагностики ═══ -->
     <section id="tab-diagnostics" class="admin-tab-content">
       <div class="admin-panel">
         <h2>📋 Пройденные диагностики</h2>
-        <p class="admin-note" id="dg-note">Раздел в разработке (ТЗ 5.4): формы анкет → БД diagnostics.db → PDF/email. Здесь появится список лидов: контакт, тип диагностики, статус.</p>
+        <p class="admin-note">Заявки из форм /diagnostics/*: скоринг, триггеры, PDF. Email дублируется Шефу (CHIEF_EMAIL_TO).</p>
         <div class="admin-table-wrap">
           <table class="admin-table">
-            <thead><tr><th>ID</th><th>Дата</th><th>Тип</th><th>Контакт</th><th>Статус</th></tr></thead>
+            <thead><tr><th>ID</th><th>Дата</th><th>Тип</th><th>Контакт</th><th>Результат</th><th>Отчёт</th></tr></thead>
             <tbody id="dg-tbody"></tbody>
           </table>
         </div>
@@ -621,12 +621,23 @@ $("#clear-queue-btn").addEventListener("click", async () => {
 });
 
 // ─── Таб 6: Диагностики ──────────────────────────────────────────────────
+function diagResultCell(d) {
+  const r = d.result || {};
+  if (r.type === "scores") {
+    return `${esc(r.level_text || "")} · итого ${r.total ?? "?"}/100<br><small class="admin-note">${
+      Object.entries(r.scales || {}).map(([k, v]) => `${esc(k)}: ${v}`).join(" · ")}</small>`;
+  }
+  if (r.type === "triggers") {
+    return (r.items || []).map((t) => `• ${esc(t.recommendation)}`).join("<br>") || "—";
+  }
+  return "PDF-отчёт";
+}
+
 async function loadDiagnostics() {
   const data = await api("/admin/api/diagnostics");
-  if (data.note) $("#dg-note").textContent = data.note;
   $("#dg-tbody").innerHTML = (data.items || []).map((d) => `
-    <tr><td>${d.id}</td><td>${esc(d.created_at || "")}</td><td>${esc(STATUSES_RU[d.kind] || d.kind || "")}</td><td>${esc(d.name || "")}<br><small class="admin-note">${esc(d.email || "")}</small></td><td>${esc(d.status || "new")}</td></tr>`
-  ).join("") || '<tr><td colspan="5" class="admin-note">Пока пусто — анкеты диагностик появятся после реализации ТЗ 5.4.</td></tr>';
+    <tr><td>${d.id}</td><td>${esc(d.created_at || "")}</td><td>${esc(STATUSES_RU[d.kind] || d.kind || "")}</td><td>${esc(d.name || "")}<br><small class="admin-note">${esc(d.email || "")} ${esc(d.phone || "")}</small></td><td>${diagResultCell(d)}</td><td>${d.pdf_path ? "📄 PDF" : "—"}</td></tr>`
+  ).join("") || '<tr><td colspan="6" class="admin-note">Заявок пока нет.</td></tr>';
 }
 </script>
 {% endblock %}
