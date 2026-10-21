@@ -31,11 +31,16 @@ def _connect() -> sqlite3.Connection:
             phone TEXT NOT NULL DEFAULT '',
             company TEXT NOT NULL DEFAULT '',
             answers TEXT NOT NULL DEFAULT '{}',
+            result TEXT NOT NULL DEFAULT '',
             status TEXT NOT NULL DEFAULT 'new',
             pdf_path TEXT NOT NULL DEFAULT '',
             created_at TEXT NOT NULL DEFAULT (datetime('now'))
         )"""
     )
+    # обратная совместимость БД, созданной до появления result
+    cols = {r[1] for r in db.execute("PRAGMA table_info(diagnostics)").fetchall()}
+    if "result" not in cols:
+        db.execute("ALTER TABLE diagnostics ADD COLUMN result TEXT NOT NULL DEFAULT ''")
     return db
 
 
@@ -47,39 +52,43 @@ def save_diagnostic(
     phone: str = "",
     company: str = "",
     answers: dict[str, Any] | None = None,
+    result: dict[str, Any] | None = None,
 ) -> int:
     if kind not in KINDS:
         raise ValueError(f"неизвестный тип диагностики: {kind}")
     with closing(_connect()) as db:
         cur = db.execute(
-            "INSERT INTO diagnostics (kind, name, email, phone, company, answers) "
-            "VALUES (?, ?, ?, ?, ?, ?)",
-            (kind, name, email, phone, company, json.dumps(answers or {}, ensure_ascii=False)),
+            "INSERT INTO diagnostics (kind, name, email, phone, company, answers, result) "
+            "VALUES (?, ?, ?, ?, ?, ?, ?)",
+            (
+                kind, name, email, phone, company,
+                json.dumps(answers or {}, ensure_ascii=False),
+                json.dumps(result or {}, ensure_ascii=False),
+            ),
         )
         db.commit()
     return int(cur.lastrowid)
 
 
-def save_pdf_stub(diag_id: int) -> str:
-    """Заглушка PDF-отчёта (далее — WeasyPrint/ReportLab)."""
-    REPORTS_DIR.mkdir(parents=True, exist_ok=True)
-    path = REPORTS_DIR / f"report_{diag_id}.txt"
-    path.write_text(
-        f"PDF-отчёт по диагностике #{diag_id} (ЗАГЛУШКА).\n"
-        "Реальная генерация — WeasyPrint/ReportLab, разделы 1–7 из anketa_paid.md.\n",
-        encoding="utf-8",
-    )
+def set_pdf_path(diag_id: int, path: str) -> None:
     with closing(_connect()) as db:
-        db.execute("UPDATE diagnostics SET pdf_path = ? WHERE id = ?", (str(path), diag_id))
+        db.execute("UPDATE diagnostics SET pdf_path = ? WHERE id = ?", (path, diag_id))
         db.commit()
-    return str(path)
 
 
 def list_diagnostics(limit: int = 200) -> list[dict[str, Any]]:
     with closing(_connect()) as db:
         rows = db.execute(
-            "SELECT id, kind, name, email, phone, company, status, pdf_path, created_at "
+            "SELECT id, kind, name, email, phone, company, result, status, pdf_path, created_at "
             "FROM diagnostics ORDER BY id DESC LIMIT ?",
             (limit,),
         ).fetchall()
-    return [dict(r) for r in rows]
+    items = []
+    for r in rows:
+        d = dict(r)
+        try:
+            d["result"] = json.loads(d.get("result") or "{}")
+        except ValueError:
+            d["result"] = {}
+        items.append(d)
+    return items

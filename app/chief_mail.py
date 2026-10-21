@@ -66,21 +66,41 @@ def _extract_text_message(msg: email.message.Message) -> str:
         return payload.decode("utf-8", errors="replace").strip()
 
 
-def send_to_chief(*, subject: str, body: str) -> None:
+def send_email(*, to: str, subject: str, body: str, attachment: str | None = None) -> None:
+    """Отправка письма произвольному адресату через SMTP из .env.
+
+    Используется диагностиками (ТЗ 5.4.3). Кириллица — charset=utf-8.
+    attachment — путь к файлу (PDF-отчёт платной диагностики).
+    """
     if not config.SMTP_HOST or not config.SMTP_USER or not config.SMTP_PASSWORD:
         raise RuntimeError("SMTP не настроен: заполните SMTP_HOST/SMTP_USER/SMTP_PASSWORD в .env")
 
     msg = EmailMessage()
     msg["Subject"] = subject
-    msg["To"] = config.CHIEF_EMAIL_TO
+    msg["To"] = to
     msg["From"] = (config.SMTP_FROM or config.SMTP_USER)
     msg.set_content(body, subtype="plain", charset="utf-8")
+
+    if attachment:
+        from pathlib import Path
+
+        path = Path(attachment)
+        msg.add_attachment(
+            path.read_bytes(),
+            maintype="application",
+            subtype="pdf",
+            filename=path.name,
+        )
 
     with smtplib.SMTP(config.SMTP_HOST, config.SMTP_PORT, timeout=20) as s:
         if config.SMTP_TLS:
             s.starttls()
         s.login(config.SMTP_USER, config.SMTP_PASSWORD)
         s.send_message(msg)
+
+
+def send_to_chief(*, subject: str, body: str) -> None:
+    send_email(to=config.CHIEF_EMAIL_TO, subject=subject, body=body)
 
 
 def _parse_decision_text(text: str) -> tuple[DecisionKind, str | None, str | None] | None:
