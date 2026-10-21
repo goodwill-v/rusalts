@@ -94,6 +94,39 @@
   @media (max-width: 640px) {
     .diag-form-wrap { padding: 1rem 0.75rem 2.5rem; }
   }
+  /* Результат диагностики на экране (B1) */
+  .diag-result { display: none; }
+  .diag-result.is-shown { display: block; }
+  .diag-result__level {
+    font-size: 1.25rem; font-weight: 800; color: var(--site-heading);
+    margin: 0 0 0.25rem;
+  }
+  .diag-result__total { color: var(--site-muted, #6b7280); margin: 0 0 1rem; }
+  .diag-scale { margin-bottom: 0.8rem; }
+  .diag-scale__head {
+    display: flex; justify-content: space-between; font-size: 0.88rem;
+    font-weight: 600; color: var(--site-heading); margin-bottom: 0.25rem;
+  }
+  .diag-scale__bar {
+    height: 10px; border-radius: 999px; background: #e5e7eb; overflow: hidden;
+  }
+  .diag-scale__fill { height: 100%; border-radius: 999px; background: var(--site-primary); }
+  .diag-scale__fill--risk { background: #ef4444; }
+  .diag-scale__fill--warn { background: #f59e0b; }
+  .diag-scale__fill--ok { background: var(--site-accent); }
+  .diag-recs { margin: 1rem 0; padding: 0; }
+  .diag-recs li { margin-bottom: 0.5rem; font-size: 0.92rem; line-height: 1.45; }
+  .diag-result__actions { display: flex; flex-wrap: wrap; gap: 0.75rem; margin-top: 1.25rem; }
+  .diag-consult {
+    font: inherit; font-weight: 700; padding: 0.75rem 1.5rem; border: none;
+    border-radius: 10px; background: var(--site-accent); color: #fff;
+    text-decoration: none; cursor: pointer;
+  }
+  .diag-tools {
+    font: inherit; font-weight: 600; padding: 0.75rem 1.5rem; border-radius: 10px;
+    background: var(--site-surface, #fff); color: var(--site-primary);
+    border: 1px solid var(--site-primary); text-decoration: none; cursor: pointer;
+  }
 </style>
 {% endblock %}
 
@@ -111,6 +144,8 @@
       Если вы ещё не оплатили, вернитесь на <a class="link" href="/diagnostics/">страницу диагностики</a>.
     </div>
     {% endif %}
+
+    <div id="diag-result" class="diag-result" aria-live="polite"></div>
 
     <form id="diag-form" novalidate>
       <div class="diag-section">
@@ -433,6 +468,7 @@ document.getElementById("diag-form").addEventListener("submit", async (e) => {
       msg.textContent = res.message;
       msg.className = "diag-msg diag-msg--ok";
       form.reset();
+      renderResult(res);
     } else {
       msg.textContent = res.error || "Ошибка отправки.";
       msg.className = "diag-msg diag-msg--err";
@@ -444,5 +480,58 @@ document.getElementById("diag-form").addEventListener("submit", async (e) => {
   btn.disabled = false;
   btn.textContent = "{{ submit_label }}";
 });
+
+function renderResult(res) {
+  const box = document.getElementById("diag-result");
+  const r = res.result || {};
+  let html = "";
+  if (r.type === "scores") {
+    const rows = Object.entries(r.scales || {}).map(([name, v]) => {
+      const cls = name.startsWith("Риск") ? (v >= 60 ? "diag-scale__fill--risk" : v >= 30 ? "diag-scale__fill--warn" : "diag-scale__fill--ok")
+        : (v >= 30 ? "diag-scale__fill--ok" : v >= 15 ? "diag-scale__fill--warn" : "diag-scale__fill--warn");
+      return `<div class="diag-scale">
+          <div class="diag-scale__head"><span>${esc(name)}</span><span>${v} / 100</span></div>
+          <div class="diag-scale__bar"><div class="diag-scale__fill ${cls}" style="width:${Math.min(100, v)}%"></div></div>
+        </div>`;
+    }).join("");
+    const recs = (r.recommendations || []).map((t) => `<li>${esc(t)}</li>`).join("");
+    html = `<div class="diag-section">
+        <h2>Ваш результат</h2>
+        <p class="diag-result__level">${esc(r.level_text || "")}</p>
+        <p class="diag-result__total">Итоговый балл: ${r.total ?? "?"} / 100 (меньше — лучше)</p>
+        ${rows}
+        ${recs ? `<h2 style="margin-top:1rem">Что делать дальше</h2><ul class="diag-recs">${recs}</ul>` : ""}
+      </div>
+      <div class="diag-result__actions">
+        <a class="diag-consult" href="/consultant">Обсудить результат с консультантом</a>
+        <a class="diag-tools" href="/techologis/">Подобрать инструменты</a>
+      </div>`;
+  } else if (r.type === "triggers") {
+    const items = (r.items || []).map((t) =>
+      `<li><strong>${esc(t.recommendation)}</strong> — ${esc(t.description)}</li>`).join("");
+    html = `<div class="diag-section">
+        <h2>Ваш чек-лист</h2>
+        <ul class="diag-recs">${items || "<li>Мы свяжемся с вами с персональными рекомендациями.</li>"}</ul>
+      </div>
+      <div class="diag-result__actions">
+        <a class="diag-consult" href="/consultant">Обсудить с консультантом</a>
+        <a class="diag-tools" href="/techologis/">Подобрать инструменты</a>
+      </div>`;
+  } else {
+    html = `<div class="diag-section">
+        <h2>Заявка принята</h2>
+        <p class="diag-form-meta">Аналитик АЛТ подготовит PDF-отчёт «Анализ процессов предприятия» и отправит на указанный email. Копия уже у нас — ждите письма в течение рабочего дня.</p>
+      </div>
+      <div class="diag-result__actions">
+        <a class="diag-tools" href="/techologis/">Посмотреть продукты АЛТ</a>
+      </div>`;
+  }
+  box.innerHTML = html;
+  box.classList.add("is-shown");
+  document.getElementById("diag-form").style.display = "none";
+  box.scrollIntoView({ behavior: "smooth" });
+}
+
+function esc(x) { return String(x ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c])); }
 </script>
 {% endblock %}

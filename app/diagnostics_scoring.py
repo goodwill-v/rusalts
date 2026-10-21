@@ -12,6 +12,37 @@ from typing import Any
 
 LEVELS = {"green": "🟢 Низкий", "yellow": "🟡 Средний", "red": "🔴 Высокий"}
 
+# Рекомендации по шкалам (B2): порог → текст (для рисков высокий балл = проблема,
+# для потенциала/готовности высокий балл = возможность).
+RECOMMENDATIONS = {
+    "Риск блокировок": [
+        (60, "Критично: каналы могут заблокировать. Плановая миграция аудитории на MAX/VK — продукт «Оживление» и сопровождение АЛТ."),
+        (30, "Есть уязвимость: зависимость от зарубежных платформ. Продумайте резервный канал в MAX/VK."),
+    ],
+    "Риск комплаенса": [
+        (60, "Критично: вероятны штрафы по 152-ФЗ. Аудит персональных данных и приведение документов в порядок — в первую очередь."),
+        (30, "Есть пробелы в комплаенсе: проверьте согласия на обработку ПДн и политику на сайте."),
+    ],
+    "Потенциал автоматизации": [
+        (30, "Хороший задел: рутинные ответы и рассылки можно передать ИИ-ассистенту (НейроСотрудник, ВежПом) — экономия часов в неделю."),
+        (15, "Есть процессы для пилота: начните с одной задачи — типовые ответы клиентам."),
+    ],
+    "Готовность к миграции": [
+        (30, "Вы уже частично на отечественных сервисах — миграция пройдёт быстро и без потерь."),
+        (15, "Начните с малого: перенесите один процесс (почта или чат) — остальное по дорожной карте."),
+    ],
+}
+
+
+def _recommendations_for(scales: dict[str, int]) -> list[str]:
+    out = []
+    for scale, value in scales.items():
+        for threshold, text in RECOMMENDATIONS.get(scale, []):
+            if value >= threshold:
+                out.append(f"{scale}: {text}")
+                break
+    return out
+
 
 def _as_list(value: Any) -> list[str]:
     if value is None:
@@ -75,7 +106,13 @@ def score_free(answers: dict[str, Any]) -> dict[str, Any]:
     }
     total = _scale(sum(scales.values()) / len(scales))
     level = "green" if total <= 30 else ("yellow" if total <= 60 else "red")
-    return {"scales": scales, "total": total, "level": level, "level_text": LEVELS[level]}
+    return {
+        "scales": scales,
+        "total": total,
+        "level": level,
+        "level_text": LEVELS[level],
+        "recommendations": _recommendations_for(scales),
+    }
 
 
 TRIGGERS_YOUR_BUSINESS = {
