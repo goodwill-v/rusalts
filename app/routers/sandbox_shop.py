@@ -85,6 +85,40 @@ async def neyrosotrudnik_product_page(request: Request):
     )
 
 
+@router.get("/techologis/p/{pid}/")
+async def product_generated_page(request: Request, pid: str):
+    """Страница продукта, сгенерированная из БД (C1). Для продуктов с БД-карточкой
+    без флага detail_custom (кастомные страницы — italidia, neyrosotrudnik)."""
+    from app.products_store import catalog
+    from app.billing import get_tariff
+
+    prod = next((p for p in catalog() if p["id"] == pid), None)
+    if not prod or prod.get("detail_custom") or prod.get("detail_url"):
+        raise HTTPException(status_code=404, detail="Продукт не найден")
+
+    tariff = get_tariff(pid)
+    if tariff and not prod.get("price_rub"):
+        prod = {**prod, "price_rub": tariff.price_rub or prod.get("price_rub", 0)}
+
+    features = [f.strip() for f in str(prod.get("features") or "").split("|") if f.strip()]
+    buyable = [p for p in catalog() if p["status"] == "available" and p["price_rub"] > 0 and p["id"] != "italidia_test"]
+
+    return templates.TemplateResponse(
+        request,
+        "product_detail.html",
+        {
+            "vk_app_id": config.VK_APP_ID or None,
+            "is_widget": False,
+            "layout_class": "layout-site",
+            "page_title": f"{prod['name']} — АЛТ",
+            "p": prod,
+            "features": features,
+            "category_label": "услуга" if prod.get("category") == "service" else "продукт",
+            "buyable": buyable,
+        },
+    )
+
+
 # ---------------------------------------------------------------------------
 # Payment API
 # ---------------------------------------------------------------------------

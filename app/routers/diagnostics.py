@@ -65,7 +65,8 @@ def _client_email(kind: str, diag_id: int, name: str, email: str, result: dict, 
             "",
             "🟢 0–30 — низкий риск · 🟡 31–60 — средний · 🔴 61–100 — высокий.",
             "Подробные рекомендации обсудим на бесплатной консультации:",
-            "  v.devops@yandex.ru · https://rusalts.ru/consultant",
+            "  v.devops@yandex.ru · МАКС: https://max.ru/u/f9LHodD0cOKMhFRsnfRVOT-ChF-0t--tFtjM0b0MwNMgVZQmvpzPQave_6Q",
+            "  https://rusalts.ru/consultant",
         ]
     elif kind == "your_business" and result.get("type") == "triggers":
         lines += ["", "Чек-лист под вашу ситуацию:"]
@@ -77,7 +78,7 @@ def _client_email(kind: str, diag_id: int, name: str, email: str, result: dict, 
             "",
             "PDF-отчёт «Анализ процессов предприятия» прилагаем к письму",
             "(а также доступен в вашем личном взаимодействии с АЛТ).",
-            "Разбор отчёта: v.devops@yandex.ru",
+            "Разбор отчёта: v.devops@yandex.ru · МАКС: https://max.ru/u/f9LHodD0cOKMhFRsnfRVOT-ChF-0t--tFtjM0b0MwNMgVZQmvpzPQave_6Q",
         ]
     lines += ["", "--", "АЛТ — Альтернативные Легальные Технологии", "https://rusalts.ru"]
     return "\n".join(lines)

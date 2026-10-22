@@ -1,0 +1,178 @@
+{% extends "base.html" %}
+{% block extra_head %}
+<link rel="stylesheet" href="/static/css/showcase.css" />
+<style>
+  .pd { max-width: 900px; margin: 0 auto; padding: 2rem 1rem 4rem; }
+  .pd__hero { display: flex; gap: 1.25rem; align-items: flex-start; margin-bottom: 1.5rem; }
+  .pd__icon {
+    font-size: 2.6rem; line-height: 1; min-width: 84px; min-height: 84px;
+    display: flex; align-items: center; justify-content: center;
+    border-radius: 14px; background: linear-gradient(135deg, rgba(26,92,138,0.08), rgba(46,134,193,0.14));
+  }
+  .pd h1 { font-size: 1.9rem; color: var(--site-heading); margin: 0 0 0.4rem; }
+  .pd__platform { color: var(--site-muted, #6b7280); font-size: 0.95rem; }
+  .pd__desc { font-size: 1.05rem; line-height: 1.6; color: var(--site-text); margin: 0; }
+  .pd__grid { display: grid; gap: 1.25rem; }
+  @media (min-width: 760px) { .pd__grid { grid-template-columns: 1.4fr 1fr; } }
+  .pd__panel {
+    background: var(--site-surface, #fff); border: 1px solid var(--site-border);
+    border-radius: 12px; padding: 1.25rem;
+  }
+  .pd__panel h2 { font-size: 1.1rem; color: var(--site-heading); margin: 0 0 0.75rem; }
+  .pd__features { margin: 0; padding-left: 1.1rem; }
+  .pd__features li { margin-bottom: 0.5rem; line-height: 1.45; color: var(--site-text); }
+  .pd__price { font-size: 2rem; font-weight: 800; color: var(--site-heading); }
+  .pd__period { font-size: 0.95rem; color: var(--site-muted, #6b7280); font-weight: 500; }
+  .pd__actions { display: flex; flex-direction: column; gap: 0.6rem; margin-top: 1rem; }
+  .pd__botnote {
+    font-size: 0.85rem; color: var(--site-muted, #6b7280); margin-top: 0.75rem; line-height: 1.45;
+  }
+  .pd__trial-btns { display: flex; flex-wrap: wrap; gap: 0.5rem; margin-top: 0.5rem; }
+  .pd__trial-btn {
+    display: inline-flex; align-items: center; gap: 0.35rem;
+    font: inherit; font-size: 0.9rem; font-weight: 600;
+    padding: 0.55rem 1rem; border-radius: 8px; text-decoration: none;
+    background: var(--site-primary); color: #fff; border: none; cursor: pointer;
+  }
+  .pd__trial-btn:hover { filter: brightness(1.08); }
+  @media (max-width: 640px) {
+    .pd { padding: 1.25rem 0.75rem 3rem; }
+    .pd__hero { flex-direction: column; }
+    .pd h1 { font-size: 1.5rem; }
+  }
+</style>
+{% endblock %}
+
+{% block body %}
+<main class="site-main">
+  <div class="pd">
+    <div class="pd__hero">
+      <div class="pd__icon">{{ p.icon or "🧩" }}</div>
+      <div>
+        <h1>{{ p.name }}</h1>
+        <div class="pd__platform">📡 {{ p.platform or "Сайт АЛТ" }} · {{ category_label }}</div>
+      </div>
+    </div>
+
+    <p class="pd__desc">{{ p.description }}</p>
+
+    <div class="pd__grid" style="margin-top:1.5rem">
+      <div class="pd__panel">
+        <h2>Что вы получаете</h2>
+        {% if features %}
+        <ul class="pd__features">
+          {% for f in features %}<li>{{ f }}</li>{% endfor %}
+        </ul>
+        {% else %}
+        <p class="muted-site">Подробную консультацию по возможностям инструмента проведёт АЛТ-эксперт —
+          <a class="link" href="/consultant">задайте вопрос в чате</a>.</p>
+        {% endif %}
+
+        {% if p.trial_days %}
+        <h2 style="margin-top:1.25rem">Пробный период — {{ p.trial_days }} дней</h2>
+        <p class="muted-site" style="margin:0 0 0.5rem">Запустите бота в привычном мессенджере — доступ включится при первом сообщении.
+          В чат придёт подтверждение: «Пробный период {{ p.trial_days }} дней. Желаем успехов!»</p>
+        <div class="pd__trial-btns">
+          {% if p.max_url %}<a class="pd__trial-btn" href="{{ p.max_url }}" rel="noopener">🟣 В MAX</a>{% endif %}
+          {% if p.tg_url %}<a class="pd__trial-btn" href="{{ p.tg_url }}" rel="noopener">🔵 В Telegram</a>{% endif %}
+          {% if p.vk_url %}<a class="pd__trial-btn" href="{{ p.vk_url }}" rel="noopener">🔷 Во ВКонтакте</a>{% endif %}
+        </div>
+        {% endif %}
+      </div>
+
+      <div class="pd__panel">
+        <h2>Стоимость</h2>
+        {% if p.status == "free" or p.price_rub == 0 %}
+        <div class="pd__price">0 ₽</div>
+        <div class="pd__period">доступен без подписки</div>
+        <div class="pd__actions">
+          {% if p.bot_url %}<a class="btn-buy btn-buy--large" href="{{ p.bot_url }}">Открыть →</a>{% endif %}
+        </div>
+        {% elif p.status == "available" %}
+        <div class="pd__price">{{ p.price_rub }} ₽ <span class="pd__period">/ {{ "мес" if p.period_days == 30 else p.period_days ~ " дн" if p.period_days else "разово" }}</span></div>
+        {% if p.trial_days %}<div class="pd__period">Первые {{ p.trial_days }} дней — по пробному тарифу (выше)</div>{% endif %}
+        <div class="pd__actions">
+          <button class="btn-buy btn-buy--large" data-product="{{ p.id }}" data-price="{{ p.price_rub }}">Оформить подписку</button>
+          {% if p.bot_url %}<a class="btn-buy btn-buy--secondary btn-buy--large" href="{{ p.bot_url }}">Сначала попробовать →</a>{% endif %}
+        </div>
+        {% else %}
+        <div class="pd__price">—</div>
+        <div class="pd__period">Статус: {{ p.status }}</div>
+        <div class="pd__actions">
+          <a class="btn-buy btn-buy--secondary btn-buy--large" href="/#contacts">Запросить →</a>
+        </div>
+        {% endif %}
+        <p class="pd__botnote">Оплата картой/СБП через ЮKassa. Подписка активируется автоматически после оплаты.</p>
+      </div>
+    </div>
+
+    <p style="margin-top:1.5rem"><a class="prod-more-link" href="/techologis/">← Все продукты и услуги</a></p>
+  </div>
+</main>
+
+<div id="payment-modal" class="modal" style="display:none">
+  <div class="modal__overlay"></div>
+  <div class="modal__content">
+    <button class="modal__close" onclick="closeModal()">✕</button>
+    <h2 id="modal-title">{{ p.name }}</h2>
+    <p id="modal-desc">{{ p.description }}</p>
+    <div class="modal__price"><span id="modal-amount">{{ p.price_rub }} ₽</span></div>
+    <div id="modal-customer-field" class="modal__field">
+      <label for="modal-customer">Telegram ID (для активации подписки):</label>
+      <input id="modal-customer" type="text" placeholder="напишите боту /pay или введите ID вручную" />
+    </div>
+    <p class="modal__methods">💳 Карта · 📱 СБП · 🔒 ЮKassa</p>
+    <button id="modal-pay-btn" class="btn-buy btn-buy--large">Перейти к оплате</button>
+    <p class="modal__note">После оплаты подписка активируется автоматически.</p>
+  </div>
+</div>
+
+<script>
+const ALL_BUYABLE = {{ buyable | tojson }};
+const urlParams = new URLSearchParams(window.location.search);
+const urlCid = urlParams.get("customer_id");
+const cidInput = document.getElementById("modal-customer");
+const cidField = document.getElementById("modal-customer-field");
+if (urlCid) { cidInput.value = urlCid; cidInput.type = "hidden"; if (cidField) cidField.style.display = "none"; }
+const PAY_BASE = {{ request.base_url | string | tojson }};
+
+document.querySelectorAll(".btn-buy[data-product]").forEach((btn) => {
+  btn.addEventListener("click", () => {
+    const prod = ALL_BUYABLE.find((p) => p.id === btn.dataset.product);
+    if (!prod) return;
+    document.getElementById("modal-amount").textContent = btn.dataset.price + " ₽";
+    document.getElementById("modal-pay-btn").onclick = () => startPayment(prod.id, parseInt(btn.dataset.price));
+    document.getElementById("payment-modal").style.display = "flex";
+  });
+});
+
+async function startPayment(productId, price) {
+  const btn = document.getElementById("modal-pay-btn");
+  const cid = document.getElementById("modal-customer").value.trim();
+  if (!cid) {
+    document.getElementById("modal-desc").textContent = "❌ Укажите Telegram ID — напишите боту /pay или введите ID вручную";
+    return;
+  }
+  btn.textContent = "⏳ Подготовка...";
+  btn.disabled = true;
+  try {
+    const resp = await fetch("/api/create-payment", {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        product_id: productId, amount_rub: price, customer_id: cid,
+        return_url: PAY_BASE.replace(/\/+$/, "") + "/techologis/?payment=success",
+      }),
+    });
+    const data = await resp.json();
+    if (data.confirmation_url) { window.location.href = data.confirmation_url; return; }
+    alert("Ошибка: " + (data.error || "нет ссылки для оплаты"));
+  } catch (e) { alert("Ошибка соединения: " + e.message); }
+  btn.textContent = "Перейти к оплате";
+  btn.disabled = false;
+}
+document.querySelector(".modal__overlay")?.addEventListener("click", () => {
+  document.getElementById("payment-modal").style.display = "none";
+});
+function closeModal() { document.getElementById("payment-modal").style.display = "none"; }
+</script>
+{% endblock %}

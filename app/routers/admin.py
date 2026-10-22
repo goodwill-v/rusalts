@@ -428,6 +428,57 @@ async def api_tariffs_save(
     return JSONResponse({"ok": True, "saved": saved})
 
 
+# ─── Отзывы/кейсы (Этап C2) ──────────────────────────────────────────────
+
+
+@router.get("/admin/api/reviews")
+async def api_reviews(_user: str = Depends(_require_admin_auth)) -> JSONResponse:
+    from app.reviews_store import list_reviews
+
+    return JSONResponse({"ok": True, "reviews": list_reviews(include_hidden=True)})
+
+
+@router.post("/admin/api/reviews")
+async def api_review_save(
+    request: Request, _user: str = Depends(_require_admin_auth)
+):
+    from app.reviews_store import upsert_review
+
+    try:
+        body = await request.json()
+    except Exception:
+        return JSONResponse({"ok": False, "error": "invalid JSON"}, status_code=400)
+    return JSONResponse({"ok": True, "review": upsert_review(body)})
+
+
+@router.delete("/admin/api/reviews/{rid}")
+async def api_review_delete(rid: int, _user: str = Depends(_require_admin_auth)):
+    from app.reviews_store import delete_review
+
+    return JSONResponse({"ok": delete_review(rid)})
+
+
+@router.post("/admin/api/reviews/upload")
+async def api_review_upload(
+    request: Request, _user: str = Depends(_require_admin_auth)
+):
+    """Загрузка картинки отзыва (multipart, ≤5 МБ, png/jpg/webp/gif/svg)."""
+    from app.reviews_store import save_photo
+
+    try:
+        form = await request.form()
+        upload = form.get("file")
+        if upload is None or not getattr(upload, "filename", ""):
+            return JSONResponse({"ok": False, "error": "нет файла"}, status_code=400)
+        content = await upload.read()
+        url = save_photo(upload.filename, content)
+        return JSONResponse({"ok": True, "url": url})
+    except ValueError as e:
+        return JSONResponse({"ok": False, "error": str(e)}, status_code=400)
+    except Exception as e:
+        return JSONResponse({"ok": False, "error": str(e)}, status_code=500)
+
+
 # ─── Диагностики: заглушка (раздел 5.4 ТЗ) ────────────────────────────────
 
 

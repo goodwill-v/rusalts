@@ -25,7 +25,7 @@
         <p><strong>Как оплатить?</strong> Напишите боту команду <code>/pay</code> — он пришлёт ссылку с вашим ID, которая переведёт вас на страницу оплаты.</p>
         <p>Для обсуждения и заказа услуг обращайтесь:</p>
         <p>📧 <strong>Email:</strong> <a class="link" href="mailto:v.devops@yandex.ru">v.devops@yandex.ru</a></p>
-        <p>💬 <strong>Свяжитесь с нами:</strong> <a class="link" href="https://max.ru/u/f9LHodD0cOK6gNMmsDRwupMfH3kwJVLcDcuW3vJK9mV0rvWB36UGey5F3wA">MAX</a></p>
+        <p>💬 <strong>Свяжитесь с нами (MAX):</strong> <a class="link" href="https://max.ru/u/f9LHodD0cOKMhFRsnfRVOT-ChF-0t--tFtjM0b0MwNMgVZQmvpzPQave_6Q">МАКС-профиль АЛТ</a></p>
       </div>
 
       {% if payment_status == "success" %}
@@ -54,7 +54,7 @@
         </div>
         <div class="showcase__grid">
           {% for p in products %}
-          <article class="prod-card" data-status="{{ p.status }}">
+          <article class="prod-card" data-status="{{ p.status }}" data-id="{{ p.id }}">
             <div class="prod-card__media prod-card__media--{{ p.status }}" aria-hidden="true">{{ icons.get(p.id, '🧩') }}</div>
             <div class="prod-card__header">
               {% if p.status == "free" %}
@@ -69,7 +69,8 @@
             </div>
 
             <h3 class="prod-card__title">{{ p.name }}</h3>
-            <p class="prod-card__desc">{{ p.description }}{% if p.detail_url %} <a class="prod-more-link" href="{{ p.detail_url }}">Подробнее</a>{% endif %}</p>
+            {% set more_url = p.detail_url or ('/techologis/p/' ~ p.id ~ '/') %}
+            <p class="prod-card__desc">{{ p.description }} <a class="prod-more-link" href="{{ more_url }}">Подробнее</a></p>
 
             <div class="prod-card__meta">
               {% if p.platform %}
@@ -80,6 +81,13 @@
               {% set d = p.trial_days %}
               {% set dword = 'день' if d == 1 else ('дня' if d < 5 else 'дней') %}
         <a class="prod-meta__trial" href="{{ p.bot_url }}" target="_blank" rel="noopener noreferrer">🎁 {{ d }} {{ dword }} Пробный период{% if tt %} ({{ tt }}){% endif %}</a>
+              {% endif %}
+              {% if p.max_url or p.tg_url or p.vk_url %}
+              <span class="prod-card__messengers">
+                {% if p.max_url %}<a class="prod-meta__platform" href="{{ p.max_url }}" target="_blank" rel="noopener noreferrer" title="Запустить в MAX">🟣 MAX</a>{% endif %}
+                {% if p.tg_url %}<a class="prod-meta__platform" href="{{ p.tg_url }}" target="_blank" rel="noopener noreferrer" title="Запустить в Telegram">🔵 Telegram</a>{% endif %}
+                {% if p.vk_url %}<a class="prod-meta__platform" href="{{ p.vk_url }}" target="_blank" rel="noopener noreferrer" title="Запустить во ВКонтакте">🔷 ВК</a>{% endif %}
+              </span>
               {% endif %}
             </div>
 
@@ -142,7 +150,7 @@
         </div>
         <div class="showcase__grid">
           {% for s in services %}
-          <article class="prod-card" data-status="{{ s.status }}">
+          <article class="prod-card" data-status="{{ s.status }}" data-id="{{ s.id }}">
             <div class="prod-card__media prod-card__media--{{ s.status }}" aria-hidden="true">{{ icons.get(s.id, '🧩') }}</div>
             <div class="prod-card__header">
               {% if s.status == "inquiry" %}
@@ -360,6 +368,21 @@
         </div>
       </div>
 
+      <!-- C2: Отзывы и кейсы -->
+      <section class="showcase__reviews" id="reviews">
+        <h3 class="portfolio-subtitle">💬 Результаты клиентов</h3>
+        <div class="showcase__grid">
+          {% for r in reviews %}
+          <article class="review-card">
+            {% if r.photo_url %}<img class="review-card__photo" src="{{ r.photo_url }}" alt="" loading="lazy" />{% endif %}
+            <div class="review-card__stars">{% for _ in range(r.rating) %}★{% endfor %}</div>
+            <p class="review-card__text">{{ r.text }}</p>
+            <div class="review-card__author">{{ r.author }}{% if r.product_id %} · <code>{{ r.product_id }}</code>{% endif %}</div>
+          </article>
+          {% endfor %}
+        </div>
+      </section>
+
       <p class="showcase__oferta">
         🔄 У платных инструментов — есть пробный период.
         Отмена подписки и возвраты — по правилам
@@ -436,6 +459,61 @@ document.querySelectorAll('.tab-content').forEach(tab => {
           || (f === 'coming' && (st === 'coming' || st === 'beta'));
         card.style.display = show ? '' : 'none';
       });
+    });
+  });
+});
+
+// ─── C3: Квиз подбора ────────────────────────────────────────────────────
+const QUIZ_MATRIX = {
+  // канал + боль → [product_id, почему]
+  "max|support": ["neyrosotrudnik", "ИИ-ассистент в MAX закрывает типовые вопросы 24/7"],
+  "max|monitor": ["vezhpom", "ВежПом присылает уведомления о сбоях прямо в MAX"],
+  "max|content": ["ozhivlenie", "Оживление возвращает и обновляет контент канала в MAX"],
+  "max|law": ["alt_expert", "АЛТ-эксперт отвечает на правовые вопросы в вашем MAX"],
+  "tg|support": ["italidia", "Ассистент в Telegram с памятью и голосом — эталон поддержки диалога"],
+  "tg|monitor": ["vezhpom", "ВежПом мониторит серверы и шлёт сводки в чат"],
+  "tg|content": ["italidia", "Итальянская практика — если контент про язык; иначе НейроСотрудник (скоро)"],
+  "tg|law": ["alt_expert", "АЛТ-эксперт консультирует по 152-ФЗ/168-ФЗ в чате"],
+  "vk|support": ["alt_expert", "АЛТ-эксперт работает в ВК и на сайте"],
+  "vk|monitor": ["vezhpom", "Мониторинг с уведомлениями в удобный канал"],
+  "vk|content": ["ozhivlenie", "Оживление — контент и переупаковка для соцсетей"],
+  "vk|law": ["alt_expert", "Правовые консультации без выхода из ВК"],
+  "site|support": ["neyrosotrudnik", "НейроСотрудник подключается к сайту и почте (скоро)"],
+  "site|monitor": ["vezhpom", "Классический мониторинг HTTP/HTTPS, ping, портов"],
+  "site|content": ["openclaw", "OpenClaw — универсальный ИИ-агент под ваши процессы"],
+  "site|law": ["anketa_diagnostics", "Начните с аудита: PDF-отчёт по процессам и комплаенсу"],
+};
+
+let quizAnswers = [];
+document.querySelectorAll("#quiz .quiz__step").forEach((step) => {
+  step.querySelectorAll(".quiz__opts button").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      quizAnswers.push(btn.dataset.a);
+      step.hidden = true;
+      const next = document.querySelector(`#quiz .quiz__step[data-step="${quizAnswers.length + 1}"]`);
+      if (next) { next.hidden = false; return; }
+      // результат
+      const key = quizAnswers[0] + "|" + quizAnswers[1];
+      const hit = QUIZ_MATRIX[key] || ["anketa_diagnostics", "Под вашу комбинацию лучше всего подходит аудит процессов"];
+      const card = document.querySelector(`.prod-card[data-id="${hit[0]}"]`);
+      const trialWanted = quizAnswers[2] === "trial";
+      let html = `<p style="margin:0 0 0.5rem"><strong>Рекомендуем: ${esc(hit[0] === "anketa_diagnostics" ? "Анализ процессов предприятия" : (card ? card.querySelector(".prod-card__title").textContent : hit[0]))}</strong><br>${esc(hit[1])}</p>`;
+      if (card) {
+        card.scrollIntoView({ behavior: "smooth", block: "center" });
+        card.style.boxShadow = "0 0 0 3px var(--site-accent)";
+        setTimeout(() => { card.style.boxShadow = ""; }, 2500);
+        html += `<p style="margin:0"><a href="#tab-products" onclick="document.getElementById('tab-products').classList.add('is-active');return false;">Смотреть карточку ↑</a>`;
+        if (trialWanted) {
+          const trialBtn = card.querySelector(".prod-meta__trial");
+          if (trialBtn) html += ` · <a href="${trialBtn.href}" target="_blank" rel="noopener">Запустить пробный период →</a>`;
+        }
+        html += "</p>";
+      } else {
+        html += `<p style="margin:0"><a href="/diagnostics/paid-form/">Подробнее об аудите →</a></p>`;
+      }
+      const res = document.querySelector("#quiz .quiz__result");
+      res.innerHTML = html;
+      res.hidden = false;
     });
   });
 });

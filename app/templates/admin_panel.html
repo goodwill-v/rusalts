@@ -87,7 +87,40 @@
         </div>
       </div>
 
-      <div class="admin-panel" id="prod-form-panel" hidden>
+            <div class="admin-panel">
+        <h2>💬 Отзывы и кейсы (витрина → «Результаты клиентов»)</h2>
+        <p class="admin-note">Абстрактные отзывы — заглушки до появления реальных. Графика: до 5 МБ, png/jpg/webp/gif/svg.</p>
+        <div class="admin-actions" style="margin:0.5rem 0 0.75rem">
+          <button class="admin-btn admin-btn--action" id="rv-new">＋ Добавить отзыв</button>
+          <button class="admin-btn" id="rv-refresh">↻ Обновить</button>
+          <span class="admin-msg" id="rv-msg"></span>
+        </div>
+        <div class="admin-table-wrap">
+          <table class="admin-table">
+            <thead><tr><th>ID</th><th>Продукт</th><th>Автор</th><th>Текст</th><th>★</th><th>Статус</th><th>Фото</th><th>Действия</th></tr></thead>
+            <tbody id="rv-tbody"></tbody>
+          </table>
+        </div>
+
+        <div class="admin-form-grid" id="rv-form" hidden style="margin-top:0.75rem">
+          <div class="admin-field"><label>ID (авто для нового)</label><input id="rvf-id" disabled /></div>
+          <div class="admin-field"><label>product_id (пусто = общий)</label><input id="rvf-product" placeholder="vezhpom" /></div>
+          <div class="admin-field"><label>Автор</label><input id="rvf-author" placeholder="Имя, роль" /></div>
+          <div class="admin-field"><label>Рейтинг 1–5</label><input id="rvf-rating" type="number" min="1" max="5" value="5" /></div>
+          <div class="admin-field" style="grid-column:1/-1"><label>Текст отзыва</label><textarea id="rvf-text" rows="3"></textarea></div>
+          <div class="admin-field"><label>Статус</label><select id="rvf-status"><option value="approved">Опубликован</option><option value="draft">Черновик</option></select></div>
+          <div class="admin-field"><label>Графика (файл)</label><input id="rvf-photo-file" type="file" accept="image/*" /></div>
+          <div class="admin-field" style="grid-column:1/-1"><label>URL фото (заполняется загрузкой или вручную)</label><input id="rvf-photo" placeholder="/uploads/reviews/..." /></div>
+          <div class="admin-field"><label>Абстрактный (заглушка)</label><select id="rvf-abstract"><option value="0">нет</option><option value="1">да</option></select></div>
+        </div>
+        <div class="admin-actions" id="rv-form-actions" hidden>
+          <button class="admin-btn admin-btn--action" id="rv-save">💾 Сохранить</button>
+          <button class="admin-btn" id="rv-cancel">Отмена</button>
+          <span class="admin-msg" id="rvf-msg"></span>
+        </div>
+      </div>
+
+<div class="admin-panel" id="prod-form-panel" hidden>
         <h2 id="prod-form-title">Товар</h2>
         <div class="admin-form-grid">
           <div class="admin-field">
@@ -413,6 +446,7 @@ document.querySelectorAll(".admin-tab-btn").forEach((btn) => {
       loaded[btn.dataset.tab] = true;
       const loaders = { products: loadProducts, billing: loadBilling, content: loadContentTab, diagnostics: loadDiagnostics, pagecontent: loadContentBlocks };
       if (loaders[btn.dataset.tab]) loaders[btn.dataset.tab]();
+      if (btn.dataset.tab === 'products') loadReviews();
     }
   });
 });
@@ -732,6 +766,82 @@ $("#tar-save").addEventListener("click", async () => {
 // тарифы грузим вместе с биллингом
 const _loadBillingBase = loadBilling;
 loadBilling = async () => { await Promise.all([_loadBillingBase(), loadTariffs()]); };
+
+// ─── C2: Отзывы ──────────────────────────────────────────────────────────
+let rvEditId = null;
+
+async function loadReviews() {
+  const data = await api("/admin/api/reviews");
+  $("#rv-tbody").innerHTML = (data.reviews || []).map((r) => `
+    <tr>
+      <td>${r.id}</td><td><code>${esc(r.product_id || "—")}</code></td>
+      <td>${esc(r.author)}</td>
+      <td style="max-width:280px"><small>${esc(r.text.slice(0, 120))}${r.text.length > 120 ? "…" : ""}</small></td>
+      <td>${r.rating}</td><td>${r.status === "approved" ? "✓ опубл." : "черновик"}${r.is_abstract ? " <small>(абстракт)</small>" : ""}</td>
+      <td>${r.photo_url ? `<a href="${esc(r.photo_url)}" target="_blank">🖼</a>` : "—"}</td>
+      <td style="white-space:nowrap">
+        <button class="admin-btn admin-btn--small" onclick='editReview(${JSON.stringify(r).replace(/'/g, "&#39;")})'>Изменить</button>
+        <button class="admin-btn admin-btn--small admin-btn--danger" onclick="removeReview(${r.id})">Удалить</button>
+      </td>
+    </tr>`).join("") || '<tr><td colspan="8" class="admin-note">Отзывов нет.</td></tr>';
+}
+
+window.editReview = (r) => {
+  rvEditId = r.id;
+  $("#rvf-id").value = r.id;
+  $("#rvf-product").value = r.product_id || "";
+  $("#rvf-author").value = r.author || "";
+  $("#rvf-text").value = r.text || "";
+  $("#rvf-rating").value = r.rating || 5;
+  $("#rvf-status").value = r.status || "draft";
+  $("#rvf-photo").value = r.photo_url || "";
+  $("#rvf-abstract").value = r.is_abstract ? "1" : "0";
+  $("#rv-form").hidden = false; $("#rv-form-actions").hidden = false;
+  $("#rv-form").scrollIntoView({ behavior: "smooth" });
+};
+
+$("#rv-new").addEventListener("click", () => {
+  rvEditId = null;
+  $("#rvf-id").value = "";
+  ["rvf-product","rvf-author","rvf-text","rvf-photo"].forEach((id) => $("#" + id).value = "");
+  $("#rvf-rating").value = 5; $("#rvf-status").value = "approved"; $("#rvf-abstract").value = "0";
+  $("#rv-form").hidden = false; $("#rv-form-actions").hidden = false;
+});
+
+$("#rv-cancel").addEventListener("click", () => { $("#rv-form").hidden = true; $("#rv-form-actions").hidden = true; });
+
+$("#rvf-photo-file").addEventListener("change", async (e) => {
+  const file = e.target.files[0];
+  if (!file) return;
+  const fd = new FormData(); fd.append("file", file);
+  const res = await fetch("/admin/api/reviews/upload", { method: "POST", body: fd });
+  const data = await res.json();
+  if (data.ok) { $("#rvf-photo").value = data.url; setMsg($("#rv-msg"), "Фото загружено ✓", true); }
+  else setMsg($("#rv-msg"), data.error || "Ошибка загрузки", false);
+});
+
+$("#rv-save").addEventListener("click", async () => {
+  try {
+    await api("/admin/api/reviews", { method: "POST", body: JSON.stringify({
+      id: rvEditId || 0,
+      product_id: $("#rvf-product").value, author: $("#rvf-author").value,
+      text: $("#rvf-text").value, rating: +$("#rvf-rating").value || 5,
+      photo_url: $("#rvf-photo").value, status: $("#rvf-status").value,
+      is_abstract: $("#rvf-abstract").value,
+    })});
+    $("#rv-form").hidden = true; $("#rv-form-actions").hidden = true;
+    setMsg($("#rv-msg"), "Сохранено ✓", true);
+    loadReviews();
+  } catch (e) { setMsg($("#rvf-msg"), "Ошибка: " + e.message, false); }
+});
+
+window.removeReview = async (rid) => {
+  if (!confirm("Удалить отзыв " + rid + "?")) return;
+  await api("/admin/api/reviews/" + rid, { method: "DELETE" });
+  loadReviews();
+};
+
+$("#rv-refresh").addEventListener("click", loadReviews);
 
 // ─── Таб 6: Диагностики ──────────────────────────────────────────────────
 function diagResultCell(d) {
