@@ -37,10 +37,14 @@ def _connect() -> sqlite3.Connection:
             created_at TEXT NOT NULL DEFAULT (datetime('now'))
         )"""
     )
-    # обратная совместимость БД, созданной до появления result
+    # обратная совместимость БД, созданной до появления result/followup
     cols = {r[1] for r in db.execute("PRAGMA table_info(diagnostics)").fetchall()}
     if "result" not in cols:
         db.execute("ALTER TABLE diagnostics ADD COLUMN result TEXT NOT NULL DEFAULT ''")
+    if "followup_stage" not in cols:
+        db.execute("ALTER TABLE diagnostics ADD COLUMN followup_stage INTEGER NOT NULL DEFAULT 0")
+    if "unsubscribed" not in cols:
+        db.execute("ALTER TABLE diagnostics ADD COLUMN unsubscribed INTEGER NOT NULL DEFAULT 0")
     return db
 
 
@@ -92,3 +96,44 @@ def list_diagnostics(limit: int = 200) -> list[dict[str, Any]]:
             d["result"] = {}
         items.append(d)
     return items
+
+
+def set_followup_stage(diag_id: int, stage: int) -> None:
+    with closing(_connect()) as db:
+        db.execute(
+            "UPDATE diagnostics SET followup_stage = ? WHERE id = ?", (stage, diag_id)
+        )
+        db.commit()
+
+
+def set_unsubscribed(diag_id: int) -> None:
+    with closing(_connect()) as db:
+        db.execute(
+            "UPDATE diagnostics SET unsubscribed = 1 WHERE id = ?", (diag_id,)
+        )
+        db.commit()
+
+
+def is_unsubscribed(diag_id: int) -> bool:
+    with closing(_connect()) as db:
+        row = db.execute(
+            "SELECT unsubscribed FROM diagnostics WHERE id = ?", (diag_id,)
+        ).fetchone()
+    return bool(row and row["unsubscribed"])
+
+
+def list_followup_candidates(*, stage: int, min_age_days: int, limit: int = 50) -> list[dict[str, Any]]:
+    """Заявки для письма цепочки: нужная стадия, возраст ≥ N дней, не отписаны."""
+    with closing(_connect()) as db:
+        rows = db.execute(
+            """SELECT id, kind, name, email, followup_stage, unsubscribed,
+                      created_at,
+                      CAST(strftime('%s','now') - strftime('%s', created_at) AS INTEGER) AS age_days
+               FROM diagnostics
+               WHERE followup_stage = ? AND unsubscribed = 0
+                 AND email != ''
+                 AND CAST(strftime('%s','now') - strftime('%s', created_at) AS INTEGER) >= ?
+               ORDER BY id LIMIT ?""",
+            (stage, min_age_days * 86400, limit),
+        ).fetchall()
+    return [dict(r) for r in rows]

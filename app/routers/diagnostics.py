@@ -13,7 +13,7 @@ from fastapi.responses import JSONResponse
 from pydantic import BaseModel, Field
 
 from app import config
-from app.diagnostics_pdf import build_paid_report
+from app.diagnostics_pdf import build_free_summary_pdf, build_paid_report
 from app.max_notify import format_lead_message, notify_max
 from app.diagnostics_scoring import summarize
 from app.diagnostics_store import save_diagnostic, set_pdf_path
@@ -36,12 +36,12 @@ class DiagnosticSubmission(BaseModel):
     answers: dict = Field(default_factory=dict)
 
 
-def _send_mail_safe(to: str, subject: str, body: str) -> bool:
+def _send_mail_safe(to: str, subject: str, body: str, attachment: str | None = None) -> bool:
     """SMTP-отправка; без настроенного SMTP — заглушка в лог (не ломает отправку формы)."""
     try:
         from app.chief_mail import send_email
 
-        send_email(to=to, subject=subject, body=body)
+        send_email(to=to, subject=subject, body=body, attachment=attachment)
         return True
     except RuntimeError:
         # SMTP не настроен — заглушка (разработка/CI)
@@ -56,7 +56,8 @@ def _client_email(kind: str, diag_id: int, name: str, email: str, result: dict, 
     title = KIND_TITLES.get(kind, kind)
     lines = [f"{name}, здравствуйте!", "", f"Это отчёт по заявке №{diag_id} «{title}» (сайт АЛТ)."]
     if kind == "free" and result.get("type") == "scores":
-        lines += ["", "Ваши баллы (0–100, чем меньше — тем лучше):"]
+        lines += ["", "Краткий отчёт со шкалами — во вложении (PDF).", "",
+                  "Ваши баллы (0–100, чем меньше — тем лучше):"]
         for scale, v in result["scales"].items():
             lines.append(f"  • {scale}: {v}")
         lines.append(f"  ИТОГО: {result['total']} — {result['level_text']}")
@@ -129,11 +130,21 @@ async def _submit(kind: str, body: DiagnosticSubmission) -> JSONResponse:
             set_pdf_path(diag_id, pdf_path)
         except Exception as e:
             print(f"[DIAGNOSTICS PDF ERROR] id={diag_id}: {e}")
+    elif kind == "free":
+        try:  # B3: PDF-саммари шкал — вложением в письмо клиенту
+            pdf_path = build_free_summary_pdf(
+                diag_id, name=body.name.strip(), scores=result
+            ) or ""
+            if pdf_path:
+                set_pdf_path(diag_id, pdf_path)
+        except Exception as e:
+            print(f"[DIAGNOSTICS SUMMARY PDF ERROR] id={diag_id}: {e}")
 
     _send_mail_safe(
         email,
         f"АЛТ: {KIND_TITLES.get(kind, kind)} — результат (заявка №{diag_id})",
         _client_email(kind, diag_id, body.name.strip(), email, result, pdf_path),
+        attachment=pdf_path or None,
     )
     _send_mail_safe(
         config.CHIEF_EMAIL_TO,
@@ -188,3 +199,4 @@ async def submit_your_business(body: DiagnosticSubmission) -> JSONResponse:
 @router.post("/paid")
 async def submit_paid(body: DiagnosticSubmission) -> JSONResponse:
     return await _submit("paid", body)
+
