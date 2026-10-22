@@ -269,8 +269,7 @@ class ChatResponse(BaseModel):
     used_llm: bool = False
 
 
-@router.post("/chat", response_model=ChatResponse)
-async def chat(request: Request, body: ChatRequest) -> ChatResponse:
+async def _chat_impl(request: Request, body: ChatRequest) -> ChatResponse:
     global _KB_ARTICLES, _TRIGGERS, _TEMPLATES_BUNDLE
     rid = getattr(request.state, "request_id", uuid.uuid4().hex)
     text = body.message.strip()
@@ -515,6 +514,46 @@ async def chat(request: Request, body: ChatRequest) -> ChatResponse:
         "Не нашёл надёжных источников по вашему вопросу.\n\n" + _support_cta()
     )
     return ChatResponse(reply=fallback, request_id=rid, sources=[], used_llm=False)
+
+
+
+@router.post("/chat", response_model=ChatResponse)
+async def chat(request: Request, body: ChatRequest) -> ChatResponse:
+    """Единая точка /api/chat: ответ + лента диалогов (админка) + лиды в МАКС."""
+    response = await _chat_impl(request, body)
+    try:
+        from app import expert_dialogs_store as eds
+
+        session_key = (body.user_id or "").strip() or "anonymous"
+        lead = eds.detect_lead(body.message)
+        already_notified = eds.session_lead_notified(session_key)
+        eds.log_message(
+            session_key=session_key, role="user", text=body.message,
+            user_id=body.user_id or "", channel=body.channel or "",
+            platform=body.platform or "",
+            is_lead=bool(lead), lead_contact=lead,
+        )
+        eds.log_message(
+            session_key=session_key, role="assistant", text=response.reply,
+            user_id=body.user_id or "", channel=body.channel or "",
+            platform=body.platform or "",
+        )
+        if lead and not already_notified:
+            from app.max_notify import notify_max
+
+            await notify_max(
+                "🆕 Лид в чате АЛТ-эксперта\n"
+                f"👤 Диалог {session_key[:16]}\n"
+                f"📧 {lead}\n"
+                f"💬 {(body.message or '')[:120]}"
+            )
+    except Exception as e:  # телеметрия не ломает чат
+        try:
+            from app.observability import json_log
+            json_log({"type": "expert_dialog_log_failed", "error": str(e)[:200]})
+        except Exception:
+            pass
+    return response
 
 
 @router.get("/kb/search")

@@ -512,6 +512,32 @@ async def api_review_upload(
         return JSONResponse({"ok": False, "error": str(e)}, status_code=500)
 
 
+# ─── Диалоги эксперта (решение Шефа 22.10) ───────────────────────────────
+
+
+@router.get("/admin/api/expert-dialogs")
+async def api_expert_dialogs(
+    search: str = "", leads: str = "", _user: str = Depends(_require_admin_auth)
+) -> JSONResponse:
+    from app import expert_dialogs_store as eds
+
+    sessions = eds.list_sessions(
+        search=search.strip(), leads_only=leads in ("1", "true", "yes")
+    )
+    return JSONResponse({"ok": True, "sessions": sessions, "stats": eds.stats()})
+
+
+@router.get("/admin/api/expert-dialogs/{session_key}")
+async def api_expert_dialog_thread(
+    session_key: str, _user: str = Depends(_require_admin_auth)
+) -> JSONResponse:
+    from app import expert_dialogs_store as eds
+
+    return JSONResponse(
+        {"ok": True, "messages": eds.get_session_messages(session_key)}
+    )
+
+
 # ─── Диагностики: заглушка (раздел 5.4 ТЗ) ────────────────────────────────
 
 
