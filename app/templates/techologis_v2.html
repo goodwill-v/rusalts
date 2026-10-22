@@ -381,6 +381,23 @@
           </article>
           {% endfor %}
         </div>
+        <details class="showcase__quiz" style="margin-top:1rem">
+          <summary>✍️ Уже работаете с инструментами АЛТ? Оставьте отзыв (2 минуты)</summary>
+          <div class="quiz__body">
+            <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:0.6rem">
+              <input id="rvs-author" placeholder="Ваше имя (можно без фамилии)" style="font:inherit;padding:0.5rem 0.65rem;border:1px solid var(--site-border);border-radius:8px" />
+              <input id="rvs-product" placeholder="Продукт (vezhpom, italidia…)" style="font:inherit;padding:0.5rem 0.65rem;border:1px solid var(--site-border);border-radius:8px" />
+              <select id="rvs-rating" style="font:inherit;padding:0.5rem 0.65rem;border:1px solid var(--site-border);border-radius:8px">
+                <option value="5">★★★★★</option><option value="4">★★★★</option><option value="3">★★★</option>
+              </select>
+            </div>
+            <textarea id="rvs-text" rows="3" placeholder="Что попробовали и что получилось…" style="width:100%;margin-top:0.6rem;font:inherit;padding:0.5rem 0.65rem;border:1px solid var(--site-border);border-radius:8px;box-sizing:border-box"></textarea>
+            <div class="admin-actions" style="margin-top:0.5rem">
+              <button class="btn-buy" id="rvs-send">Отправить на проверку</button>
+              <span class="muted-site" id="rvs-msg"></span>
+            </div>
+          </div>
+        </details>
       </section>
 
       <p class="showcase__oferta">
@@ -407,6 +424,11 @@
     <div id="modal-customer-field" class="modal__field">
       <label for="modal-customer">Telegram ID (для активации подписки):</label>
       <input id="modal-customer" type="text" placeholder="напишите боту /pay или введите ID вручную" />
+    </div>
+    <div class="modal__field">
+      <label for="modal-promo">Промокод (если есть):</label>
+      <input id="modal-promo" type="text" placeholder="например, ALTAUTUMN" style="text-transform:uppercase" />
+      <span id="modal-promo-status" class="muted-site" style="font-size:0.8rem"></span>
     </div>
     <p class="modal__methods">💳 Карта · 📱 СБП · 🔒 ЮKassa</p>
     <p class="modal__warning">⚠️ Начните оплату из своего профиля Telegram, чтобы присвоить подписку вашему ID</p>
@@ -526,9 +548,39 @@ async function openPayment(productId, price) {
   document.getElementById('modal-desc').textContent = prod.description;
   const periodLabel = (prod.period_days && prod.period_days !== 30) ? '/' + prod.period_days + ' дн.' : (prod.period_days === 30 ? '/мес' : ' / разово');
   document.getElementById('modal-amount').textContent = price + ' ₽' + periodLabel;
+  window._payPeriodLabel = periodLabel || '';
   document.getElementById('modal-pay-btn').onclick = () => startPayment(productId, price);
+  // C4: сброс промокода при новом открытии модалки
+  window._currentPayProduct = productId;
+  window._promoFinal = null;
+  document.getElementById('modal-promo').value = '';
+  document.getElementById('modal-promo-status').textContent = '';
   document.getElementById('payment-modal').style.display = 'flex';
 }
+
+// C4: промокод — серверная валидация и пересчёт суммы
+document.getElementById('modal-promo').addEventListener('change', async (e) => {
+  const statusEl = document.getElementById('modal-promo-status');
+  const code = e.target.value.trim();
+  const pid = window._currentPayProduct;
+  if (!code || !pid) { statusEl.textContent = ''; window._promoFinal = null; return; }
+  statusEl.textContent = 'Проверяем…';
+  try {
+    const resp = await fetch('/api/promo/validate', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ product_id: pid, promo_code: code })
+    });
+    const data = await resp.json();
+    if (data.final_rub !== undefined) {
+      window._promoFinal = data;
+      statusEl.textContent = '✓ Скидка ' + data.discount_rub + ' ₽ — к оплате ' + data.final_rub + ' ₽';
+      document.getElementById('modal-amount').textContent = data.final_rub + ' ₽' + (window._payPeriodLabel || '');
+    } else {
+      window._promoFinal = null;
+      statusEl.textContent = '✗ ' + (data.error || 'Промокод недействителен');
+    }
+  } catch (err) { window._promoFinal = null; statusEl.textContent = 'Ошибка проверки'; }
+});
 
 async function startPayment(productId, price) {
   const btn = document.getElementById('modal-pay-btn');
@@ -549,6 +601,7 @@ async function startPayment(productId, price) {
         product_id: productId,
         amount_rub: price,
         customer_id: document.getElementById('modal-customer').value.trim(),
+        promo_code: document.getElementById('modal-promo').value.trim(),
         return_url: PAY_BASE.replace(/\/+$/, '') + '/techologis/?payment=success'
       })
     });
@@ -579,5 +632,26 @@ document.querySelectorAll('.btn-buy[data-product]').forEach(btn => {
 
 // Close modal on overlay click
 document.querySelector('.modal__overlay')?.addEventListener('click', closeModal);
+
+// ─── Форма отзыва (C2) ───────────────────────────────────────────────────
+document.getElementById("rvs-send")?.addEventListener("click", async () => {
+  const msg = document.getElementById("rvs-msg");
+  try {
+    const resp = await fetch("/api/reviews/submit", {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        author: document.getElementById("rvs-author").value.trim(),
+        product_id: document.getElementById("rvs-product").value.trim(),
+        rating: +document.getElementById("rvs-rating").value || 5,
+        text: document.getElementById("rvs-text").value.trim(),
+      }),
+    });
+    const data = await resp.json();
+    if (data.ok) {
+      msg.textContent = data.message;
+      document.getElementById("rvs-text").value = "";
+    } else msg.textContent = data.error || "Не удалось отправить";
+  } catch (e) { msg.textContent = "Ошибка соединения"; }
+});
 </script>
 {% endblock %}

@@ -253,6 +253,37 @@
       </div>
 
       <div class="admin-panel">
+        <h2>🎟 Промокоды (скидки при оплате)</h2>
+        <p class="admin-note">percent — % от цены тарифа; fixed — ₽. product_id пусто = на все продукты. Лимит 0 = без ограничений. Пересчёт цены — на сервере.</p>
+        <div class="admin-actions" style="margin:0.5rem 0 0.75rem">
+          <button class="admin-btn admin-btn--action" id="pm-new">＋ Создать промокод</button>
+          <button class="admin-btn" id="pm-refresh">↻ Обновить</button>
+          <span class="admin-msg" id="pm-msg"></span>
+        </div>
+        <div class="admin-table-wrap">
+          <table class="admin-table">
+            <thead><tr><th>Код</th><th>Скидка</th><th>Продукт</th><th>Действует до</th><th>Лимит</th><th>Использован</th><th>Заметка</th><th></th></tr></thead>
+            <tbody id="pm-tbody"></tbody>
+          </table>
+        </div>
+
+        <div class="admin-form-grid" id="pm-form" hidden style="margin-top:0.75rem">
+          <div class="admin-field"><label>Код (A-Z0-9)</label><input id="pmf-code" placeholder="ALTAUTUMN" style="text-transform:uppercase" /></div>
+          <div class="admin-field"><label>Тип скидки</label><select id="pmf-type"><option value="percent">percent (%)</option><option value="fixed">fixed (₽)</option></select></div>
+          <div class="admin-field"><label>Величина (1–99 % или ₽)</label><input id="pmf-value" type="number" min="1" value="10" /></div>
+          <div class="admin-field"><label>product_id (пусто = все)</label><input id="pmf-product" placeholder="vezhpom" /></div>
+          <div class="admin-field"><label>Действует до (YYYY-MM-DD, пусто = бессрочно)</label><input id="pmf-until" type="date" /></div>
+          <div class="admin-field"><label>Лимит применений (0 = без лимита)</label><input id="pmf-max" type="number" min="0" value="0" /></div>
+          <div class="admin-field" style="grid-column:1/-1"><label>Заметка (для себя)</label><input id="pmf-note" /></div>
+        </div>
+        <div class="admin-actions" id="pm-form-actions" hidden>
+          <button class="admin-btn admin-btn--action" id="pm-save">💾 Сохранить</button>
+          <button class="admin-btn" id="pm-cancel">Отмена</button>
+          <span class="admin-msg" id="pmf-msg"></span>
+        </div>
+      </div>
+
+      <div class="admin-panel">
         <h2>📊 Сводка</h2>
         <div class="admin-grid" id="bl-stats"></div>
       </div>
@@ -447,6 +478,7 @@ document.querySelectorAll(".admin-tab-btn").forEach((btn) => {
       const loaders = { products: loadProducts, billing: loadBilling, content: loadContentTab, diagnostics: loadDiagnostics, pagecontent: loadContentBlocks };
       if (loaders[btn.dataset.tab]) loaders[btn.dataset.tab]();
       if (btn.dataset.tab === 'products') loadReviews();
+      if (btn.dataset.tab === 'billing') loadPromos();
     }
   });
 });
@@ -842,6 +874,68 @@ window.removeReview = async (rid) => {
 };
 
 $("#rv-refresh").addEventListener("click", loadReviews);
+
+// ─── Промокоды (C4) ──────────────────────────────────────────────────────
+let pmEditId = null;
+
+async function loadPromos() {
+  const data = await api("/admin/api/promos");
+  $("#pm-tbody").innerHTML = (data.promos || []).map((r) => `
+    <tr>
+      <td><strong>${esc(r.code)}</strong></td>
+      <td>${r.discount_type === "percent" ? r.discount_value + "%" : r.discount_value + " ₽"}</td>
+      <td><code>${esc(r.product_id || "все")}</code></td>
+      <td>${esc(r.valid_until || "—")}</td>
+      <td>${r.max_uses || "∞"}</td>
+      <td>${r.used_count}</td>
+      <td><small>${esc(r.note || "")}</small></td>
+      <td style="white-space:nowrap">
+        <button class="admin-btn admin-btn--small" onclick='editPromo(${JSON.stringify(r).replace(/'/g, "&#39;")})'>Изменить</button>
+        <button class="admin-btn admin-btn--small admin-btn--danger" onclick="removePromo(${r.id})">Удалить</button>
+      </td>
+    </tr>`).join("") || '<tr><td colspan="8" class="admin-note">Промокодов нет.</td></tr>';
+}
+
+window.editPromo = (r) => {
+  pmEditId = r.id;
+  $("#pmf-code").value = r.code; $("#pmf-type").value = r.discount_type;
+  $("#pmf-value").value = r.discount_value; $("#pmf-product").value = r.product_id || "";
+  $("#pmf-until").value = (r.valid_until || "").slice(0, 10);
+  $("#pmf-max").value = r.max_uses || 0; $("#pmf-note").value = r.note || "";
+  $("#pm-form").hidden = false; $("#pm-form-actions").hidden = false;
+  $("#pm-form").scrollIntoView({ behavior: "smooth" });
+};
+
+$("#pm-new").addEventListener("click", () => {
+  pmEditId = null;
+  ["pmf-code","pmf-product","pmf-until","pmf-note"].forEach((id) => $("#" + id).value = "");
+  $("#pmf-type").value = "percent"; $("#pmf-value").value = 10; $("#pmf-max").value = 0;
+  $("#pm-form").hidden = false; $("#pm-form-actions").hidden = false;
+});
+
+$("#pm-cancel").addEventListener("click", () => { $("#pm-form").hidden = true; $("#pm-form-actions").hidden = true; });
+
+$("#pm-save").addEventListener("click", async () => {
+  try {
+    await api("/admin/api/promos", { method: "POST", body: JSON.stringify({
+      id: pmEditId || 0, code: $("#pmf-code").value, discount_type: $("#pmf-type").value,
+      discount_value: +$("#pmf-value").value || 0, product_id: $("#pmf-product").value,
+      valid_until: $("#pmf-until").value, max_uses: +$("#pmf-max").value || 0,
+      note: $("#pmf-note").value,
+    })});
+    $("#pm-form").hidden = true; $("#pm-form-actions").hidden = true;
+    setMsg($("#pm-msg"), "Сохранено ✓", true);
+    loadPromos();
+  } catch (e) { setMsg($("#pmf-msg"), "Ошибка: " + e.message, false); }
+});
+
+window.removePromo = async (pid) => {
+  if (!confirm("Удалить промокод?")) return;
+  await api("/admin/api/promos/" + pid, { method: "DELETE" });
+  loadPromos();
+};
+
+$("#pm-refresh").addEventListener("click", loadPromos);
 
 // ─── Таб 6: Диагностики ──────────────────────────────────────────────────
 function diagResultCell(d) {

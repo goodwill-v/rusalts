@@ -20,11 +20,13 @@ from app.diagnostics_store import (
 
 logger = logging.getLogger(__name__)
 
-STAGE_CASE_SENT = 1   # письмо «кейс» отправлено
-STAGE_OFFER_SENT = 2  # письмо «оффер» отправлено (цепочка завершена)
+STAGE_CASE_SENT = 1     # письмо «кейс» отправлено
+STAGE_OFFER_SENT = 2    # письмо «оффер» отправлено
+STAGE_FEEDBACK_SENT = 3 # письмо-запрос отзыва отправлено (цепочка завершена)
 
 CASE_DELAY_DAYS = 2
 OFFER_DELAY_DAYS = 5
+FEEDBACK_DELAY_DAYS = 7
 
 
 def unsub_token(diag_id: int) -> str:
@@ -100,9 +102,33 @@ def _send(to: str, subject: str, body: str) -> bool:
         return False
 
 
+def _feedback_email(name: str, link: str) -> tuple[str, str]:
+    subject = "АЛТ: как вам помощь? 2 минуты на отзыв"
+    body = "\n".join([
+        f"{name}, здравствуйте!",
+        "",
+        "Неделю назад вы проходили диагностику АЛТ. Если рекомендации или инструменты",
+        "уже пригодились — расскажите, что сработало. Ваш опыт поможет другим",
+        "решиться на первый шаг.",
+        "",
+        "Оставить отзыв (2 минуты): https://rusalts.ru/techologis/#reviews",
+        "  • что попробовали и что получилось;",
+        "  • сколько времени/денег сэкономили (примерно);",
+        "  • что улучшить.",
+        "",
+        "Публикуем только с вашего согласия и без фамилий, если попросите.",
+        "",
+        "Спасибо!",
+        "",
+        "—", "АЛТ — Альтернативные Легальные Технологии", "https://rusalts.ru",
+        "", f"Отписаться от писем: {link}",
+    ])
+    return subject, body
+
+
 def followup_tick() -> dict[str, int]:
     """Один проход цепочки. Вызывается фоновым циклом и вручную."""
-    stats = {"case_sent": 0, "offer_sent": 0, "skipped": 0}
+    stats = {"case_sent": 0, "offer_sent": 0, "feedback_sent": 0, "skipped": 0}
 
     for row in list_followup_candidates(
         stage=0, min_age_days=CASE_DELAY_DAYS
@@ -127,6 +153,18 @@ def followup_tick() -> dict[str, int]:
         if _send(row["email"], subject, body):
             set_followup_stage(row["id"], STAGE_OFFER_SENT)
             stats["offer_sent"] += 1
+
+    for row in list_followup_candidates(
+        stage=STAGE_OFFER_SENT, min_age_days=FEEDBACK_DELAY_DAYS
+    ):
+        if is_unsubscribed(row["id"]):
+            set_followup_stage(row["id"], STAGE_FEEDBACK_SENT)
+            stats["skipped"] += 1
+            continue
+        subject, body = _feedback_email(row["name"] or "Коллега", unsub_link(row["id"]))
+        if _send(row["email"], subject, body):
+            set_followup_stage(row["id"], STAGE_FEEDBACK_SENT)
+            stats["feedback_sent"] = stats.get("feedback_sent", 0) + 1
 
     if any(stats.values()):
         logger.info("followup tick: %s", stats)

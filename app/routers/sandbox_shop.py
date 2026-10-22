@@ -133,17 +133,31 @@ async def api_create_payment(request: Request):
 
     product_id = data.get("product_id", "").strip()
     customer_id = data.get("customer_id", "").strip()
-    if product_id not in PRODUCTS:
-        return JSONResponse({"error": f"Unknown product: {product_id}"}, status_code=404)
+    from app.products_store import catalog
+    from app import promo_store
 
-    prod = PRODUCTS[product_id]
+    prod = next((p for p in catalog() if p["id"] == product_id), None)
+    if not prod:
+        return JSONResponse({"error": f"Unknown product: {product_id}"}, status_code=404)
     if prod["status"] in ("free", "inquiry", "coming", "dev"):
         return JSONResponse(
             {"error": f"Product '{prod['name']}' is not available for purchase yet. Status: {prod['status']}"},
             status_code=400,
         )
 
-    amount_rub = data.get("amount_rub", 0) or prod["price_rub"]
+    # Единый источник правды: тариф из БД (админки); клиентская цена игнорируется.
+    # C4: промокод — скидка считается только на сервере.
+    from app.billing import get_tariff
+    tariff = get_tariff(product_id)
+    amount_rub = tariff.price_rub if tariff and tariff.price_rub else prod.get("price_rub", 0)
+    promo_code = str(data.get("promo_code") or "").strip()
+    promo_use: dict = {}
+    if promo_code:
+        check = promo_store.validate(promo_code, product_id, amount_rub)
+        if not check or check.get("error") or "final_rub" not in check:
+            return JSONResponse({"error": (check or {}).get("error") or "Промокод недействителен"}, status_code=400)
+        amount_rub = check["final_rub"]
+        promo_use = check
     # return_url нужен только боевому режиму ЮKassa; берём адрес текущего запроса,
     # чтобы не зависеть от PUBLIC_BASE_URL (staging/IP/туннель).
     base = str(request.base_url).rstrip("/")
@@ -170,6 +184,11 @@ async def api_create_payment(request: Request):
         customer_id=customer_id,
         payment_method_id=pm_id,
     )
+    if promo_use:
+        promo_store.record_use(
+            promo_use["code"], product_id, customer_id,
+            promo_use["original_rub"], promo_use["final_rub"],
+        )
 
     return JSONResponse({
         "payment_id": result["id"],
@@ -177,6 +196,52 @@ async def api_create_payment(request: Request):
         "confirmation_url": result.get("confirmation", {}).get("confirmation_url", ""),
         "test": result.get("test", False),
     })
+
+
+@router.post("/api/promo/validate")
+async def api_promo_validate(request: Request):
+    """Проверить промокод для продукта (без создания платежа)."""
+    try:
+        data = await request.json()
+    except Exception:
+        return JSONResponse({"error": "Invalid JSON"}, status_code=400)
+    from app import promo_store
+    from app.billing import get_tariff
+
+    product_id = str(data.get("product_id") or "").strip()
+    code = str(data.get("promo_code") or "")
+    tariff = get_tariff(product_id)
+    price = tariff.price_rub if tariff and tariff.price_rub else 0
+    if not price:
+        return JSONResponse({"error": "Продукт недоступен для оплаты"}, status_code=400)
+    result = promo_store.validate(code, product_id, price)
+    if not result or result.get("error"):
+        return JSONResponse(result or {"error": "Промокод недействителен"}, status_code=400)
+    return JSONResponse(result)
+
+
+@router.post("/api/reviews/submit")
+async def api_review_submit(request: Request):
+    """Отзыв от клиента — на модерацию (status=draft)."""
+    try:
+        data = await request.json()
+    except Exception:
+        return JSONResponse({"error": "Invalid JSON"}, status_code=400)
+    from app.reviews_store import upsert_review
+
+    text = str(data.get("text") or "").strip()
+    if len(text) < 20:
+        return JSONResponse({"error": "Расскажите чуть подробнее (минимум 20 знаков)"}, status_code=400)
+    review = upsert_review({
+        "author": str(data.get("author") or "").strip()[:120] or "Клиент АЛТ",
+        "text": text[:2000],
+        "rating": data.get("rating") or 5,
+        "product_id": str(data.get("product_id") or "").strip(),
+        "status": "draft",
+    })
+    from app.observability import json_log
+    json_log({"type": "review_submitted", "review_id": review["id"]})
+    return JSONResponse({"ok": True, "message": "Спасибо! Отзыв получен — опубликуем после проверки."})
 
 
 @router.get("/api/payment-demo")
