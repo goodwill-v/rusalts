@@ -128,7 +128,8 @@ def build_paid_report(
         Spacer(1, 12),
         Paragraph(
             "Этот отчёт подготовлен автоматически по анкете №{id}. "
-            "Персональную сессию с разбором проводит Шеф АЛТ — v.devops@yandex.ru.".format(id=diag_id),
+            "Персональную сессию с разбором проводит Шеф АЛТ — "
+            "v.devops@yandex.ru · МАКС: https://max.ru/u/f9LHodD0cOKMhFRsnfRVOT-ChF-0t--tFtjM0b0MwNMgVZQmvpzPQave_6Q".format(id=diag_id),
             small),
     ]
     doc.build(story)
@@ -172,7 +173,8 @@ def build_free_summary_pdf(diag_id: int, *, name: str, scores: dict[str, Any]) -
             Spacer(1, 10),
             Paragraph(
                 "🟢 0–30 — низкий риск · 🟡 31–60 — средний · 🔴 61–100 — высокий. "
-                "Подробные рекомендации — в письме и на консультации: v.devops@yandex.ru", body),
+                "Подробные рекомендации — в письме и на консультации: "
+                "v.devops@yandex.ru · МАКС: https://max.ru/u/f9LHodD0cOKMhFRsnfRVOT-ChF-0t--tFtjM0b0MwNMgVZQmvpzPQave_6Q", body),
         ])
         return str(pdf_path)
     except Exception:

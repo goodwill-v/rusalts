@@ -183,7 +183,11 @@ async def _route_message(*, text: str, triggers: list, templates_bundle: dict | 
 
 
 def _support_cta() -> str:
-    return "Если хотите — обратитесь в Поддержку, чтобы решить вопрос комплексно: v.devops@yandex.ru"
+    return (
+        "Если хотите — обратитесь в Поддержку, чтобы решить вопрос комплексно:\n"
+        "  📧 v.devops@yandex.ru\n"
+        "  💬 МАКС: https://max.ru/u/f9LHodD0cOKMhFRsnfRVOT-ChF-0t--tFtjM0b0MwNMgVZQmvpzPQave_6Q"
+    )
 
 
 def _human_handoff_reply(text: str) -> str:
