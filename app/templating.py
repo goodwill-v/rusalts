@@ -13,3 +13,4 @@ from app.content_blocks import get_block
 
 templates = Jinja2Templates(directory=str(config.BASE_DIR / "app" / "templates"))
 templates.env.globals["content_block"] = get_block
+templates.env.globals["metrika_id"] = config.METRIKA_ID

@@ -38,6 +38,39 @@
       </div>
       {% endif %}
 
+      <!-- C3: Подбор «что подойдёт» -->
+      <details class="showcase__quiz" id="quiz">
+        <summary>🧭 Не знаете, что выбрать? Ответьте на 3 вопроса — подскажем (30 секунд)</summary>
+        <div class="quiz__body">
+          <div class="quiz__step" data-step="1">
+            <p class="quiz__q">1. Где вы общаетесь с клиентами?</p>
+            <div class="quiz__opts">
+              <button data-a="max">🟣 MAX</button>
+              <button data-a="tg">🔵 Telegram</button>
+              <button data-a="vk">🔷 ВКонтакте / соцсети</button>
+              <button data-a="site">🌐 Сайт / почта</button>
+            </div>
+          </div>
+          <div class="quiz__step" data-step="2" hidden>
+            <p class="quiz__q">2. Что съедает больше всего времени?</p>
+            <div class="quiz__opts">
+              <button data-a="support">💬 Ответы на однотипные вопросы</button>
+              <button data-a="monitor">📡 Контроль сайтов/сервисов</button>
+              <button data-a="content">📝 Контент и посты</button>
+              <button data-a="law">⚖️ Документы и законы</button>
+            </div>
+          </div>
+          <div class="quiz__step" data-step="3" hidden>
+            <p class="quiz__q">3. Готовы ли попробовать до оплаты?</p>
+            <div class="quiz__opts">
+              <button data-a="trial">🎁 Да — показать с пробным периодом</button>
+              <button data-a="any">👀 Любой вариант</button>
+            </div>
+          </div>
+          <div class="quiz__result" hidden></div>
+        </div>
+      </details>
+
       <!-- Вкладки -->
       <div class="showcase__tabs">
         <button class="tab-btn is-active" data-tab="products">📦 Продукты (подписки)</button>
@@ -506,6 +539,7 @@ const QUIZ_MATRIX = {
   "site|law": ["anketa_diagnostics", "Начните с аудита: PDF-отчёт по процессам и комплаенсу"],
 };
 
+const quizEsc = (x) => String(x ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
 let quizAnswers = [];
 document.querySelectorAll("#quiz .quiz__step").forEach((step) => {
   step.querySelectorAll(".quiz__opts button").forEach((btn) => {
@@ -519,7 +553,7 @@ document.querySelectorAll("#quiz .quiz__step").forEach((step) => {
       const hit = QUIZ_MATRIX[key] || ["anketa_diagnostics", "Под вашу комбинацию лучше всего подходит аудит процессов"];
       const card = document.querySelector(`.prod-card[data-id="${hit[0]}"]`);
       const trialWanted = quizAnswers[2] === "trial";
-      let html = `<p style="margin:0 0 0.5rem"><strong>Рекомендуем: ${esc(hit[0] === "anketa_diagnostics" ? "Анализ процессов предприятия" : (card ? card.querySelector(".prod-card__title").textContent : hit[0]))}</strong><br>${esc(hit[1])}</p>`;
+      let html = `<p style="margin:0 0 0.5rem"><strong>Рекомендуем: ${quizEsc(hit[0] === "anketa_diagnostics" ? "Анализ процессов предприятия" : (card ? card.querySelector(".prod-card__title").textContent : hit[0]))}</strong><br>${quizEsc(hit[1])}</p>`;
       if (card) {
         card.scrollIntoView({ behavior: "smooth", block: "center" });
         card.style.boxShadow = "0 0 0 3px var(--site-accent)";
@@ -536,6 +570,7 @@ document.querySelectorAll("#quiz .quiz__step").forEach((step) => {
       const res = document.querySelector("#quiz .quiz__result");
       res.innerHTML = html;
       res.hidden = false;
+      window.altGoal && altGoal('quiz_done', { answer: quizAnswers.join('|') });
     });
   });
 });
@@ -556,7 +591,14 @@ async function openPayment(productId, price) {
   document.getElementById('modal-promo').value = '';
   document.getElementById('modal-promo-status').textContent = '';
   document.getElementById('payment-modal').style.display = 'flex';
+  window.altGoal && altGoal('payment_modal_open', { product: productId });
 }
+
+// C5/G1: клики запуска в мессенджеры — цель
+document.addEventListener("click", (e) => {
+  const t = e.target.closest(".prod-card__messengers a, .pd__trial-btn");
+  if (t) window.altGoal && altGoal("trial_click", { messenger: (t.textContent || "").trim() });
+});
 
 // C4: промокод — серверная валидация и пересчёт суммы
 document.getElementById('modal-promo').addEventListener('change', async (e) => {
@@ -607,6 +649,7 @@ async function startPayment(productId, price) {
     });
     const data = await resp.json();
     if (data.confirmation_url) {
+      window.altGoal && altGoal('payment_started', { product: productId });
       window.location.href = data.confirmation_url;
     } else {
       alert('Ошибка: ' + (data.error || 'нет ссылки для оплаты'));
@@ -649,6 +692,7 @@ document.getElementById("rvs-send")?.addEventListener("click", async () => {
     const data = await resp.json();
     if (data.ok) {
       msg.textContent = data.message;
+      window.altGoal && altGoal("review_submitted");
       document.getElementById("rvs-text").value = "";
     } else msg.textContent = data.error || "Не удалось отправить";
   } catch (e) { msg.textContent = "Ошибка соединения"; }

@@ -9,6 +9,22 @@
   <link rel="stylesheet" href="/static/css/app.css" />
   <link rel="stylesheet" href="/static/css/components.css" />
   <link rel="stylesheet" href="/static/css/pages.css" />
+  {% if metrika_id and not request.url.path.startswith('/admin') and not request.url.path.startswith('/publapprov') %}
+  <!-- Яндекс.Метрика -->
+  <script type="text/javascript">
+    window.altGoal = function (goal, params) {  // безопасный reachGoal
+      try { if (window.ym) window.ym({{ metrika_id }}, 'reachGoal', goal, params || {}); } catch (e) {}
+    };
+    (function(m,e,t,r,i,k,a){m[i]=m[i]||function(){(m[i].a=m[i].a||[]).push(arguments)};
+    m[i].l=1*new Date();for(var j=0;j<document.scripts.length;j++){if(document.scripts[j].src===r){return;}}
+    k=e.createElement(t),a=e.getElementsByTagName(t)[0],k.async=1,k.src=r,a.parentNode.insertBefore(k,a)})
+    (window,document,"script","https://mc.yandex.ru/metrika/tag.js","ym");
+    ym({{ metrika_id }}, "init", { clickmap:true, trackLinks:true, accurateTrackBounce:true, webvisor:true });
+  </script>
+  <noscript><div><img src="https://mc.yandex.ru/watch/{{ metrika_id }}" style="position:absolute; left:-9999px;" alt="" /></div></noscript>
+  {% else %}
+  <script>window.altGoal = function () {};</script>
+  {% endif %}
   {% block extra_head %}{% endblock %}
   {% if is_widget %}
   <meta name="widget-mode" content="vk" />
@@ -118,7 +134,14 @@
     };
   </script>
   {% block vk_bridge %}{% endblock %}
-  <script type="module" src="/static/js/app.js"></script>
+  <script>
+  // G1: клики CTA шапки/футера
+  document.addEventListener("click", (e) => {
+    const a = e.target.closest(".header-actions__cta a, .hero__actions a");
+    if (a) window.altGoal && altGoal("cta_click", { text: (a.textContent || "").trim().slice(0, 60) });
+  });
+</script>
+<script type="module" src="/static/js/app.js"></script>
   {% block extra_scripts %}{% endblock %}
 </body>
 </html>

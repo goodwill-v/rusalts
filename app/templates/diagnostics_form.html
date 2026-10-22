@@ -467,6 +467,7 @@ document.getElementById("diag-form").addEventListener("submit", async (e) => {
     if (res.ok) {
       msg.textContent = res.message;
       msg.className = "diag-msg diag-msg--ok";
+      window.altGoal && altGoal("anketa_sent", { kind: "{{ form_kind }}" });
       form.reset();
       renderResult(res);
     } else {

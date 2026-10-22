@@ -43,6 +43,9 @@ ROUTERAI_EMBEDDINGS_MODEL = os.getenv("ROUTERAI_EMBEDDINGS_MODEL", "")
 # Basic Auth для админ-эндпоинтов (пароль задаётся в .env, в разработке — '20rusalt13')
 ADMIN_PASSWORD = os.getenv("ADMIN_PASSWORD", "20rusalt13")
 
+# Яндекс.Метрика: 0 = счётчик выключен (публичный ID, не секрет)
+METRIKA_ID = int(os.getenv("METRIKA_ID", "0") or 0)
+
 # Секрет HMAC для ссылок отписки email-цепочки (B4)
 UNSUB_SECRET = os.getenv("UNSUB_SECRET", "").strip()
 

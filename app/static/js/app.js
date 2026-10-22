@@ -96,6 +96,7 @@ async function sendChat(message) {
     const err = await res.text();
     throw new Error(err || res.statusText);
   }
+  try { window.altGoal && altGoal("consultant_chat"); } catch (e) {}
   return res.json();
 }
 

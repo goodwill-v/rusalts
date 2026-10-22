@@ -21,11 +21,12 @@ class EmbedSecurityMiddleware(BaseHTTPMiddleware):
         csp = (
             f"default-src 'self'; "
             f"script-src 'self' https://vk.com https://*.vk.com https://vk.ru https://*.vk.ru "
-            f"https://unpkg.com https://*.unpkg.com 'unsafe-inline'; "
+            f"https://unpkg.com https://*.unpkg.com https://mc.yandex.ru 'unsafe-inline'; "
             f"style-src 'self' 'unsafe-inline'; "
             f"img-src 'self' data: https:; "
             f"connect-src 'self' https://vk.com https://*.vk.com https://vk.ru https://*.vk.ru "
-            f"https://oauth.vk.com https://api.vk.com https://login.vk.com wss://*.vk.com wss://*.vk.ru; "
+            f"https://oauth.vk.com https://api.vk.com https://login.vk.com wss://*.vk.com wss://*.vk.ru "
+            f"https://mc.yandex.ru https://*.yandex.ru; "
             f"frame-ancestors {config.FRAME_ANCESTORS}"
         )
         response.headers["Content-Security-Policy"] = csp
