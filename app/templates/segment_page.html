@@ -1,0 +1,57 @@
+{% extends "base.html" %}
+{% block extra_head %}
+<style>
+  .seg { max-width: 900px; margin: 0 auto; padding: 2rem 1rem 4rem; }
+  .seg h1 { font-size: 1.8rem; color: var(--site-heading); margin: 0 0 0.4rem; }
+  .seg__lead { font-size: 1.05rem; color: var(--site-text); line-height: 1.6; margin: 0 0 1.5rem; }
+  .seg__pains { margin: 0 0 1.5rem; padding: 1rem 1.25rem; border-radius: 12px;
+    background: rgba(26,92,138,0.05); border-left: 4px solid var(--site-primary); }
+  .seg__pains h2 { margin: 0 0 0.5rem; font-size: 1.05rem; color: var(--site-primary); }
+  .seg__pains li { margin-bottom: 0.4rem; line-height: 1.45; }
+  .seg__grid { display: grid; gap: 1rem; grid-template-columns: 1fr; }
+  @media (min-width: 760px) { .seg__grid { grid-template-columns: 1fr 1fr; } }
+  .seg__card { background: var(--site-surface, #fff); border: 1px solid var(--site-border);
+    border-radius: 12px; padding: 1.1rem 1.25rem; }
+  .seg__card h3 { margin: 0 0 0.5rem; font-size: 1.05rem; color: var(--site-heading); }
+  .seg__card p { margin: 0; font-size: 0.93rem; line-height: 1.5; color: var(--site-text); }
+  .seg__actions { display: flex; flex-wrap: wrap; gap: 0.75rem; margin-top: 1.5rem; }
+  .seg__action { font: inherit; font-weight: 700; padding: 0.75rem 1.5rem; border-radius: 10px;
+    text-decoration: none; border: none; cursor: pointer; }
+  .seg__action--go { background: var(--site-accent); color: #fff; }
+  .seg__action--info { background: var(--site-surface, #fff); color: var(--site-primary);
+    border: 1px solid var(--site-primary); }
+  @media (max-width: 640px) { .seg { padding: 1.25rem 0.75rem 3rem; } .seg h1 { font-size: 1.45rem; } }
+</style>
+{% endblock %}
+
+{% block body %}
+<main class="site-main">
+  <div class="seg">
+    <h1>{{ seg.h1 }}</h1>
+    <p class="seg__lead">{{ seg.lead }}</p>
+
+    <div class="seg__pains">
+      <h2>Узнаёте себя?</h2>
+      <ul>
+        {% for pain in seg.pains %}<li>{{ pain }}</li>{% endfor %}
+      </ul>
+    </div>
+
+    <div class="seg__grid">
+      {% for step in seg.steps %}
+      <div class="seg__card">
+        <h3>{{ step.title }}</h3>
+        <p>{{ step.text }}</p>
+      </div>
+      {% endfor %}
+    </div>
+
+    <div class="seg__actions">
+      <a class="seg__action seg__action--go" href="{{ seg.cta_go_url }}">{{ seg.cta_go_text }}</a>
+      <a class="seg__action seg__action--info" href="/consultant">Обсудить с консультантом</a>
+    </div>
+
+    <p style="margin-top:1.5rem"><a class="prod-more-link" href="/techologis/">Все продукты и услуги →</a></p>
+  </div>
+</main>
+{% endblock %}
