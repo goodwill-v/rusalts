@@ -29,13 +29,39 @@ _TRIGGERS = None
 _TEMPLATES_BUNDLE = None
 
 
-def _load_system_prompt() -> str:
-    """Читает системный промпт АЛТ-эксперта из внешнего файла (вне git)."""
-    path = config.SYSTEM_PROMPT_PATH
+def _tariff_block() -> str:
+    """E1: актуальные тарифы из БД (админки) — единый источник правды для эксперта."""
     try:
-        return path.read_text(encoding="utf-8").strip() if path.is_file() else ""
+        from app.tariffs_store import list_tariffs
+
+        lines = []
+        for t in list_tariffs():
+            if t.get("product_id", "").endswith("_test"):
+                continue
+            trial = f", триал {t['trial_days']} дн/{t['trial_tokens']} ток" if t.get("trial_days") else ""
+            lines.append(
+                f"- {t.get('name') or t['product_id']} ({t['product_id']}): "
+                f"{t.get('price_rub') or 0} ₽ за {t.get('period_days') or 30} дн{trial}"
+            )
+        if not lines:
+            return ""
+        return (
+            "\n\n## АКТУАЛЬНЫЕ ТАРИФЫ (автогенерация, источник — витрина)\n"
+            "Цены и условия называть ТОЛЬКО из этого блока; если продукта нет здесь — "
+            "так и сказать и предложить уточнить у поддержки.\n" + "\n".join(lines)
+        )
     except Exception:
         return ""
+
+
+def _load_system_prompt() -> str:
+    """Читает системный промпт из внешнего файла (вне git) + тарифы из БД (E1)."""
+    path = config.SYSTEM_PROMPT_PATH
+    try:
+        base = path.read_text(encoding="utf-8").strip() if path.is_file() else ""
+    except Exception:
+        base = ""
+    return base + _tariff_block()
 
 
 def _shorten_to(s: str, n: int) -> str:
@@ -258,6 +284,8 @@ class ChatRequest(BaseModel):
     user_id: str | None = None
     channel: str | None = None
     platform: str | None = None
+    # последние реплики пользователя в этой сессии (память D3, фронт шлёт сам)
+    history: list[str] = Field(default_factory=list, max_length=10)
 
 
 class ChatResponse(BaseModel):
@@ -518,9 +546,18 @@ async def _chat_impl(request: Request, body: ChatRequest) -> ChatResponse:
 
 
 
+# D1: счётчик ходов сессии (в памяти процесса; сброс при рестарте — не критично)
+_chat_turn_count: dict[str, int] = {}
+
+
 @router.post("/chat", response_model=ChatResponse)
 async def chat(request: Request, body: ChatRequest) -> ChatResponse:
-    """Единая точка /api/chat: ответ + лента диалогов (админка) + лиды в МАКС."""
+    """Единая точка /api/chat: память (history), лента диалогов, лиды, CTA."""
+    # D3: клиентская память — последние реплики сессии как контекст
+    if body.history:
+        tail = "\n".join(f"Пользователь ранее писал: {_shorten_to(h, 400)}" for h in body.history[-3:])
+        body.message = f"{tail}\n\nТекущее сообщение: {body.message}"
+
     response = await _chat_impl(request, body)
     try:
         from app import expert_dialogs_store as eds
@@ -528,6 +565,27 @@ async def chat(request: Request, body: ChatRequest) -> ChatResponse:
         session_key = (body.user_id or "").strip() or "anonymous"
         lead = eds.detect_lead(body.message)
         already_notified = eds.session_lead_notified(session_key)
+
+        # D1: на 3-м содержательном ходе — мягкий вопрос о контакте
+        _chat_turn_count[session_key] = _chat_turn_count.get(session_key, 0) + 1
+        if _chat_turn_count[session_key] == 3 and not lead:
+            response.reply += (
+                "\n\n—\nПохоже, вам это интересно. Куда удобнее прислать подборку "
+                "инструментов — на email или в МАКС?"
+            )
+
+        # D4: лид — и в diagnostics.db (kind=expert_lead), один раз на сессию
+        if lead and not already_notified:
+            from app.diagnostics_store import save_diagnostic
+
+            save_diagnostic(
+                "expert_lead",
+                name="Диалог эксперта",
+                email=lead if "@" in lead else "",
+                phone="" if "@" in lead else lead,
+                answers={"session": session_key, "source": "expert_chat"},
+                result={"type": "expert_lead", "contact": lead},
+            )
         eds.log_message(
             session_key=session_key, role="user", text=body.message,
             user_id=body.user_id or "", channel=body.channel or "",

@@ -85,12 +85,34 @@ function expertSessionId() {
   return sid;
 }
 
+// D2/D3: история реплик сессии (память через перезагрузки страницы)
+function expertHistory() {
+  try { return JSON.parse(sessionStorage.getItem("alt_expert_hist") || "[]"); }
+  catch (e) { return []; }
+}
+function pushExpertHistory(text) {
+  const h = expertHistory();
+  h.push(text);
+  sessionStorage.setItem("alt_expert_hist", JSON.stringify(h.slice(-10)));
+}
+
+// D2: архив диалогов в localStorage (последние 20 пар)
+function expertArchive() {
+  try { return JSON.parse(localStorage.getItem("alt_expert_archive") || "[]"); }
+  catch (e) { return []; }
+}
+function pushExpertArchive(userText, reply) {
+  const a = expertArchive();
+  a.unshift({ ts: new Date().toISOString().slice(0, 16).replace("T", " "), q: userText.slice(0, 120), a: (reply || "").slice(0, 240) });
+  localStorage.setItem("alt_expert_archive", JSON.stringify(a.slice(0, 20)));
+}
+
 async function sendChat(message) {
   const res = await fetch("/api/chat", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     credentials: "same-origin",
-    body: JSON.stringify({ message, user_id: expertSessionId(), channel: "web", platform: "site" }),
+    body: JSON.stringify({ message, user_id: expertSessionId(), channel: "web", platform: "site", history: expertHistory() }),
   });
   if (!res.ok) {
     const err = await res.text();
@@ -143,8 +165,10 @@ function initChatForm({ form, input, log, fileInput, hint }) {
       } else if (hint) {
         hint.hidden = true;
       }
+      pushExpertHistory(text);
       const data = await sendChat(text);
       appendMessage(log, "bot", data.reply || "");
+      pushExpertArchive(text, data.reply || "");
     } catch (err) {
       if (hint) {
         hint.hidden = false;
@@ -166,6 +190,7 @@ function initConsultantUi() {
   if (!form || !input || !log) return;
   loadTemplates();
   initChatForm({ form, input, log, fileInput, hint });
+  initExpertHistoryPanel();
 }
 
 function initA11yToggle() {
@@ -849,3 +874,34 @@ initNewsPage();
 initPublApprov();
 initAltExpertWidget();
 initVkBridge();
+
+
+// D2: панель «Недавние диалоги» (localStorage, только у этого браузера)
+function initExpertHistoryPanel() {
+  const log = $("#chat-log");
+  if (!log) return;
+  const render = () => {
+    document.querySelectorAll("[data-expert-history]").forEach((n) => n.remove());
+    const items = expertArchive().slice(0, 5);
+    if (!items.length) return;
+    const box = document.createElement("details");
+    box.setAttribute("data-expert-history", "");
+    box.className = "panel";
+    box.style.marginTop = "0.75rem";
+    box.innerHTML = `<summary style="cursor:pointer;font-weight:600">🕘 Недавние диалоги (${items.length})</summary>
+      <div id="expert-history-list" style="margin-top:0.5rem"></div>
+      <button type="button" id="expert-history-clear" class="btn" style="margin-top:0.5rem">Очистить историю</button>`;
+    log.parentElement.insertBefore(box, log);
+    const list = box.querySelector("#expert-history-list");
+    list.innerHTML = items.map((it) =>
+      `<div style="padding:0.45rem 0.6rem;border:1px solid var(--site-border);border-radius:8px;margin-bottom:0.4rem">
+        <div style="font-size:0.75rem;color:var(--site-muted)">${it.ts} · вы: ${it.q.replace(/</g, "&lt;")}</div>
+        <div style="font-size:0.85rem;margin-top:0.2rem">${it.a.replace(/</g, "&lt;").slice(0, 200)}…</div>
+      </div>`).join("");
+    box.querySelector("#expert-history-clear").addEventListener("click", () => {
+      localStorage.removeItem("alt_expert_archive");
+      render();
+    });
+  };
+  render();
+}
