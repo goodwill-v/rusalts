@@ -603,3 +603,32 @@
     width: 100%;
   }
 }
+/* ─── C3: Квиз подбора ─────────────────────────────────────────────────── */
+
+.showcase__quiz {
+  background: rgba(26, 92, 138, 0.04);
+  border: 1px solid var(--site-border, rgba(17,24,39,0.12));
+  border-radius: var(--radius);
+  padding: 0.9rem 1.1rem;
+  margin: 0 0 1.5rem;
+}
+
+.showcase__quiz summary {
+  cursor: pointer; font-weight: 600; color: var(--site-primary);
+}
+
+.quiz__body { margin-top: 0.9rem; }
+.quiz__q { font-weight: 600; color: var(--site-heading); margin: 0 0 0.5rem; }
+.quiz__opts { display: flex; flex-wrap: wrap; gap: 0.5rem; }
+.quiz__opts button {
+  font: inherit; font-size: 0.9rem; padding: 0.5rem 0.9rem;
+  border-radius: 8px; border: 1px solid var(--site-border, rgba(17,24,39,0.12));
+  background: var(--site-surface, #fff); color: var(--site-text); cursor: pointer;
+}
+.quiz__opts button:hover { border-color: var(--site-primary); color: var(--site-primary); }
+.quiz__result {
+  margin-top: 0.75rem; padding: 0.9rem 1rem;
+  background: var(--site-surface, #fff); border-radius: 10px;
+  border: 1px solid var(--site-border, rgba(17,24,39,0.12));
+}
+.quiz__result a { font-weight: 700; }

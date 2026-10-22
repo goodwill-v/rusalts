@@ -25,7 +25,7 @@ ALL_STATUSES = VISIBLE_STATUSES | {"draft", "archived"}
 _FIELDS = (
     "id", "name", "description", "price_rub", "period_days", "trial_days",
     "category", "platform", "bot_url", "detail_url", "icon", "status",
-    "sort_order",
+    "sort_order", "features", "max_url", "tg_url", "vk_url", "detail_custom",
 )
 
 
@@ -47,9 +47,25 @@ def _connect() -> sqlite3.Connection:
             icon TEXT NOT NULL DEFAULT '',
             status TEXT NOT NULL DEFAULT 'draft',
             sort_order INTEGER NOT NULL DEFAULT 100,
+            features TEXT NOT NULL DEFAULT '',
+            max_url TEXT NOT NULL DEFAULT '',
+            tg_url TEXT NOT NULL DEFAULT '',
+            vk_url TEXT NOT NULL DEFAULT '',
+            detail_custom INTEGER NOT NULL DEFAULT 0,
             updated_at TEXT NOT NULL DEFAULT ''
         )"""
     )
+    # миграции для БД, созданных до Этапа C
+    cols = {r[1] for r in db.execute("PRAGMA table_info(products)").fetchall()}
+    for name, ddl in (
+        ("features", "ALTER TABLE products ADD COLUMN features TEXT NOT NULL DEFAULT ''"),
+        ("max_url", "ALTER TABLE products ADD COLUMN max_url TEXT NOT NULL DEFAULT ''"),
+        ("tg_url", "ALTER TABLE products ADD COLUMN tg_url TEXT NOT NULL DEFAULT ''"),
+        ("vk_url", "ALTER TABLE products ADD COLUMN vk_url TEXT NOT NULL DEFAULT ''"),
+        ("detail_custom", "ALTER TABLE products ADD COLUMN detail_custom INTEGER NOT NULL DEFAULT 0"),
+    ):
+        if name not in cols:
+            db.execute(ddl)
     return db
 
 
@@ -96,6 +112,11 @@ def upsert_product(data: dict[str, Any]) -> dict[str, Any]:
         "icon": str(data.get("icon") or "").strip(),
         "status": status,
         "sort_order": int(data.get("sort_order") or 100),
+        "features": str(data.get("features") or "").strip(),
+        "max_url": str(data.get("max_url") or "").strip(),
+        "tg_url": str(data.get("tg_url") or "").strip(),
+        "vk_url": str(data.get("vk_url") or "").strip(),
+        "detail_custom": 1 if data.get("detail_custom") in (1, "1", True, "true") else 0,
         "updated_at": datetime.now(timezone.utc).replace(microsecond=0).isoformat(),
     }
     placeholders = ", ".join(_FIELDS)
@@ -132,6 +153,8 @@ def catalog(*, include_hidden: bool = False) -> list[dict[str, Any]]:
         item = dict(p)
         item.setdefault("detail_url", "")
         item.setdefault("icon", "")
+        for f in ("features", "max_url", "tg_url", "vk_url", "detail_custom"):
+            item.setdefault(f, "")
         items[pid] = item
 
     for row in list_db_products():
