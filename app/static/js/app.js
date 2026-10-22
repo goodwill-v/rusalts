@@ -74,12 +74,23 @@ function formatSize(n) {
   return `${(n / (1024 * 1024)).toFixed(1)} МБ`;
 }
 
+function expertSessionId() {
+  // Сессия диалога для ленты в админке (uuid в sessionStorage)
+  let sid = sessionStorage.getItem("alt_expert_sid");
+  if (!sid) {
+    sid = (crypto.randomUUID && crypto.randomUUID()) ||
+      ("sid-" + Date.now() + "-" + Math.random().toString(36).slice(2, 10));
+    sessionStorage.setItem("alt_expert_sid", sid);
+  }
+  return sid;
+}
+
 async function sendChat(message) {
   const res = await fetch("/api/chat", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     credentials: "same-origin",
-    body: JSON.stringify({ message }),
+    body: JSON.stringify({ message, user_id: expertSessionId(), channel: "web", platform: "site" }),
   });
   if (!res.ok) {
     const err = await res.text();
