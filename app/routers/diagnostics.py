@@ -14,6 +14,7 @@ from pydantic import BaseModel, Field
 
 from app import config
 from app.diagnostics_pdf import build_paid_report
+from app.max_notify import format_lead_message, notify_max
 from app.diagnostics_scoring import summarize
 from app.diagnostics_store import save_diagnostic, set_pdf_path
 from app.observability import json_log
@@ -92,7 +93,17 @@ def _chief_email(kind: str, diag_id: int, name: str, email: str, phone: str, com
     ])
 
 
-def _submit(kind: str, body: DiagnosticSubmission) -> JSONResponse:
+def _lead_summary(result: dict) -> str:
+    """Краткая строка о результате для MAX-уведомления."""
+    if result.get("type") == "scores":
+        return f"{result.get('level_text', '')} · {result.get('total', '?')}/100"
+    if result.get("type") == "triggers":
+        recs = [t.get("recommendation", "") for t in result.get("items", [])[:3]]
+        return "; ".join(recs) if recs else "чек-лист отправлен"
+    return "платная анкета, PDF"
+
+
+async def _submit(kind: str, body: DiagnosticSubmission) -> JSONResponse:
     email = (body.email or "").strip()
     if "@" not in email or not body.name.strip():
         return JSONResponse(
@@ -130,6 +141,17 @@ def _submit(kind: str, body: DiagnosticSubmission) -> JSONResponse:
         _chief_email(kind, diag_id, body.name.strip(), email, body.phone.strip(),
                      body.company.strip(), result, pdf_path),
     )
+    try:
+        summary = _lead_summary(result)
+        await notify_max(
+            format_lead_message(
+                diag_id, KIND_TITLES.get(kind, kind), body.name.strip(),
+                email + (f" · {body.phone.strip()}" if body.phone.strip() else ""),
+                summary,
+            )
+        )
+    except Exception as e:  # MAX-дубль не должен ломать отправку анкеты
+        print(f"[DIAGNOSTICS MAX NOTIFY ERROR] id={diag_id}: {e}")
 
     rid = uuid.uuid4().hex
     json_log(
@@ -155,14 +177,14 @@ def _submit(kind: str, body: DiagnosticSubmission) -> JSONResponse:
 
 @router.post("/free")
 async def submit_free(body: DiagnosticSubmission) -> JSONResponse:
-    return _submit("free", body)
+    return await _submit("free", body)
 
 
 @router.post("/your-business")
 async def submit_your_business(body: DiagnosticSubmission) -> JSONResponse:
-    return _submit("your_business", body)
+    return await _submit("your_business", body)
 
 
 @router.post("/paid")
 async def submit_paid(body: DiagnosticSubmission) -> JSONResponse:
-    return _submit("paid", body)
+    return await _submit("paid", body)
