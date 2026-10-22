@@ -43,6 +43,9 @@ ROUTERAI_EMBEDDINGS_MODEL = os.getenv("ROUTERAI_EMBEDDINGS_MODEL", "")
 # Basic Auth для админ-эндпоинтов (пароль задаётся в .env, в разработке — '20rusalt13')
 ADMIN_PASSWORD = os.getenv("ADMIN_PASSWORD", "20rusalt13")
 
+# Секрет HMAC для ссылок отписки email-цепочки (B4)
+UNSUB_SECRET = os.getenv("UNSUB_SECRET", "").strip()
+
 # MAX-бот: уведомления о лидах (B5); токен дублирован из /opt/max-bot/.env
 MAX_BOT_TOKEN = os.getenv("MAX_BOT_TOKEN", "").strip()
 MAX_LEADS_CHAT_ID = os.getenv("MAX_LEADS_CHAT_ID", "").strip()

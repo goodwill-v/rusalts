@@ -13,6 +13,7 @@ from app.routers import admin, api, billing_admin, content, diagnostics, pages, 
 
 config.ensure_data_dirs()
 
+
 app = FastAPI(
     title="Консультант (прототип)",
     description="Интерфейс вопрос–ответ и шаблоны документов; готовится к интеграции с VK и LLM.",
@@ -28,6 +29,29 @@ app.add_middleware(
 )
 app.add_middleware(RequestIdMiddleware)
 app.add_middleware(EmbedSecurityMiddleware)
+
+# ─── Фоновый цикл email-цепочки диагностик (B4) ───────────────────────────
+import asyncio  # noqa: E402
+import logging  # noqa: E402
+
+_followup_logger = logging.getLogger("diagnostics_followup")
+
+
+async def _followup_loop() -> None:
+    from app.diagnostics_followup import followup_tick
+
+    while True:
+        try:
+            followup_tick()
+        except Exception as e:  # цикл не должен умирать
+            _followup_logger.warning("followup loop error: %s", e)
+        await asyncio.sleep(3600)
+
+
+@app.on_event("startup")
+async def _start_followup_loop() -> None:
+    app.state.followup_task = asyncio.create_task(_followup_loop())
+
 
 app.include_router(pages.router)
 app.include_router(admin.router)

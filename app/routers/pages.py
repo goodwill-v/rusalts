@@ -259,6 +259,27 @@ async def diagnostics_paid_form(
 
 
 
+@router.get("/diagnostics/unsubscribe/", response_class=HTMLResponse)
+async def diagnostics_unsubscribe(request: Request, id: int = 0, t: str = "") -> HTMLResponse:
+    """Отписка от email-цепочки диагностик (HMAC-ссылка из письма, B4)."""
+    from app.diagnostics_followup import verify_unsub
+    from app.diagnostics_store import set_unsubscribed
+
+    if id > 0 and verify_unsub(id, t):
+        set_unsubscribed(id)
+        return _site_page(
+            request,
+            h1="Вы отписаны",
+            description="Письма цепочки АЛТ больше не придут на ваш email.",
+            hint="Диагностику и консультации всегда можно пройти снова на rusalts.ru",
+        )
+    return _site_page(
+        request,
+        h1="Ссылка недействительна",
+        description="Проверьте ссылку из письма — возможно, она скопирована не полностью.",
+    )
+
+
 @router.get("/channels/", response_class=HTMLResponse)
 async def channels(request: Request) -> HTMLResponse:
     return _site_page(
