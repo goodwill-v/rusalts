@@ -56,6 +56,9 @@ MAX_LEADS_CHAT_ID = os.getenv("MAX_LEADS_CHAT_ID", "").strip()
 # Сервисные ключи ботов для API витрины (X-API-Key), через запятую (Этап A3)
 VITRINA_API_KEYS = [k.strip() for k in os.getenv("VITRINA_API_KEYS", "").split(",") if k.strip()]
 
+# Системный промпт АЛТ-эксперта — вне git, контент, не код
+SYSTEM_PROMPT_PATH = Path("/opt/alt_docs/ALT-expert/system_prompt_v2.md")
+
 
 def _float_env(name: str, default: float) -> float:
     try:

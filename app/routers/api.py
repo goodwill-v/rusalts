@@ -30,9 +30,10 @@ _TEMPLATES_BUNDLE = None
 
 
 def _load_system_prompt() -> str:
-    system_prompt_path = config.BASE_DIR / "АЛЬТЕРНАТИВА_АЛТбот" / "ALT_sist.prompt.md"
+    """Читает системный промпт АЛТ-эксперта из внешнего файла (вне git)."""
+    path = config.SYSTEM_PROMPT_PATH
     try:
-        return system_prompt_path.read_text(encoding="utf-8").strip() if system_prompt_path.is_file() else ""
+        return path.read_text(encoding="utf-8").strip() if path.is_file() else ""
     except Exception:
         return ""
 
