@@ -284,6 +284,27 @@ async def diagnostics_unsubscribe(request: Request, id: int = 0, t: str = "") ->
     )
 
 
+@router.get("/for/{segment}/", response_class=HTMLResponse)
+async def segment_landing(request: Request, segment: str) -> HTMLResponse:
+    """Посадочные под сегменты (B6): блогеру / предпринимателю / сообществу."""
+    from app.segments import SEGMENTS
+
+    seg = SEGMENTS.get(segment)
+    if not seg:
+        raise HTTPException(status_code=404, detail="Сегмент не найден")
+    return templates.TemplateResponse(
+        request,
+        "segment_page.html",
+        {
+            "vk_app_id": config.VK_APP_ID or None,
+            "is_widget": False,
+            "layout_class": "layout-site",
+            "page_title": seg["title"],
+            "seg": seg,
+        },
+    )
+
+
 @router.get("/channels/", response_class=HTMLResponse)
 async def channels(request: Request) -> HTMLResponse:
     return _site_page(
