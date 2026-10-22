@@ -141,6 +141,9 @@ async def techologis(request: Request, payment: str = "") -> HTMLResponse:
         p["id"]: p.get("icon") or static_icons.get(p["id"], "🧩") for p in all_catalog
     }
 
+    from app.reviews_store import list_reviews
+    reviews = list_reviews()
+
     return templates.TemplateResponse(
         request,
         "techologis_v2.html",
@@ -157,6 +160,7 @@ async def techologis(request: Request, payment: str = "") -> HTMLResponse:
             "billing_enabled": True,
             "all_buyable": all_buyable,
             "icons": icons,
+            "reviews": reviews,
         },
     )
 

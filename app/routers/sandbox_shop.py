@@ -93,7 +93,7 @@ async def product_generated_page(request: Request, pid: str):
     from app.billing import get_tariff
 
     prod = next((p for p in catalog() if p["id"] == pid), None)
-    if not prod or prod.get("detail_custom"):
+    if not prod or prod.get("detail_custom") or prod.get("detail_url"):
         raise HTTPException(status_code=404, detail="Продукт не найден")
 
     tariff = get_tariff(pid)

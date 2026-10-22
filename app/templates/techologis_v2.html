@@ -368,6 +368,21 @@
         </div>
       </div>
 
+      <!-- C2: Отзывы и кейсы -->
+      <section class="showcase__reviews" id="reviews">
+        <h3 class="portfolio-subtitle">💬 Результаты клиентов</h3>
+        <div class="showcase__grid">
+          {% for r in reviews %}
+          <article class="review-card">
+            {% if r.photo_url %}<img class="review-card__photo" src="{{ r.photo_url }}" alt="" loading="lazy" />{% endif %}
+            <div class="review-card__stars">{% for _ in range(r.rating) %}★{% endfor %}</div>
+            <p class="review-card__text">{{ r.text }}</p>
+            <div class="review-card__author">{{ r.author }}{% if r.product_id %} · <code>{{ r.product_id }}</code>{% endif %}</div>
+          </article>
+          {% endfor %}
+        </div>
+      </section>
+
       <p class="showcase__oferta">
         🔄 У платных инструментов — есть пробный период.
         Отмена подписки и возвраты — по правилам

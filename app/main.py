@@ -67,6 +67,11 @@ app.include_router(sandbox_shop.router)
 static_dir = config.BASE_DIR / "app" / "static"
 app.mount("/static", StaticFiles(directory=str(static_dir)), name="static")
 
+# Загруженная графика (отзывы и пр.) — в data/, rsync при деплое не удаляет
+uploads_dir = config.DATA_DIR / "uploads"
+uploads_dir.mkdir(parents=True, exist_ok=True)
+app.mount("/uploads", StaticFiles(directory=str(uploads_dir)), name="uploads")
+
 # /talk assets are served from repository /talk/public (HTML is served by a route)
 talk_public_dir = config.BASE_DIR / "talk" / "public"
 app.mount("/talk/assets", StaticFiles(directory=str(talk_public_dir)), name="talk_assets")

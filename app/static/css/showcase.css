@@ -632,3 +632,28 @@
   border: 1px solid var(--site-border, rgba(17,24,39,0.12));
 }
 .quiz__result a { font-weight: 700; }
+
+/* ─── C2: Отзывы ───────────────────────────────────────────────────────── */
+
+.review-card {
+  background: var(--site-surface, #fff);
+  border: 1px solid var(--site-border, rgba(17,24,39,0.12));
+  border-top: 3px solid var(--site-accent);
+  border-radius: var(--radius);
+  padding: 1.1rem 1.2rem;
+  display: flex; flex-direction: column;
+}
+
+.review-card__photo {
+  width: 100%; max-height: 180px; object-fit: cover; border-radius: 8px;
+  margin-bottom: 0.6rem;
+}
+
+.review-card__stars { color: #f59e0b; letter-spacing: 0.1em; margin-bottom: 0.4rem; }
+
+.review-card__text {
+  margin: 0 0 0.6rem; font-size: 0.92rem; line-height: 1.5; color: var(--site-text);
+  flex: 1;
+}
+
+.review-card__author { font-size: 0.82rem; color: var(--site-muted, #6b7280); font-weight: 600; }
