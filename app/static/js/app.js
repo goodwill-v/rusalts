@@ -105,6 +105,7 @@ function pushExpertArchive(userText, reply) {
   const a = expertArchive();
   a.unshift({ ts: new Date().toISOString().slice(0, 16).replace("T", " "), q: userText.slice(0, 120), a: (reply || "").slice(0, 240) });
   localStorage.setItem("alt_expert_archive", JSON.stringify(a.slice(0, 20)));
+  if (typeof initExpertHistoryPanel === "function") initExpertHistoryPanel();  // D2: перерисовать
 }
 
 async function sendChat(message) {

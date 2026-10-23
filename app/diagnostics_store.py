@@ -16,7 +16,7 @@ from app import config
 DB_PATH = config.DATA_DIR / "diagnostics.db"
 REPORTS_DIR = config.DATA_DIR / "diagnostics_reports"
 
-KINDS = {"free", "your_business", "paid"}
+KINDS = {"free", "your_business", "paid", "expert_lead"}
 
 
 def _connect() -> sqlite3.Connection:
