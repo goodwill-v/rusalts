@@ -328,6 +328,7 @@ async def publapprov(request: Request) -> HTMLResponse:
     )
 
 
+@router.get("/expert", response_class=HTMLResponse)
 @router.get("/consultant", response_class=HTMLResponse)
 async def consultant(request: Request) -> HTMLResponse:
     """Полноэкранный интерфейс АЛТ‑эксперт: чат и шаблоны."""
