@@ -383,16 +383,19 @@ async def _chat_impl(request: Request, body: ChatRequest) -> ChatResponse:
                     "role": "user",
                     "content": (
                         "Ответь на вопрос пользователя, опираясь ТОЛЬКО на выдержки из базы знаний ниже.\n"
-                        "Верни ОДИН JSON без текста вокруг:\n"
+                        "Верни ОДИН JSON без markdown-обёрток и без текста вокруг:\n"
                         "{"
-                        "\"answer\": \"string (кратко и по делу)\","
+                        "\"answer\": \"string\","
                         "\"used_hit_indexes\": [0,1],"
                         "\"no_answer\": true|false"
                         "}\n"
                         "Правила:\n"
-                        "- Если в выдержках нет ответа: no_answer=true, used_hit_indexes=[] и answer=\"\".\n"
-                        "- Если отвечаешь: used_hit_indexes должен содержать хотя бы один индекс из 0..N-1.\n"
-                        "- Не добавляй советы/факты, которых нет в выдержках.\n\n"
+                        "- answer — связная сводка своими словами: объедини смысл выдержек, перечитай простым языком. НЕ цитируй выдержки и не перечисляй их.\n"
+                        "- Готового ответа дословно может не быть — составь его из СМЫСЛА выдержек (можно перефразировать и объединять).\n"
+                        "- no_answer=true ставь ТОЛЬКО если ни одна выдержка вообще не про тему вопроса.\n"
+                        "- Частичный ответ лучше отказа: расскажи, что по теме вопроса есть в выдержках; если конкретно запрошенного (точные даты/изменения) в них нет — дай полезное по теме и добавь одной фразой в конце, что детали лучше уточнить у поддержки. Такой ответ — это no_answer=false.\n"
+                        "- used_hit_indexes — номера выдержек (0..N-1), из которых взят смысл. Если не уверен — укажи [0].\n"
+                        "- Не добавляй факты, которых нет в выдержках.\n\n"
                         f"Вопрос: {kb_q}\n\n"
                         f"Выдержки (JSON): {json.dumps(kb_hits[:5], ensure_ascii=False)}"
                     ),
@@ -427,14 +430,27 @@ async def _chat_impl(request: Request, body: ChatRequest) -> ChatResponse:
                 )
             used_llm = True
             raw = str(llm_text).strip()
-            obj = json.loads(raw) if raw.startswith("{") else {}
+            if not raw.startswith("{"):
+                # DeepSeek иногда оборачивает JSON в ```json или добавляет текст — достаём объект
+                _l, _r = raw.find("{"), raw.rfind("}")
+                if 0 <= _l < _r:
+                    raw = raw[_l : _r + 1]
+            try:
+                obj = json.loads(raw)
+            except ValueError:
+                obj = {}
             if not isinstance(obj, dict):
                 raise RuntimeError("kb_bad_json")
             if bool(obj.get("no_answer")):
+                json_log({"type": "kb_synthesis_rejected", "request_id": rid,
+                          "raw_head": str(raw)[:300]})
                 raise RuntimeError("kb_no_answer")
             used_idx = obj.get("used_hit_indexes") or []
-            if not isinstance(used_idx, list) or not used_idx:
-                raise RuntimeError("kb_no_citations")
+            if not isinstance(used_idx, list):
+                used_idx = []
+            if not used_idx:
+                # Модель дала ответ без индексов — считаем обобщением по первому хиту
+                used_idx = [0]
             final_reply = str(obj.get("answer") or "").strip() or reply_kb
             json_log(
                 {
