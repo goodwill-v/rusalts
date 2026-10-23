@@ -132,9 +132,11 @@ async def _route_message(*, text: str, triggers: list, templates_bundle: dict | 
     if any(k in t for k in _KW_DOC):
         return _RouteDecision(intent="document_request", confidence=0.85, document_query=text.strip())
 
-    # Legal/regulatory questions: prefer official/web sources (to avoid hallucinations from KB).
+    # Legal/regulatory questions: KB first (штрафы/статьи с цитатами в базе),
+    # web остаётся автоматическим запасным путём, если KB-синтез дал no_answer.
+    # (Было web-first — из-за чего вопросы права уходили мимо базы на max.ru-источники.)
     if any(k in t for k in _KW_LEGAL):
-        return _RouteDecision(intent="web_question", confidence=0.85, web_query=text.strip())
+        return _RouteDecision(intent="kb_question", confidence=0.9, kb_query=text.strip())
 
     # Template candidates (but only if not a "human" / "doc" request)
     try:
@@ -453,8 +455,10 @@ async def _chat_impl(request: Request, body: ChatRequest) -> ChatResponse:
             # fall back silently to KB-only answer
             pass
         except Exception:
-            # Если синтез дал NO_ANSWER — не возвращаем «воду», уходим на веб-источники ниже.
-            kb_hits = []
+            # Синтез не удался (no_answer/JSON-ошибка): возвращаем структурированный
+            # KB-дайджест (reply_kb), если хиты в базе были; уходим на web-источники
+            # только когда база знаний по теме реально пуста.
+            pass
 
         if kb_hits:
             return ChatResponse(
@@ -475,6 +479,11 @@ async def _chat_impl(request: Request, body: ChatRequest) -> ChatResponse:
 
     sources: list[dict] = [{"title": o.title, "url": o.url} for o in (official or [])]
     sources += [{"title": w.title, "url": w.url} for w in (web_hits or [])]
+    # Для вопросов НЕ про MAX отсекаем max.ru-страницы: они не первоисточник
+    # по праву/регуляторике и портят ответ (голый max.ru вместо источника).
+    ql = q.casefold()
+    if "max" not in ql:
+        sources = [s for s in sources if "max.ru" not in str(s.get("url") or "")]
     sources = sources[:6]
 
     if sources:
@@ -488,8 +497,11 @@ async def _chat_impl(request: Request, body: ChatRequest) -> ChatResponse:
                     "role": "user",
                     "content": (
                         "Найди ответ по источникам ниже и дай короткий ответ до 800 знаков. "
-                        "В конце обязательно оставь ссылку (URL) на первоисточник из списка. "
-                        "Не выдумывай факты.\n\n"
+                        "Правила:\n"
+                        "- Отвечай ТОЛЬКО по содержимому источников; если в них нет ответа — "
+                        "честно скажи: \"в открытых источниках этого не нашёл — уточните "
+                        "у юриста/специалиста\" и не выдумывай факты.\n"
+                        "- Ссылку (URL) приведи ТОЛЬКО если реально опирался на этот источник.\n\n"
                         f"Вопрос: {q}\n\n"
                         f"Источники (JSON): {json.dumps(sources, ensure_ascii=False)}"
                     ),
@@ -539,9 +551,18 @@ async def _chat_impl(request: Request, body: ChatRequest) -> ChatResponse:
             return ChatResponse(reply="\n".join(lines).strip(), request_id=rid, sources=sources, used_llm=False)
 
     # 5) Absolute fallback (no KB hit, no trigger, no official excerpts)
-    fallback = (
-        "Не нашёл надёжных источников по вашему вопросу.\n\n" + _support_cta()
-    )
+    is_legal = any(k in text.casefold() for k in _KW_LEGAL)
+    if is_legal:
+        fallback = (
+            "Не нашёл в открытых источниках актуального ответа по этой теме. "
+            "Рекомендую проверить разъяснения на официальном сайте Роскомнадзора "
+            "(rkn.gov.ru) или обратиться к юристу, специализирующемуся на 152-ФЗ.\n\n"
+            + _support_cta()
+        )
+    else:
+        fallback = (
+            "Не нашёл надёжных источников по вашему вопросу.\n\n" + _support_cta()
+        )
     return ChatResponse(reply=fallback, request_id=rid, sources=[], used_llm=False)
 
 

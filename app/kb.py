@@ -115,7 +115,7 @@ def _score_article(article: KbArticle, query_terms: list[str]) -> float:
     return score
 
 
-def _excerpt(body: str, query_terms: list[str], max_len: int = 360) -> str:
+def _excerpt(body: str, query_terms: list[str], max_len: int = 1500) -> str:
     clean = re.sub(r"\s+", " ", body).strip()
     if not clean:
         return ""
