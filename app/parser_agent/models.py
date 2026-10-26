@@ -13,6 +13,7 @@ class Source:
     content_type: str
     frequency: str
     status: str
+    category: str = "product.general"
 
 
 @dataclass(frozen=True)

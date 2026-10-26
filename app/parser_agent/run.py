@@ -64,6 +64,7 @@ def _load_sources(path: Path) -> list[Source]:
                 content_type=str(s.get("content_type") or "").strip(),
                 frequency=str(s.get("frequency") or "").strip(),
                 status=str(s.get("status") or "").strip(),
+                category=str(s.get("category") or "product.general").strip(),
             )
         )
     return out
@@ -149,17 +150,33 @@ async def _fetch(source: Source, *, client: httpx.AsyncClient) -> FetchResult:
 
 
 def _classify(source: Source) -> tuple[str, str]:
+    """
+    Определяет classification и section_path по источнику.
+    Приоритет: явное поле category из sources.json, затем URL-эвристика.
+    """
+    cat = source.category
     sid = source.id.lower()
     url = source.url.lower()
-    ct = (source.content_type or "").lower()
 
+    # Явная категория из конфига — высший приоритет
+    if cat == "ai":
+        return "ai.business", "AI_и_автоматизация/Искусственный_интеллект"
+    if cat == "legal":
+        return "legal.regulatory", "Регуляторика_и_комплаенс/Законы_и_требования"
+    if cat == "digital-sovereign":
+        return "digital.sovereign", "Цифровой_суверенитет/Импортозамещение"
+    if cat == "platform":
+        return "platform.update", "Платформы/MAX_и_VK"
+
+    # Fallback: URL-эвристика для legacy-совместимости
+    ct = (source.content_type or "").lower()
     if any(x in url for x in ("rkn.gov.ru", "digital.gov.ru")) or any(x in sid for x in ("roskomnadzor", "mintsifry")):
-        return "legal.regulatory", "MAX/Регуляторика_и_комплаенс/Законы_и_требования"
+        return "legal.regulatory", "Регуляторика_и_комплаенс/Законы_и_требования"
     if "dev.max.ru" in url or "changelog" in sid or "sdk" in ct or "api" in ct or "github" in url or "github" in sid:
-        return "tech.changelog", "MAX/Разработчикам/API_и_SDK"
+        return "tech.changelog", "Платформы/Разработчикам"
     if "news" in url or "новости" in ct:
-        return "news.official", "Новости_и_изменения/MAX/Важные_объявления"
-    return "product.general", "MAX/Обзор_платформы"
+        return "news.official", "Новости_и_изменения/Важные_объявления"
+    return "product.general", "Платформы/Обзор"
 
 
 def _extract_front_matter(text: str) -> tuple[dict[str, Any], str]:
@@ -332,13 +349,55 @@ def _extract_topic(text: str, *, max_words: int = 18, max_chars: int = 140) -> s
     return topic
 
 
-def _human_summary(*, source_title: str, prev_text: str, cur_text: str) -> str:
+_BOILERPLATE_PATTERNS = re.compile(
+    r"(?i)(©|copyright|все права защищены|политика конфиденциальности|"
+    r"обработка персональных данных| cookie |футер|подвал|навигация|меню|"
+    r"войти|регистрация|вход|обратная связь|написать нам)",
+    re.UNICODE,
+)
+
+
+def _is_noise_change(*, delta_chars: int, cur_text: str, source_priority: str) -> bool:
+    """
+    Проверяет, является ли изменение «шумом», который не стоит превращать в новость.
+    Возвращает True, если изменение следует СКРЫТЬ от контент-конвейера.
+    База знаний (KB) при этом всё равно обновляется для полноты.
+    """
+    # Очень маленькие изменения — почти всегда шум (багфикс, дата, меню)
+    if delta_chars < 100:
+        # Исключение: high-priority source (госсайты могут публиковать короткие важные изменения)
+        if source_priority != "high":
+            return True
+        # Даже для high-priority: если изменение < 30 символов, это почти наверняка шум
+        if delta_chars < 30:
+            return True
+
+    # Доля нового текста: если изменилось < 1% содержимого — шум
+    total = len(cur_text) or 1
+    change_ratio = delta_chars / total
+    if change_ratio < 0.005 and source_priority != "high":
+        return True
+
+    # Проверка на boilerplate-паттерны: если новое содержимое — это только меню/футер
+    # Считаем количество boilerplate-слов в сравнении с длиной текста
+    boilerplate_matches = len(_BOILERPLATE_PATTERNS.findall(cur_text))
+    if boilerplate_matches > 0 and delta_chars < 300:
+        bp_ratio = boilerplate_matches / (delta_chars / 100 + 1)
+        if bp_ratio > 0.5:
+            return True
+
+    return False
+
+
+def _human_summary(*, source_title: str, prev_text: str, cur_text: str, classification: str = "") -> str:
     pub_date = _extract_pub_date(cur_text)
     topic = _extract_topic(cur_text)
-    prefix = "Новая публикация" if not prev_text else "Обновление"
+    prefix = "Новое" if not prev_text else "Обновление"
     date_part = pub_date or "дата не найдена"
     topic_part = topic or "тема не распознана"
-    return f"{source_title}: {date_part} — {topic_part} ({prefix})"
+    # Добавляем classification для контекста, если есть
+    cls_tag = f"[{classification}] " if classification and classification != "product.general" else ""
+    return f"{cls_tag}{source_title}: {date_part} — {topic_part} ({prefix})"
 
 
 async def run_once(*, limit: int | None = None) -> dict[str, Any]:
@@ -410,6 +469,37 @@ async def run_once(*, limit: int | None = None) -> dict[str, Any]:
                 continue
 
             classification, section_path = _classify(src)
+
+            # === СЕМАНТИЧЕСКИЙ ГЕЙТ ===
+            delta = abs(len(cur_text) - len(prev_text))
+            is_noise = _is_noise_change(delta_chars=delta, cur_text=cur_text, source_priority=src.priority)
+            # Для юридических и цифрового суверенитета — не фильтруем, каждый сигнал важен
+            if classification.startswith("legal.") or classification.startswith("digital."):
+                is_noise = False
+            if is_noise:
+                json_log({
+                    "type": "parser_change_filtered_noise",
+                    "source_id": src.id,
+                    "delta_chars": delta,
+                    "classification": classification,
+                })
+                # Снепшот и состояние сохраняем, чтобы не передетектить то же изменение
+                snap_path.write_text(cur_text + "\n", encoding="utf-8")
+                _write_state(state_path, {
+                    "source_id": src.id,
+                    "url": src.url,
+                    "last_run_utc": ts,
+                    "etag": fr.etag,
+                    "last_modified": fr.last_modified,
+                    "content_type": fr.content_type,
+                    "final_url": fr.final_url,
+                    "last_status": fr.status,
+                    "prev_snapshot_len": len(prev_text),
+                    "snapshot_len": len(cur_text),
+                    "noise_filtered": True,
+                })
+                continue
+
             article_id = _stable_id("src", src.id)
             title = f"{src.title} — мониторинг"
 
