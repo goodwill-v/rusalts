@@ -136,7 +136,9 @@ def keyword_hit(text: str, keyword: str) -> bool:
     t = str(text or "").lower()
     if len(kw) >= 5:
         return kw in t
-    return re.search(rf"(?<![\w-]){re.escape(kw)}(?![\w-])", t) is not None
+    # Короткий ключ — отдельное слово. Справа допускаем дефис («ИИ-модель», «ИИ-рынок»),
+    # слева — нет (чтобы «ии» не ловилось внутри «России»).
+    return re.search(rf"(?<![\w-]){re.escape(kw)}(?!\w)", t) is not None
 
 
 def keywords_any_hit(text: str, keywords: list[str]) -> bool:

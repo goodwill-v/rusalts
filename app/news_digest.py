@@ -559,12 +559,17 @@ async def run_news_digest_pipeline(payload: dict | None = None) -> DigestRunResu
     res.max_pool_size = len(state.max_pool)
     non_max = [s for s in scored if not s.is_max]
 
-    # 5) Ранжирование и отбор: дайджест 3–6 + отдельные выпуски для значимых.
+    # 5) Ранжирование и отбор (ТЗ 2.4): значимые кандидаты → отдельные выпуски (до 2),
+    #    остальные → ежедневный дайджест. Если без значимых дайджест не набирается —
+    #    значимые возвращаются в дайджест: ежедневный формат — базовый.
     ranked = rank_candidates(non_max)
     standalone = [s for s in ranked if s.high_significance][:STANDALONE_MAX_PER_DAY]
     standalone_uids = {s.uid for s in standalone}
     digest_pool = [s for s in ranked if s.uid not in standalone_uids]
-    selected = select_for_digest(digest_pool, min_news=DIGEST_MIN_NEWS, max_news=DIGEST_MAX_NEWS)
+    while standalone and len(digest_pool) < DIGEST_MIN_NEWS:
+        moved = standalone.pop()
+        digest_pool.insert(0, moved)
+    selected = select_for_digest(rank_candidates(digest_pool), min_news=DIGEST_MIN_NEWS, max_news=DIGEST_MAX_NEWS)
     res.selected_for_digest = len(selected)
 
     created_any = False

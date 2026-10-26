@@ -81,7 +81,9 @@ def _significance_reasons(title: str, summary: str, topics: list[str]) -> list[s
     if legal_hit and (biz_hit or "legal" in topics):
         reasons.append("legal_business")
 
-    player_hit = keywords_any_hit(blob, _MAJOR_PLAYERS) or keywords_any_hit(blob, _MAJOR_PLAYERS_RU)
+    # «Крупный релиз ИИ» — игрок уровня OpenAI/Сбер прямо в ЗАГОЛОВКЕ + глагол релиза.
+    # По заголовку, а не по всему тексту: иначе значимым станет каждая новость со словом «gpt».
+    player_hit = keywords_any_hit(title, _MAJOR_PLAYERS) or keywords_any_hit(title, _MAJOR_PLAYERS_RU)
     verb_hit = keywords_any_hit(blob, _RELEASE_VERBS)
     if player_hit and verb_hit and "ai_dev" in topics:
         reasons.append("ai_major_release")

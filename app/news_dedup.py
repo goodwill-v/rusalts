@@ -200,14 +200,23 @@ class FactDedup:
         if cu:
             self.state.seen_urls[cu] = self.now.replace(microsecond=0).isoformat()
             self._url_set.add(cu)
-        self.state.seen_facts.append(
-            {
-                "ts_utc": self.now.replace(microsecond=0).isoformat(),
-                "title": title,
-                "summary": (summary or "")[:400],
-                "url": url,
-                "fact_hash": fact_hash(title, summary),
-            }
+        rec = {
+            "ts_utc": self.now.replace(microsecond=0).isoformat(),
+            "title": title,
+            "summary": (summary or "")[:400],
+            "url": url,
+            "fact_hash": fact_hash(title, summary),
+        }
+        self.state.seen_facts.append(rec)
+        # Тот же факт — в память текущего инстанса (проверки после remember в этом же запуске)
+        self._seen.append(
+            KnownFact(
+                title=title,
+                summary=(summary or "")[:400],
+                url=url,
+                ts_utc=rec["ts_utc"],
+                fact_hash=rec["fact_hash"],
+            )
         )
 
 
