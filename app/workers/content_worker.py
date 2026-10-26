@@ -685,6 +685,16 @@ async def handle_content_corporate_draft(*, payload: dict) -> None:
         json_log({"type": "content_corporate_auto_published", "publication_id": pub_id})
 
 
+async def handle_content_news_digest(*, payload: dict) -> None:
+    """Ежедневный новостный дайджест (ТЗ «Автоконтент v2»): RSS + diff → дедуп →
+    скоринг → правило МАКС → LLM-тексты → item в очередь одобрения.
+    По умолчанию НЕ публикует: публикация — только явным auto_publish в payload."""
+    from app.news_digest import run_news_digest_pipeline  # локально: без циклического импорта
+
+    res = await run_news_digest_pipeline(payload)
+    json_log({"type": "content_news_digest_handled", "ok": res.ok, "reason": res.reason})
+
+
 async def handle_content_from_change_package(*, payload: dict) -> None:
     config.ensure_data_dirs()
     change_package_path = str(payload.get("change_package_path") or "").strip()
@@ -781,6 +791,8 @@ async def main() -> None:
                 await handle_content_from_change_package(payload=msg.payload)
             elif msg.type == "content.corporate_draft":
                 await handle_content_corporate_draft(payload=msg.payload)
+            elif msg.type == "content.news_digest":
+                await handle_content_news_digest(payload=msg.payload)
             else:
                 json_log({"type": "worker_unknown_msg", "worker": "content", "request_id": rid, "msg_type": msg.type})
             await r.xack(STREAM_CONTENT_JOBS, GROUP_CONTENT, msg_id)
