@@ -4,7 +4,7 @@
     "previous_version": "0.1",
     "updated_at_utc": "2026-10-14T17:20:00Z",
     "updated_by": "ALT-content-improve",
-    "changes": "removed noise (specific articles, support/static pages, low-value aggregators); added AI, automation, digital-sovereign, legal-practice categories; reprioritized MAX/VK sources",
+    "changes": "removed noise (specific articles, support/static pages, low-value aggregators); added AI, automation, digital-sovereign, legal-practice categories; reprioritized MAX/VK sources; +trends.rbc.ru (автоконтент-v2)",
     "source_count": 42
   },
   "sources": [
@@ -271,7 +271,11 @@
       "tech_notes": "Изменения в 152-ФЗ — мониторинг обязателен",
       "status": "✅ Активен",
       "category": "legal",
-      "tags": ["legal", "152-FZ", "personal-data"]
+      "tags": [
+        "legal",
+        "152-FZ",
+        "personal-data"
+      ]
     },
     {
       "id": "pravo.gov.ru/168fz",
@@ -284,7 +288,11 @@
       "tech_notes": "Мониторинг поправок по 168-ФЗ",
       "status": "✅ Активен",
       "category": "legal",
-      "tags": ["legal", "168-FZ", "language"]
+      "tags": [
+        "legal",
+        "168-FZ",
+        "language"
+      ]
     },
     {
       "id": "pd.rkn.gov.ru",
@@ -297,7 +305,11 @@
       "tech_notes": "Официальные разъяснения регулятора по 152-ФЗ",
       "status": "✅ Активен",
       "category": "legal",
-      "tags": ["legal", "152-FZ", "rkn"]
+      "tags": [
+        "legal",
+        "152-FZ",
+        "rkn"
+      ]
     },
     {
       "id": "rkn.gov.ru/violations-152fz",
@@ -310,7 +322,11 @@
       "tech_notes": "Типовые риски и примеры нарушений",
       "status": "✅ Активен",
       "category": "legal",
-      "tags": ["legal", "152-FZ", "enforcement"]
+      "tags": [
+        "legal",
+        "152-FZ",
+        "enforcement"
+      ]
     },
     {
       "id": "fstec.ru/pd",
@@ -323,7 +339,12 @@
       "tech_notes": "Технический комплаенс 152-ФЗ",
       "status": "✅ Активен",
       "category": "legal",
-      "tags": ["legal", "152-FZ", "fstec", "security"]
+      "tags": [
+        "legal",
+        "152-FZ",
+        "fstec",
+        "security"
+      ]
     },
     {
       "id": "mkrf.ru/language",
@@ -336,7 +357,11 @@
       "tech_notes": "Позиция Минкультуры по языку в публичном пространстве",
       "status": "✅ Активен",
       "category": "legal",
-      "tags": ["legal", "168-FZ", "language"]
+      "tags": [
+        "legal",
+        "168-FZ",
+        "language"
+      ]
     },
     {
       "id": "eais.rkn.gov.ru",
@@ -349,7 +374,11 @@
       "tech_notes": "Мониторинг блокировок",
       "status": "✅ Активен",
       "category": "legal",
-      "tags": ["legal", "restrictions", "rkn"]
+      "tags": [
+        "legal",
+        "restrictions",
+        "rkn"
+      ]
     },
     {
       "id": "rkn.gov.ru/opendata",
@@ -362,7 +391,12 @@
       "tech_notes": "Автоматизированный мониторинг",
       "status": "✅ Активен",
       "category": "legal",
-      "tags": ["legal", "restrictions", "rkn", "opendata"]
+      "tags": [
+        "legal",
+        "restrictions",
+        "rkn",
+        "opendata"
+      ]
     },
     {
       "id": "fsb.ru/press",
@@ -507,6 +541,18 @@
       "tech_notes": "Для полноты картины по MAX",
       "status": "✅ Активен",
       "category": "platform"
+    },
+    {
+      "id": "trends.rbc.ru",
+      "title": "РБК Тренды — главная",
+      "url": "https://trends.rbc.ru/",
+      "priority": "medium",
+      "level": 2,
+      "content_type": "Тренды технологий, ИИ, бизнеса; headlines меняются ежедневно",
+      "frequency": "Ежедневно",
+      "tech_notes": "RSS закрыт (404) — мониторим страницу; кандидаты в дайджест идут через news_sources.json (type=diff)",
+      "status": "✅ Активен",
+      "category": "ai"
     }
   ]
 }
