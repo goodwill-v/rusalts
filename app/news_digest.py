@@ -574,10 +574,11 @@ async def run_news_digest_pipeline(payload: dict | None = None) -> DigestRunResu
 
     created_any = False
 
-    # 6) Ежедневный дайджест «Обзор: N новостей».
-    if len(selected) >= DIGEST_MIN_NEWS:
+    # 6) Ежедневный дайджест «Обзор: N новостей». Ежедневный формат — базовый:
+    # выпускаем и на 1–2 новостях (медленный день), минимум не блокирует выход.
+    if selected:
         try:
-            blocks = await generate_blocks(kind="daily", candidates=selected, min_blocks=DIGEST_MIN_NEWS, max_blocks=DIGEST_MAX_NEWS)
+            blocks = await generate_blocks(kind="daily", candidates=selected, min_blocks=1, max_blocks=DIGEST_MAX_NEWS)
             header = f"ежедневный обзор, {len(blocks)} новостей"
             lead = await generate_lead(kind="daily", header=header, blocks=blocks)
             title = f"Обзор: {len(blocks)} новостей для бизнеса"
