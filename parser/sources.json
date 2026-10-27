@@ -1,8 +1,11 @@
 {
   "meta": {
-    "version": "0.1",
-    "generated_from": "АЛЬТЕРНАТИВА_АЛТбот/Ресурсы_для_ежедневного_мониторинга_обновлений.xlsx + ДОПОЛНЕНИЕ.xlsx",
-    "generated_at_utc": "2026-04-16T09:30:00Z"
+    "version": "0.2",
+    "previous_version": "0.1",
+    "updated_at_utc": "2026-10-14T17:20:00Z",
+    "updated_by": "ALT-content-improve",
+    "changes": "removed noise (specific articles, support/static pages, low-value aggregators); added AI, automation, digital-sovereign, legal-practice categories; reprioritized MAX/VK sources; +trends.rbc.ru (автоконтент-v2)",
+    "source_count": 42
   },
   "sources": [
     {
@@ -13,8 +16,9 @@
       "level": 1,
       "content_type": "Официальная страница продукта MAX: анонсы и ключевые изменения",
       "frequency": "По факту обновлений",
-      "tech_notes": "Статическая страница; полезно для фиксации изменений в описании/ссылках",
-      "status": "✅ Активен"
+      "tech_notes": "Статическая страница; только крупные изменения",
+      "status": "✅ Активен",
+      "category": "platform"
     },
     {
       "id": "business.max.ru",
@@ -24,30 +28,9 @@
       "level": 1,
       "content_type": "Новости/обновления для бизнеса, интеграции, правила использования",
       "frequency": "Ежедневно / по событию",
-      "tech_notes": "На сайте есть ссылка на официальный канал «тренды, новости и обновления» (внутри MAX); также полезно мониторить пресс-релизы VK про MAX для бизнеса",
-      "status": "✅ Активен"
-    },
-    {
-      "id": "MAX: канал MAX для бизнеса (внутри MAX)",
-      "title": "MAX — официальный канал «MAX для бизнеса» (внутри приложения)",
-      "url": "https://max.ru/max_business",
-      "priority": "high",
-      "level": 1,
-      "content_type": "Официальный канал внутри MAX: тренды, новости и обновления для бизнеса",
-      "frequency": "По публикациям",
-      "tech_notes": "Это ссылка на канал внутри экосистемы MAX; содержимое может быть доступно только в приложении",
-      "status": "✅ Активен"
-    },
-    {
-      "id": "download.max.ru",
-      "title": "MAX — официальный раздел скачивания",
-      "url": "https://download.max.ru/",
-      "priority": "high",
-      "level": 1,
-      "content_type": "Официальные ссылки на версии приложения и связанные ресурсы",
-      "frequency": "По факту обновлений",
-      "tech_notes": "Полезно как «указатель» на официальные каналы, документацию и изменения на посадочной странице",
-      "status": "✅ Активен"
+      "tech_notes": "Ключевой источник по бизнес-функциям MAX",
+      "status": "✅ Активен",
+      "category": "platform"
     },
     {
       "id": "dev.max.ru",
@@ -57,8 +40,9 @@
       "level": 1,
       "content_type": "Официальная документация и инструменты для разработчиков (API/интеграции)",
       "frequency": "По факту обновлений",
-      "tech_notes": "Публичный портал; отдельного публичного changelog может не быть — мониторим изменения страницы/документации",
-      "status": "✅ Активен"
+      "tech_notes": "Мониторим релизы API и SDK — важно для интеграций",
+      "status": "✅ Активен",
+      "category": "platform"
     },
     {
       "id": "GitHub: max-messenger",
@@ -69,7 +53,8 @@
       "content_type": "Исходный код, SDK, релизы, issues",
       "frequency": "По коммитам / релизам",
       "tech_notes": "GitHub API: /repos/{repo}/releases, RSS-лента",
-      "status": "✅ Активен"
+      "status": "✅ Активен",
+      "category": "platform"
     },
     {
       "id": "RuStore: MAX (ru.oneme.app)",
@@ -79,30 +64,9 @@
       "level": 1,
       "content_type": "Версии приложения, описания обновлений",
       "frequency": "По релизам в сторе",
-      "tech_notes": "RuStore обычно публикует «историю версий» с описанием изменений",
-      "status": "✅ Активен"
-    },
-    {
-      "id": "Google Play: MAX (ru.oneme.app)",
-      "title": "Google Play: MAX — описание и «Что нового»",
-      "url": "https://play.google.com/store/apps/details?id=ru.oneme.app&hl=ru",
-      "priority": "medium",
-      "level": 2,
-      "content_type": "Официальная карточка приложения и обновления в Google Play (может отличаться от RuStore)",
-      "frequency": "По релизам",
-      "tech_notes": "HTML может быть динамическим; используем как дополнительный сигнал, RuStore — основной",
-      "status": "⚠️ Ограничения"
-    },
-    {
-      "id": "help.max.ru",
-      "title": "MAX — справка/FAQ (официально)",
-      "url": "https://help.max.ru/",
-      "priority": "high",
-      "level": 1,
-      "content_type": "Официальные инструкции и справка: изменения интерфейса и функций",
-      "frequency": "По факту обновлений",
-      "tech_notes": "Иногда именно здесь фиксируются новые функции и правила",
-      "status": "✅ Активен"
+      "tech_notes": "Основной источник релиз-нотов MAX Android",
+      "status": "✅ Активен",
+      "category": "platform"
     },
     {
       "id": "VK press releases (MAX)",
@@ -112,195 +76,9 @@
       "level": 1,
       "content_type": "Официальные пресс-релизы VK: крупные обновления, интеграции, показатели",
       "frequency": "По событиям",
-      "tech_notes": "Поиск по странице по ключевым словам: MAX, мессенджер, Сферум; RSS обычно нет — мониторим страницу",
-      "status": "✅ Активен"
-    },
-    {
-      "id": "VK press releases (EN)",
-      "title": "VK — пресс-релизы (EN, MAX/Sferum)",
-      "url": "https://vk.company/en/press/releases/",
-      "priority": "medium",
-      "level": 2,
-      "content_type": "Официальные пресс-релизы VK (англ. версия) — иногда проще парсится",
-      "frequency": "По событиям",
-      "tech_notes": "Иногда структура страницы отличается от ru-версии",
-      "status": "✅ Активен"
-    },
-    {
-      "id": "VK press: MAX 100M users",
-      "title": "VK — пресс-релиз: MAX превысил 100 млн пользователей",
-      "url": "https://vk.company/en/press/releases/12248/",
-      "priority": "high",
-      "level": 1,
-      "content_type": "Ключевые новости и функции MAX (официально VK)",
-      "frequency": "По событиям",
-      "tech_notes": "Конкретная статья; меняется редко, но важна для мониторинга официальных заявлений",
-      "status": "✅ Активен"
-    },
-    {
-      "id": "VK press: MAX for business automation",
-      "title": "VK — пресс-релиз: MAX открыл возможности для автоматизации бизнеса",
-      "url": "https://vk.company/press/releases/12260/",
-      "priority": "high",
-      "level": 1,
-      "content_type": "Официальные изменения продукта MAX для бизнеса и интеграций",
-      "frequency": "По событиям",
-      "tech_notes": "Конкретная статья; важна для релизов и функциональных обновлений",
-      "status": "✅ Активен"
-    },
-    {
-      "id": "VK Messenger: официальный сайт",
-      "title": "VK Мессенджер — официальный сайт",
-      "url": "https://web.vk.me/",
-      "priority": "high",
-      "level": 1,
-      "content_type": "Официальная страница VK Мессенджера: функциональность и важные изменения",
-      "frequency": "По факту обновлений",
-      "tech_notes": "Статическая страница; полезно для фиксации изменений позиционирования и ссылок",
-      "status": "✅ Активен"
-    },
-    {
-      "id": "RuStore: VK Мессенджер",
-      "title": "RuStore: VK Мессенджер — история версий",
-      "url": "https://www.rustore.ru/catalog/app/com.vk.im/versions",
-      "priority": "high",
-      "level": 1,
-      "content_type": "Версии приложения VK Мессенджер, описание обновлений",
-      "frequency": "По релизам в сторе",
-      "tech_notes": "Надёжный источник релиз-нотов для Android",
-      "status": "✅ Активен"
-    },
-    {
-      "id": "Sferum: about/timeline",
-      "title": "Сферум — официальный раздел «О проекте» (таймлайн обновлений)",
-      "url": "https://www.sferum.ru/about",
-      "priority": "high",
-      "level": 1,
-      "content_type": "Официальная информация о Сферум: ключевые обновления по годам/периодам",
-      "frequency": "По факту обновлений",
-      "tech_notes": "Хорошо подходит для фиксации крупных изменений продукта",
-      "status": "✅ Активен"
-    },
-    {
-      "id": "Sferum: official blog",
-      "title": "Сферум — официальный блог (prof.sferum.ru)",
-      "url": "https://prof.sferum.ru/blog",
-      "priority": "high",
-      "level": 1,
-      "content_type": "Официальные статьи про новые функции, инструкции, обновления",
-      "frequency": "По публикациям",
-      "tech_notes": "Один из лучших источников по обновлениям Сферум; близко к официальному",
-      "status": "✅ Активен"
-    },
-    {
-      "id": "Sferum: media about us",
-      "title": "Сферум — раздел «СМИ о Сферуме»",
-      "url": "https://www.sferum.ru/media_about_us",
-      "priority": "medium",
-      "level": 2,
-      "content_type": "Подборка публикаций/инфоповодов о Сферуме (как индикатор событий)",
-      "frequency": "По публикациям",
-      "tech_notes": "Не всегда первоисточник; использовать как сигнал и подтверждать официальными пресс-релизами VK/ссылками",
-      "status": "⚠️ Ограничения"
-    },
-    {
-      "id": "VK press: Sferum 25M users",
-      "title": "VK — пресс-релиз: Сферум в MAX достиг 25 млн пользователей",
-      "url": "https://vk.company/press/releases/12273/",
-      "priority": "high",
-      "level": 1,
-      "content_type": "Официальные заявления о Сферуме и функциях в экосистеме MAX",
-      "frequency": "По событиям",
-      "tech_notes": "Конкретная статья; помогает подтверждать медийные сигналы ссылкой на VK",
-      "status": "✅ Активен"
-    },
-    {
-      "id": "VK press: Sferum 20M users",
-      "title": "VK — пресс-релиз: более 20 млн пользователей Сферума в MAX",
-      "url": "https://vk.company/press/releases/12213/",
-      "priority": "high",
-      "level": 1,
-      "content_type": "Официальные заявления VK о росте и обновлениях Сферума",
-      "frequency": "По событиям",
-      "tech_notes": "Конкретная статья; полезна как первоисточник при ссылках",
-      "status": "✅ Активен"
-    },
-    {
-      "id": "Sferum: prof portal",
-      "title": "Сферум — проф. портал (обновления, инструкции)",
-      "url": "https://prof.sferum.ru/",
-      "priority": "high",
-      "level": 1,
-      "content_type": "Подробные материалы про новые функции Сферум и практику использования",
-      "frequency": "По публикациям",
-      "tech_notes": "Статьи с описанием возможностей; использовать как близкий к официальному источник",
-      "status": "✅ Активен"
-    },
-    {
-      "id": "VK ESG blog (Sferum updates)",
-      "title": "VK — блог/обновления Сферум (ESG/соцпроекты)",
-      "url": "https://vk.company/esg/blog/11833/",
-      "priority": "medium",
-      "level": 2,
-      "content_type": "Официальный материал VK об обновлениях Сферум",
-      "frequency": "По публикациям",
-      "tech_notes": "Близко к официальному источнику (vk.company)",
-      "status": "✅ Активен"
-    },
-    {
-      "id": "TAdviser: Product:Max",
-      "title": "TAdviser: Product:Max",
-      "url": "https://tadviser.com/index.php/Product:Max_(messenger)",
-      "priority": "medium",
-      "level": 2,
-      "content_type": "Хронология релизов, аналитика, интеграции",
-      "frequency": "1–2 раза в неделю",
-      "tech_notes": "Статическая страница с историей версий",
-      "status": "✅ Активен"
-    },
-    {
-      "id": "MinTsifry: новости",
-      "title": "MinTsifry: новости",
-      "url": "https://digital.gov.ru/news-feed",
-      "priority": "medium",
-      "level": 2,
-      "content_type": "Стратегия, нормативные акты, требования к ПО",
-      "frequency": "Ежедневно",
-      "tech_notes": "Официальный сайт; /news-feed обычно стабильнее, чем /ru/news; при блокировках использовать sitemap",
-      "status": "✅ Активен"
-    },
-    {
-      "id": "MinTsifry: sitemap news/projects",
-      "title": "MinTsifry: sitemap (новости/проекты)",
-      "url": "https://digital.gov.ru/wp-sitemap-posts-news-projects-1.xml",
-      "priority": "medium",
-      "level": 2,
-      "content_type": "Sitemap XML (новости и проекты) — стабильный индекс для мониторинга изменений",
-      "frequency": "Ежедневно",
-      "tech_notes": "Подходит для мониторинга списка публикаций даже если HTML ленты меняется/сложно парсится",
-      "status": "✅ Активен"
-    },
-    {
-      "id": "Roskomnadzor: реестры",
-      "title": "Roskomnadzor: реестры",
-      "url": "https://rkn.gov.ru/activity/connection/register/",
-      "priority": "medium",
-      "level": 2,
-      "content_type": "Официальные реестры/требования (связь, распространители информации, и др.)",
-      "frequency": "По мере обновления",
-      "tech_notes": "На rkn.gov.ru есть несколько реестров; фиксируем изменения страниц/форм",
-      "status": "✅ Активен"
-    },
-    {
-      "id": "Roskomnadzor: open data OIR",
-      "title": "Roskomnadzor — open data: реестр организаторов распространения информации (ОИР)",
-      "url": "http://rkn.gov.ru/opendata/7705846236-InformationDistributor/",
-      "priority": "medium",
-      "level": 2,
-      "content_type": "Открытые данные РКН: список организаторов распространения информации (важно для мессенджеров)",
-      "frequency": "По мере обновления",
-      "tech_notes": "Официальный набор open data; полезно для юридически значимых изменений",
-      "status": "✅ Активен"
+      "tech_notes": "Главный источник крупных новостей экосистемы",
+      "status": "✅ Активен",
+      "category": "platform"
     },
     {
       "id": "VK: max.platform",
@@ -311,18 +89,8 @@
       "content_type": "Анонсы, вебинары, обновления для разработчиков",
       "frequency": "Ежедневно / по событию",
       "tech_notes": "Парсинг через VK API (wall.get)",
-      "status": "✅ Активен"
-    },
-    {
-      "id": "RIA: MAX news feed",
-      "title": "РИА Новости — подборка материалов про MAX",
-      "url": "https://ria.ru/product_messendzher-max/",
-      "priority": "medium",
-      "level": 2,
-      "content_type": "Новости и упоминания MAX в медиа (для контекста; проверять по первоисточникам)",
-      "frequency": "По публикациям",
-      "tech_notes": "Не первоисточник; использовать только как указатель на события и затем подтверждать ссылками",
-      "status": "⚠️ Ограничения"
+      "status": "✅ Активен",
+      "category": "platform"
     },
     {
       "id": "VK WorkSpace blog: messenger updates",
@@ -332,8 +100,9 @@
       "level": 2,
       "content_type": "Официальный блог VK WorkSpace: обновления корпоративного мессенджера",
       "frequency": "По публикациям",
-      "tech_notes": "Близкий к официальному источник (vk.ru)",
-      "status": "✅ Активен"
+      "tech_notes": "Корпоративные интеграции и обновления",
+      "status": "✅ Активен",
+      "category": "platform"
     },
     {
       "id": "VK WorkSpace: release updates hub",
@@ -343,41 +112,423 @@
       "level": 2,
       "content_type": "Сводная страница обновлений VK WorkSpace (включая мессенджер)",
       "frequency": "По публикациям",
-      "tech_notes": "Удобнее общего блога для мониторинга релизов",
-      "status": "✅ Активен"
+      "tech_notes": "Сводка релизов VK WorkSpace",
+      "status": "✅ Активен",
+      "category": "platform"
     },
     {
-      "id": "VK WorkSpace: release notes (SaaS)",
-      "title": "VK WorkSpace — Release Notes (SaaS)",
-      "url": "https://workspace.vk.ru/docs/saas/vk-teams/release-notes/",
+      "id": "TAdviser: Product:Max",
+      "title": "TAdviser: Product:Max",
+      "url": "https://tadviser.com/index.php/Product:Max_(messenger)",
       "priority": "medium",
       "level": 2,
-      "content_type": "Официальные release notes VK WorkSpace (SaaS)",
-      "frequency": "По релизам",
-      "tech_notes": "Хорошо подходит для фиксации конкретных изменений функций",
-      "status": "✅ Активен"
+      "content_type": "Хронология релизов, аналитика, интеграции",
+      "frequency": "1–2 раза в неделю",
+      "tech_notes": "Статическая страница с историей версий",
+      "status": "✅ Активен",
+      "category": "platform"
     },
     {
-      "id": "VK WorkSpace: release notes (On-Prem 26.1)",
-      "title": "VK WorkSpace — Release Notes (On-Prem, пример 26.1)",
-      "url": "https://workspace.vk.ru/docs/on-premises/vk-teams/rn/26.1/index.html",
-      "priority": "low",
-      "level": 3,
-      "content_type": "Технические release notes (серверная версия). Использовать для отслеживания функций и терминов",
-      "frequency": "По релизам",
-      "tech_notes": "Содержимое может обновляться по версиям; добавлять новые версии по мере появления",
-      "status": "⚠️ Ограничения"
-    },
-    {
-      "id": "RuStore: VK WorkSpace",
-      "title": "RuStore: VK WorkSpace — история версий",
-      "url": "https://www.rustore.ru/catalog/app/ru.mail.biz.avocado/versions",
+      "id": "Sferum: about/timeline",
+      "title": "Сферум — таймлайн обновлений",
+      "url": "https://www.sferum.ru/about",
       "priority": "medium",
       "level": 2,
-      "content_type": "Версии VK WorkSpace/VK Teams (Android), описание обновлений",
-      "frequency": "По релизам в сторе",
-      "tech_notes": "Удобно для отслеживания релизов мобильного клиента",
-      "status": "✅ Активен"
+      "content_type": "Ключевые обновления образовательной платформы",
+      "frequency": "По факту обновлений",
+      "tech_notes": "Только крупные изменения",
+      "status": "✅ Активен",
+      "category": "platform"
+    },
+    {
+      "id": "Sferum: prof portal",
+      "title": "Сферум — проф. портал (обновления, инструкции)",
+      "url": "https://prof.sferum.ru/",
+      "priority": "medium",
+      "level": 2,
+      "content_type": "Статьи про новые функции Сферум",
+      "frequency": "По публикациям",
+      "tech_notes": "Образовательные сценарии",
+      "status": "✅ Активен",
+      "category": "platform"
+    },
+    {
+      "id": "RIA: MAX news feed",
+      "title": "РИА Новости — подборка материалов про MAX",
+      "url": "https://ria.ru/product_messendzher-max/",
+      "priority": "medium",
+      "level": 2,
+      "content_type": "Новости и упоминания MAX в медиа (проверять по первоисточникам)",
+      "frequency": "По публикациям",
+      "tech_notes": "Только как индикатор, не первоисточник",
+      "status": "⚠️ Ограничения",
+      "category": "platform"
+    },
+    {
+      "id": "MinTsifry: новости",
+      "title": "Минцифры: новости",
+      "url": "https://digital.gov.ru/news-feed",
+      "priority": "high",
+      "level": 1,
+      "content_type": "Стратегия, нормативные акты, требования к ПО",
+      "frequency": "Ежедневно",
+      "tech_notes": "Официальный сайт; ключевой источник госполитики в ИТ",
+      "status": "✅ Активен",
+      "category": "legal"
+    },
+    {
+      "id": "MinTsifry: sitemap news/projects",
+      "title": "Минцифры: sitemap (новости/проекты)",
+      "url": "https://digital.gov.ru/wp-sitemap-posts-news-projects-1.xml",
+      "priority": "medium",
+      "level": 2,
+      "content_type": "Sitemap XML — стабильный индекс изменений",
+      "frequency": "Ежедневно",
+      "tech_notes": "Резервный источник при изменении HTML",
+      "status": "✅ Активен",
+      "category": "legal"
+    },
+    {
+      "id": "duma.gov.ru/news",
+      "title": "Государственная Дума: новости законодательной деятельности",
+      "url": "https://duma.gov.ru/news",
+      "priority": "high",
+      "level": 1,
+      "content_type": "Новости о законопроектах в сфере ИТ и информационной политики",
+      "frequency": "Ежедневно",
+      "tech_notes": "Прямой источник законодательных инициатив",
+      "status": "✅ Активен",
+      "category": "legal"
+    },
+    {
+      "id": "duma.gov.ru/cominfo",
+      "title": "Госдума: комитет по информационной политике",
+      "url": "https://duma.gov.ru/committee/cominfo/",
+      "priority": "medium",
+      "level": 2,
+      "content_type": "Позиции комитета по регулированию интернета",
+      "frequency": "По публикациям",
+      "tech_notes": "Ранний сигнал о законопроектах",
+      "status": "✅ Активен",
+      "category": "legal"
+    },
+    {
+      "id": "council.gov.ru/news",
+      "title": "Совет Федерации: новости",
+      "url": "https://council.gov.ru/news",
+      "priority": "medium",
+      "level": 2,
+      "content_type": "Позиции верхней палаты по цифровизации",
+      "frequency": "По мере публикации",
+      "tech_notes": "Дополняет картину законодательного процесса",
+      "status": "✅ Активен",
+      "category": "legal"
+    },
+    {
+      "id": "pravo.gov.ru",
+      "title": "Официальный интернет-портал правовой информации",
+      "url": "http://pravo.gov.ru",
+      "priority": "high",
+      "level": 1,
+      "content_type": "Федеральные законы, указы Президента, постановления Правительства",
+      "frequency": "Ежедневно / по факту принятия",
+      "tech_notes": "Юридическая сила с момента размещения",
+      "status": "✅ Активен",
+      "category": "legal"
+    },
+    {
+      "id": "publication.pravo.gov.ru",
+      "title": "Портал официального опубликования правовых актов",
+      "url": "https://publication.pravo.gov.ru",
+      "priority": "high",
+      "level": 1,
+      "content_type": "Официальные тексты нормативных актов с реквизитами",
+      "frequency": "По факту публикации",
+      "tech_notes": "RSS-лента доступна",
+      "status": "✅ Активен",
+      "category": "legal"
+    },
+    {
+      "id": "regulation.gov.ru",
+      "title": "Федеральный портал проектов нормативных правовых актов",
+      "url": "https://regulation.gov.ru",
+      "priority": "high",
+      "level": 1,
+      "content_type": "Проекты законов, подзаконных актов, обсуждения",
+      "frequency": "По мере размещения проектов",
+      "tech_notes": "API для проектов НПА",
+      "status": "✅ Активен",
+      "category": "legal"
+    },
+    {
+      "id": "pravo.gov.ru/152fz",
+      "title": "152‑ФЗ «О персональных данных» (официальный текст)",
+      "url": "http://pravo.gov.ru/proxy/ips/?docbody=&nd=102081964",
+      "priority": "high",
+      "level": 1,
+      "content_type": "152‑ФЗ: официальный текст, редакции",
+      "frequency": "По факту принятия поправок",
+      "tech_notes": "Изменения в 152-ФЗ — мониторинг обязателен",
+      "status": "✅ Активен",
+      "category": "legal",
+      "tags": [
+        "legal",
+        "152-FZ",
+        "personal-data"
+      ]
+    },
+    {
+      "id": "pravo.gov.ru/168fz",
+      "title": "168‑ФЗ о русском языке (официальный текст)",
+      "url": "http://pravo.gov.ru/proxy/ips/?docbody=&nd=102158964",
+      "priority": "high",
+      "level": 1,
+      "content_type": "168‑ФЗ: требования к русскому языку",
+      "frequency": "По факту принятия",
+      "tech_notes": "Мониторинг поправок по 168-ФЗ",
+      "status": "✅ Активен",
+      "category": "legal",
+      "tags": [
+        "legal",
+        "168-FZ",
+        "language"
+      ]
+    },
+    {
+      "id": "pd.rkn.gov.ru",
+      "title": "Роскомнадзор: Персональные данные (портал)",
+      "url": "https://pd.rkn.gov.ru",
+      "priority": "high",
+      "level": 1,
+      "content_type": "Разъяснения РКН по персональным данным",
+      "frequency": "По мере публикации",
+      "tech_notes": "Официальные разъяснения регулятора по 152-ФЗ",
+      "status": "✅ Активен",
+      "category": "legal",
+      "tags": [
+        "legal",
+        "152-FZ",
+        "rkn"
+      ]
+    },
+    {
+      "id": "rkn.gov.ru/violations-152fz",
+      "title": "Роскомнадзор: статистика нарушений (152‑ФЗ)",
+      "url": "https://rkn.gov.ru/treatment/statistics/violations/",
+      "priority": "medium",
+      "level": 2,
+      "content_type": "Практика нарушений — кейсы для бизнеса",
+      "frequency": "Еженедельно / по событиям",
+      "tech_notes": "Типовые риски и примеры нарушений",
+      "status": "✅ Активен",
+      "category": "legal",
+      "tags": [
+        "legal",
+        "152-FZ",
+        "enforcement"
+      ]
+    },
+    {
+      "id": "fstec.ru/pd",
+      "title": "ФСТЭК: защита персональных данных",
+      "url": "https://fstec.ru/napravleniya-deyatelnosti/zashchita-personalnykh-dannykh",
+      "priority": "high",
+      "level": 1,
+      "content_type": "Требования к сертификации и защите ПДн",
+      "frequency": "По мере обновления",
+      "tech_notes": "Технический комплаенс 152-ФЗ",
+      "status": "✅ Активен",
+      "category": "legal",
+      "tags": [
+        "legal",
+        "152-FZ",
+        "fstec",
+        "security"
+      ]
+    },
+    {
+      "id": "mkrf.ru/language",
+      "title": "Минкультуры: языковая политика",
+      "url": "https://mkrf.ru/priority/language/",
+      "priority": "high",
+      "level": 1,
+      "content_type": "Разъяснения по 168-ФЗ о русском языке",
+      "frequency": "По мере публикации",
+      "tech_notes": "Позиция Минкультуры по языку в публичном пространстве",
+      "status": "✅ Активен",
+      "category": "legal",
+      "tags": [
+        "legal",
+        "168-FZ",
+        "language"
+      ]
+    },
+    {
+      "id": "eais.rkn.gov.ru",
+      "title": "Роскомнадзор: Единый реестр запрещённых сайтов",
+      "url": "https://eais.rkn.gov.ru",
+      "priority": "high",
+      "level": 1,
+      "content_type": "Реестр ограниченных сайтов",
+      "frequency": "Ежедневно / по событиям",
+      "tech_notes": "Мониторинг блокировок",
+      "status": "✅ Активен",
+      "category": "legal",
+      "tags": [
+        "legal",
+        "restrictions",
+        "rkn"
+      ]
+    },
+    {
+      "id": "rkn.gov.ru/opendata",
+      "title": "Роскомнадзор: Open Data",
+      "url": "https://rkn.gov.ru/opendata/",
+      "priority": "high",
+      "level": 1,
+      "content_type": "Машиночитаемые данные по реестрам",
+      "frequency": "По мере обновления",
+      "tech_notes": "Автоматизированный мониторинг",
+      "status": "✅ Активен",
+      "category": "legal",
+      "tags": [
+        "legal",
+        "restrictions",
+        "rkn",
+        "opendata"
+      ]
+    },
+    {
+      "id": "fsb.ru/press",
+      "title": "ФСБ России: пресс-центр",
+      "url": "https://fsb.ru/press/",
+      "priority": "high",
+      "level": 1,
+      "content_type": "Требования по криптографии, СОРМ",
+      "frequency": "По событиям",
+      "tech_notes": "Ключевой источник по безопасности и шифрованию",
+      "status": "✅ Активен",
+      "category": "legal"
+    },
+    {
+      "id": "fstec.ru/activities",
+      "title": "ФСТЭК России: деятельность",
+      "url": "https://fstec.ru/deyatelnost",
+      "priority": "high",
+      "level": 1,
+      "content_type": "Методические документы по сертификации и защите информации",
+      "frequency": "По мере обновления",
+      "tech_notes": "Технические требования к обработке ПДн",
+      "status": "✅ Активен",
+      "category": "legal"
+    },
+    {
+      "id": "gosuslugi.ru/help/digital-profile",
+      "title": "Госуслуги: Цифровой профиль и интеграции",
+      "url": "https://gosuslugi.ru/help/digital-profile",
+      "priority": "high",
+      "level": 1,
+      "content_type": "Интеграция с Госуслугами, Цифровой ID, «Госключ»",
+      "frequency": "По факту обновлений",
+      "tech_notes": "Критично для интеграций с госсервисами",
+      "status": "✅ Активен",
+      "category": "legal"
+    },
+    {
+      "id": "habr-ai-rss",
+      "title": "Habr: Искусственный интеллект",
+      "url": "https://habr.com/ru/rss/tag/ai/",
+      "priority": "high",
+      "level": 1,
+      "content_type": "Статьи, кейсы, новости по AI и нейросетям",
+      "frequency": "Ежедневно",
+      "tech_notes": "RSS-лента; отбирать кейсы для бизнеса, не хайп",
+      "status": "✅ Активен",
+      "category": "ai"
+    },
+    {
+      "id": "habr-automation-rss",
+      "title": "Habr: Автоматизация",
+      "url": "https://habr.com/ru/rss/tag/avtomatizatsiya/",
+      "priority": "high",
+      "level": 1,
+      "content_type": "Автоматизация бизнес-процессов, кейсы, инструменты",
+      "frequency": "Ежедневно",
+      "tech_notes": "RSS-лента; фильтр по практическим внедрениям",
+      "status": "✅ Активен",
+      "category": "ai"
+    },
+    {
+      "id": "habr-ml-rss",
+      "title": "Habr: Машинное обучение",
+      "url": "https://habr.com/ru/rss/tag/machine_learning/",
+      "priority": "high",
+      "level": 1,
+      "content_type": "ML, нейросети, практические применения",
+      "frequency": "Ежедневно",
+      "tech_notes": "RSS-лента; отбирать прикладные решения для бизнеса",
+      "status": "✅ Активен",
+      "category": "ai"
+    },
+    {
+      "id": "habr-it-law-rss",
+      "title": "Habr: IT-право",
+      "url": "https://habr.com/ru/rss/tag/it-pravo/",
+      "priority": "high",
+      "level": 1,
+      "content_type": "Юридические аспекты ИТ: 152-ФЗ, цифровое право, регулирование",
+      "frequency": "Несколько раз в неделю",
+      "tech_notes": "RSS-лента; хороший источник кейсов и разборов",
+      "status": "✅ Активен",
+      "category": "legal"
+    },
+    {
+      "id": "tadviser-ai",
+      "title": "TAdviser: Искусственный интеллект",
+      "url": "https://www.tadviser.ru/index.php/Искусственный_интеллект",
+      "priority": "medium",
+      "level": 2,
+      "content_type": "Аналитика, проекты, внедрения AI в России",
+      "frequency": "Еженедельно",
+      "tech_notes": "Статическая страница с аналитикой",
+      "status": "✅ Активен",
+      "category": "ai"
+    },
+    {
+      "id": "tadviser-automation",
+      "title": "TAdviser: Автоматизация бизнеса",
+      "url": "https://www.tadviser.ru/index.php/Автоматизация_бизнеса",
+      "priority": "medium",
+      "level": 2,
+      "content_type": "Проекты автоматизации, внедрения, кейсы",
+      "frequency": "Еженедельно",
+      "tech_notes": "Статическая страница",
+      "status": "✅ Активен",
+      "category": "ai"
+    },
+    {
+      "id": "tadviser-digital-sovereign",
+      "title": "TAdviser: Цифровой суверенитет России",
+      "url": "https://www.tadviser.ru/index.php/Цифровой_суверенитет_России",
+      "priority": "medium",
+      "level": 2,
+      "content_type": "Аналитика по импортозамещению и цифровому суверенитету",
+      "frequency": "Еженедельно",
+      "tech_notes": "Хороший контекст для статей про отечественные решения",
+      "status": "✅ Активен",
+      "category": "digital-sovereign"
+    },
+    {
+      "id": "cnews-it-news",
+      "title": "CNews: ИТ-новости",
+      "url": "https://www.cnews.ru/news/top/",
+      "priority": "medium",
+      "level": 2,
+      "content_type": "Новости ИТ-рынка, AI, импортозамещение",
+      "frequency": "Ежедневно",
+      "tech_notes": "Дополнительный источник трендов",
+      "status": "✅ Активен",
+      "category": "digital-sovereign"
     },
     {
       "id": "Habr: тег MAX",
@@ -387,294 +538,21 @@
       "level": 3,
       "content_type": "Технические статьи, кейсы, опыт разработчиков",
       "frequency": "По публикациям",
-      "tech_notes": "RSS-лента, удобно для агрегации",
-      "status": "✅ Активен"
+      "tech_notes": "Для полноты картины по MAX",
+      "status": "✅ Активен",
+      "category": "platform"
     },
     {
-      "id": "Frontol: API MAX update (3rd party)",
-      "title": "Frontol — заметка про обновление API MAX (требует подтверждения)",
-      "url": "https://frontol.ru/news/obnovilos-api-messendzhera-max-dlya-podtverzhdeniya-vozrasta-neobkhodimo-zamenit-token/",
-      "priority": "low",
-      "level": 3,
-      "content_type": "Инфоповоды про API MAX (использовать только после подтверждения по официальным источникам)",
-      "frequency": "По публикациям",
-      "tech_notes": "Не официальный источник; только как сигнал, затем проверять по VK/MAX документации",
-      "status": "⚠️ Ограничения"
-    },
-    {
-      "id": "Sostav.ru",
-      "title": "Sostav.ru",
-      "url": "https://www.sostav.ru",
-      "priority": "low",
-      "level": 3,
-      "content_type": "Новости бизнеса, маркетинг, внедрения",
+      "id": "trends.rbc.ru",
+      "title": "РБК Тренды — главная",
+      "url": "https://trends.rbc.ru/",
+      "priority": "medium",
+      "level": 2,
+      "content_type": "Тренды технологий, ИИ, бизнеса; headlines меняются ежедневно",
       "frequency": "Ежедневно",
-      "tech_notes": "Парсинг только для трендов, не источник истины",
-      "status": "⚠️ Ограничения"
-    },
-    {
-      "id": "Kommersant.ru",
-      "title": "Kommersant.ru",
-      "url": "https://www.kommersant.ru",
-      "priority": "low",
-      "level": 3,
-      "content_type": "Аналитика, интервью, стратегия",
-      "frequency": "Ежедневно",
-      "tech_notes": "Парсинг только для контекста",
-      "status": "⚠️ Ограничения"
-    },
-    {
-      "id": "RBC.ru",
-      "title": "RBC.ru",
-      "url": "https://www.rbc.ru",
-      "priority": "low",
-      "level": 3,
-      "content_type": "Новости ИТ-рынка, госзаказы, цифровизация",
-      "frequency": "Ежедневно",
-      "tech_notes": "Парсинг только для мониторинга трендов",
-      "status": "⚠️ Ограничения"
-    },
-    {
-      "id": "pravo.gov.ru",
-      "title": "Официальный интернет-портал правовой информации",
-      "url": "http://pravo.gov.ru",
-      "priority": "high",
-      "level": 1,
-      "content_type": "Публикация федеральных законов, указов Президента, постановлений Правительства",
-      "frequency": "Ежедневно / по факту принятия",
-      "tech_notes": "Статическая страница; возможна выгрузка по реквизитам акта; юридическая сила публикации с момента размещения",
-      "status": "✅ Активен"
-    },
-    {
-      "id": "publication.pravo.gov.ru",
-      "title": "Портал официального опубликования правовых актов",
-      "url": "https://publication.pravo.gov.ru",
-      "priority": "high",
-      "level": 1,
-      "content_type": "Официальные тексты нормативных актов с реквизитами и датами вступления в силу",
-      "frequency": "По факту публикации",
-      "tech_notes": "RSS-лента доступна; структура стабильна; позволяет отслеживать акты в момент официального опубликования",
-      "status": "✅ Активен"
-    },
-    {
-      "id": "regulation.gov.ru",
-      "title": "Федеральный портал проектов нормативных правовых актов",
-      "url": "https://regulation.gov.ru",
-      "priority": "high",
-      "level": 1,
-      "content_type": "Проекты законов, подзаконных актов, документы общественных обсуждений",
-      "frequency": "По мере размещения проектов",
-      "tech_notes": "API для проектов НПА; фильтры по тематике; позволяет отслеживать инициативы на стадии обсуждения",
-      "status": "✅ Активен"
-    },
-    {
-      "id": "duma.gov.ru/news",
-      "title": "Государственная Дума: новости законодательной деятельности",
-      "url": "https://duma.gov.ru/news",
-      "priority": "high",
-      "level": 1,
-      "content_type": "Новости о внесении законопроектов, чтениях, комитетах по информационной политике",
-      "frequency": "Ежедневно",
-      "tech_notes": "HTML-лента новостей; возможна выгрузка по дате; прямой источник о законодательных инициативах в сфере ИТ",
-      "status": "✅ Активен"
-    },
-    {
-      "id": "council.gov.ru/news",
-      "title": "Совет Федерации: новости",
-      "url": "https://council.gov.ru/news",
-      "priority": "medium",
-      "level": 2,
-      "content_type": "Позиции верхней палаты по законопроектам, международным аспектам цифровизации",
-      "frequency": "По мере публикации",
-      "tech_notes": "Дополняет картину законодательного процесса; особенно по вопросам безопасности и международного взаимодействия",
-      "status": "✅ Активен"
-    },
-    {
-      "id": "fsb.ru/press",
-      "title": "ФСБ России: пресс-центр",
-      "url": "https://fsb.ru/press/",
-      "priority": "high",
-      "level": 1,
-      "content_type": "Требования по криптографии, СОРМ, защите информации, комментарии по безопасности",
-      "frequency": "По событиям",
-      "tech_notes": "Ключевой источник для понимания требований к шифрованию и взаимодействию мессенджеров с органами безопасности",
-      "status": "✅ Активен"
-    },
-    {
-      "id": "fstec.ru/activities",
-      "title": "ФСТЭК России: деятельность",
-      "url": "https://fstec.ru/deyatelnost",
-      "priority": "high",
-      "level": 1,
-      "content_type": "Методические документы, требования к сертификации, стандарты защиты информации",
-      "frequency": "По мере обновления",
-      "tech_notes": "Незаменим для подготовки продуктов к сертификации; технические требования к обработке персональных данных",
-      "status": "✅ Активен"
-    },
-    {
-      "id": "gosuslugi.ru/help/digital-profile",
-      "title": "Госуслуги: Цифровой профиль и интеграции",
-      "url": "https://gosuslugi.ru/help/digital-profile",
-      "priority": "high",
-      "level": 1,
-      "content_type": "Документация по интеграции с Госуслугами, Цифровым ID, «Госключом»",
-      "frequency": "По факту обновлений",
-      "tech_notes": "Документация в формате help-центра; возможна выгрузка по разделам; критично для интеграций с госсервисами",
-      "status": "✅ Активен"
-    },
-    {
-      "id": "appgallery.ru",
-      "title": "AppGallery: каталог российских приложений",
-      "url": "https://appgallery.ru",
-      "priority": "medium",
-      "level": 2,
-      "content_type": "Версии приложений, описания обновлений, рейтинги, альтернатива RuStore",
-      "frequency": "По релизам",
-      "tech_notes": "Каталог приложений; история версий доступна; дополнительный источник для отслеживания версий мобильных клиентов",
-      "status": "✅ Активен"
-    },
-    {
-      "id": "digital.gov.ru/ru/activity/gosprogram",
-      "title": "Минцифры: Государственные программы",
-      "url": "https://digital.gov.ru/ru/activity/gosprogram/",
-      "priority": "medium",
-      "level": 2,
-      "content_type": "Стратегические документы, дорожные карты, показатели развития отрасли связи и ИТ",
-      "frequency": "Квартально / по обновлению программ",
-      "tech_notes": "Статические страницы программ; обновления по кварталам; позволяет отслеживать стратегические приоритеты государства",
-      "status": "✅ Активен"
-    },
-    {
-      "id": "pravo.gov.ru/152fz",
-      "title": "Официальный интернет-портал правовой информации: 152‑ФЗ",
-      "url": "http://pravo.gov.ru/proxy/ips/?docbody=&nd=102081964",
-      "priority": "high",
-      "level": 1,
-      "content_type": "152‑ФЗ «О персональных данных»: официальный текст, редакции, даты вступления изменений",
-      "frequency": "По факту принятия актов",
-      "tech_notes": "Первичный источник текста закона. Удобно для отслеживания поправок и даты вступления в силу.",
+      "tech_notes": "RSS закрыт (404) — мониторим страницу; кандидаты в дайджест идут через news_sources.json (type=diff)",
       "status": "✅ Активен",
-      "tags": ["legal", "152-FZ", "personal-data"]
-    },
-    {
-      "id": "pd.rkn.gov.ru",
-      "title": "Роскомнадзор: Персональные данные (портал)",
-      "url": "https://pd.rkn.gov.ru",
-      "priority": "high",
-      "level": 1,
-      "content_type": "Разъяснения и материалы РКН по персональным данным, реестры и формы",
-      "frequency": "По мере публикации",
-      "tech_notes": "Официальные разъяснения регулятора по применению 152‑ФЗ.",
-      "status": "✅ Активен",
-      "tags": ["legal", "152-FZ", "rkn"]
-    },
-    {
-      "id": "rkn.gov.ru/violations-152fz",
-      "title": "Роскомнадзор: статистика/нарушения (152‑ФЗ)",
-      "url": "https://rkn.gov.ru/treatment/statistics/violations/",
-      "priority": "medium",
-      "level": 2,
-      "content_type": "Статистика и материалы по нарушениям требований (комплаенс, прецеденты)",
-      "frequency": "Еженедельно / по событиям",
-      "tech_notes": "Полезно для понимания типовых рисков и примеров нарушений.",
-      "status": "✅ Активен",
-      "tags": ["legal", "152-FZ", "enforcement"]
-    },
-    {
-      "id": "fstec.ru/pd",
-      "title": "ФСТЭК: защита персональных данных",
-      "url": "https://fstec.ru/napravleniya-deyatelnosti/zashchita-personalnykh-dannykh",
-      "priority": "high",
-      "level": 1,
-      "content_type": "Требования и методические материалы по защите ПДн (СЗПДн), документы и приказы",
-      "frequency": "По мере обновления",
-      "tech_notes": "Техническая сторона комплаенса 152‑ФЗ (меры защиты, классы, требования).",
-      "status": "✅ Активен",
-      "tags": ["legal", "152-FZ", "fstec", "security"]
-    },
-    {
-      "id": "pravo.gov.ru/168fz",
-      "title": "Официальный интернет-портал правовой информации: 168‑ФЗ (русский язык)",
-      "url": "http://pravo.gov.ru/proxy/ips/?docbody=&nd=102158964",
-      "priority": "high",
-      "level": 1,
-      "content_type": "168‑ФЗ: требования к русскому языку в публичных пространствах",
-      "frequency": "По факту принятия",
-      "tech_notes": "Первичный источник текста закона и редакций.",
-      "status": "✅ Активен",
-      "tags": ["legal", "168-FZ", "language"]
-    },
-    {
-      "id": "mkrf.ru/language",
-      "title": "Минкультуры России: языковая политика",
-      "url": "https://mkrf.ru/priority/language/",
-      "priority": "high",
-      "level": 1,
-      "content_type": "Разъяснения/материалы по применению норм о русском языке в публичных пространствах",
-      "frequency": "По мере публикации",
-      "tech_notes": "Близко к официальной позиции по теме языка.",
-      "status": "✅ Активен",
-      "tags": ["legal", "168-FZ", "language"]
-    },
-    {
-      "id": "eais.rkn.gov.ru",
-      "title": "Роскомнадзор: Единый реестр запрещённых сайтов",
-      "url": "https://eais.rkn.gov.ru",
-      "priority": "high",
-      "level": 1,
-      "content_type": "Реестр доменных имён/страниц, доступ к которым ограничен в РФ",
-      "frequency": "Ежедневно / по событиям",
-      "tech_notes": "Официальный инструмент проверки ограничений доступа.",
-      "status": "✅ Активен",
-      "tags": ["legal", "restrictions", "rkn"]
-    },
-    {
-      "id": "rkn.gov.ru/opendata",
-      "title": "Роскомнадзор: Open Data (наборы данных)",
-      "url": "https://rkn.gov.ru/opendata/",
-      "priority": "high",
-      "level": 1,
-      "content_type": "Машиночитаемые наборы данных по реестрам и решениям",
-      "frequency": "По мере обновления",
-      "tech_notes": "Подходит для автоматизированного мониторинга изменений и юридически значимых данных.",
-      "status": "✅ Активен",
-      "tags": ["legal", "restrictions", "rkn", "opendata"]
-    },
-    {
-      "id": "region.pravo.gov.ru",
-      "title": "Правовые порталы субъектов РФ (единый вход)",
-      "url": "http://region.pravo.gov.ru",
-      "priority": "medium",
-      "level": 2,
-      "content_type": "Региональные нормативные акты и правовые порталы субъектов РФ",
-      "frequency": "По факту принятия",
-      "tech_notes": "Полезно для мониторинга региональных правовых актов, влияющих на цифровые сервисы.",
-      "status": "✅ Активен",
-      "tags": ["legal", "regional", "restrictions"]
-    },
-    {
-      "id": "digital.gov.ru/regions",
-      "title": "Минцифры: региональная цифровизация",
-      "url": "https://digital.gov.ru/ru/activity/regions/",
-      "priority": "low",
-      "level": 3,
-      "content_type": "Программы и материалы по цифровизации в субъектах РФ",
-      "frequency": "Квартально / по обновлению",
-      "tech_notes": "Вспомогательный источник: политика/программы, не всегда про ограничения напрямую.",
-      "status": "⚠️ Ограничения",
-      "tags": ["legal", "regional"]
-    },
-    {
-      "id": "duma.gov.ru/cominfo",
-      "title": "Госдума: комитет по информационной политике",
-      "url": "https://duma.gov.ru/committee/cominfo/",
-      "priority": "medium",
-      "level": 2,
-      "content_type": "Позиции и новости профильного комитета по регулированию интернета",
-      "frequency": "По публикациям",
-      "tech_notes": "Хорошо для раннего сигнала о законопроектах и инициативе.",
-      "status": "✅ Активен",
-      "tags": ["legal", "regional", "internet-regulation"]
+      "category": "ai"
     }
   ]
 }

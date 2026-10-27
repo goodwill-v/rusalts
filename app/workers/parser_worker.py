@@ -33,6 +33,13 @@ async def handle_parser_run(*, payload: dict) -> None:
             "items": res.get("items") or [],
         }
     )
+    # Ежедневный новостной дайджест (ТЗ «Автоконтент v2»): тот же таймер 05:00 UTC.
+    # Сам конвейер защищён cooldown'ом от двойного запуска за день.
+    if not payload.get("skip_news_digest"):
+        await publish_content_job(
+            payload={"ts_utc": res.get("ts_utc"), "trigger": "daily_parser"},
+            job_type="content.news_digest",
+        )
 
 
 async def main() -> None:
