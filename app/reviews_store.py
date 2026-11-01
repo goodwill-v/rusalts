@@ -54,6 +54,7 @@ def _connect() -> sqlite3.Connection:
             rating INTEGER NOT NULL DEFAULT 5,
             photo_url TEXT NOT NULL DEFAULT '',
             status TEXT NOT NULL DEFAULT 'draft',
+            consent INTEGER NOT NULL DEFAULT 0,
             is_abstract INTEGER NOT NULL DEFAULT 0,
             created_at TEXT NOT NULL DEFAULT ''
         )"""
@@ -61,6 +62,9 @@ def _connect() -> sqlite3.Connection:
     count = db.execute("SELECT COUNT(*) FROM reviews").fetchone()[0]
     if count == 0:
         now = datetime.now(timezone.utc).replace(microsecond=0).isoformat()
+        cols = {r[1] for r in db.execute("PRAGMA table_info(reviews)").fetchall()}
+        if "consent" not in cols:
+            db.execute("ALTER TABLE reviews ADD COLUMN consent INTEGER NOT NULL DEFAULT 0")
         for r in SEED:
             db.execute(
                 "INSERT INTO reviews (product_id, author, text, rating, photo_url,"
@@ -95,6 +99,7 @@ def upsert_review(data: dict[str, Any]) -> dict[str, Any]:
         "rating": min(5, max(1, int(data.get("rating") or 5))),
         "photo_url": str(data.get("photo_url") or "").strip()[:500],
         "status": data.get("status") if data.get("status") in ("approved", "draft") else "draft",
+        "consent": 1 if data.get("consent") in (1, "1", True) else 0,
         "is_abstract": 1 if data.get("is_abstract") in (1, "1", True) else 0,
     }
     with closing(_connect()) as db:

@@ -232,12 +232,15 @@ async def api_review_submit(request: Request):
     text = str(data.get("text") or "").strip()
     if len(text) < 20:
         return JSONResponse({"error": "Расскажите чуть подробнее (минимум 20 знаков)"}, status_code=400)
+    if data.get("consent") not in (1, "1", True):
+        return JSONResponse({"error": "Требуется согласие на обработку данных отзыва"}, status_code=400)
     review = upsert_review({
         "author": str(data.get("author") or "").strip()[:120] or "Клиент АЛТ",
         "text": text[:2000],
         "rating": data.get("rating") or 5,
         "product_id": str(data.get("product_id") or "").strip(),
         "status": "draft",
+        "consent": 1,
     })
     from app.observability import json_log
     json_log({"type": "review_submitted", "review_id": review["id"]})

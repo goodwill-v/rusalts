@@ -425,6 +425,10 @@
               </select>
             </div>
             <textarea id="rvs-text" rows="3" placeholder="Что попробовали и что получилось…" style="width:100%;margin-top:0.6rem;font:inherit;padding:0.5rem 0.65rem;border:1px solid var(--site-border);border-radius:8px;box-sizing:border-box"></textarea>
+            <label class="muted-site" style="display:flex;gap:0.4rem;margin-top:0.5rem;font-size:0.85rem;align-items:flex-start">
+              <input type="checkbox" id="rvs-consent" />
+              <span>Согласен на обработку и публикацию отзыва (имя/псевдоним, текст) — <a class="link" href="/legal/consent/" target="_blank">условия</a></span>
+            </label>
             <div class="admin-actions" style="margin-top:0.5rem">
               <button class="btn-buy" id="rvs-send">Отправить на проверку</button>
               <span class="muted-site" id="rvs-msg"></span>
@@ -679,6 +683,10 @@ document.querySelector('.modal__overlay')?.addEventListener('click', closeModal)
 // ─── Форма отзыва (C2) ───────────────────────────────────────────────────
 document.getElementById("rvs-send")?.addEventListener("click", async () => {
   const msg = document.getElementById("rvs-msg");
+  if (!document.getElementById("rvs-consent").checked) {
+    msg.textContent = "Отметьте согласие на обработку и публикацию отзыва.";
+    return;
+  }
   try {
     const resp = await fetch("/api/reviews/submit", {
       method: "POST", headers: { "Content-Type": "application/json" },
@@ -687,6 +695,7 @@ document.getElementById("rvs-send")?.addEventListener("click", async () => {
         product_id: document.getElementById("rvs-product").value.trim(),
         rating: +document.getElementById("rvs-rating").value || 5,
         text: document.getElementById("rvs-text").value.trim(),
+        consent: document.getElementById("rvs-consent").checked,
       }),
     });
     const data = await resp.json();
@@ -694,6 +703,7 @@ document.getElementById("rvs-send")?.addEventListener("click", async () => {
       msg.textContent = data.message;
       window.altGoal && altGoal("review_submitted");
       document.getElementById("rvs-text").value = "";
+      document.getElementById("rvs-consent").checked = false;
     } else msg.textContent = data.error || "Не удалось отправить";
   } catch (e) { msg.textContent = "Ошибка соединения"; }
 });
