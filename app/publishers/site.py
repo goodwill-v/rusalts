@@ -30,11 +30,15 @@ def _save_index(items: list[dict]) -> None:
 
 
 def _reorder_index(idx: list[dict]) -> list[dict]:
-    """Pinned first (newest first), then normal (newest first)."""
+    """Pinned first; дальше — в порядке ГЕНЕРАЦИИ новостей (свежие сгенерированные
+    выше), дата генерации = created_at_utc item'а (ТЗ 23.10: порядок публикации =
+    последовательность генерации с датами генерации)."""
+    def gen_key(x):
+        return str(x.get("generated_at_utc") or x.get("published_at_utc") or "")
     pinned = [x for x in idx if x.get("pinned")]
     normal = [x for x in idx if not x.get("pinned")]
-    pinned.sort(key=lambda x: str(x.get("published_at_utc") or ""), reverse=True)
-    normal.sort(key=lambda x: str(x.get("published_at_utc") or ""), reverse=True)
+    pinned.sort(key=gen_key, reverse=True)
+    normal.sort(key=gen_key, reverse=True)
     return pinned + normal
 
 
@@ -106,6 +110,7 @@ def publish_to_site(item: ContentItem) -> tuple[str, str]:
         "title": item.title,
         "excerpt": excerpt,
         "published_at_utc": pub_at,
+        "generated_at_utc": str(getattr(item, "created_at_utc", "") or pub_at),
         "url": url_path,
         "sources": item.sources,
         "pinned": bool(getattr(item, "pinned", False)),

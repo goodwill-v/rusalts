@@ -394,13 +394,23 @@ function extractNewsSources(raw) {
   return { text: lines.join("\n").trim(), sources };
 }
 
-/** Оформить текст новости: абзацы + кликабельные источники вместо сырых URL. */
+/** Markdown-ссылки [текст](url) → <a target="_blank" rel="noopener"> (ТЗ 23.10: источники в тексте). */
+function renderInlineLinks(html) {
+  return html.replace(
+    /\[([^\]]+)\]\((https?:\/\/[^)\s]+)\)/g,
+    (m, label, url) =>
+      `<a href="${escapeHtml(url)}" target="_blank" rel="noopener noreferrer">${escapeHtml(label)}</a>`
+  );
+}
+
+/** Оформить текст новости: абзацы; источники — гиперссылками в тексте (новое окно);
+ *  хвостовые строки «domain — url» (legacy-выпуски) по-прежнему превращаются в блок ссылок. */
 function renderNewsBody(el, raw) {
   const { text, sources } = extractNewsSources(raw);
   const parts = [];
   for (const p of text.split(/\n{2,}/)) {
     const t = p.replace(/[ \t]+$/gm, "").trim();
-    if (t) parts.push(`<p>${escapeHtml(t)}</p>`);
+    if (t) parts.push(`<p>${renderInlineLinks(escapeHtml(t))}</p>`);
   }
   if (!parts.length) parts.push(`<p>—</p>`);
   if (sources.length) {

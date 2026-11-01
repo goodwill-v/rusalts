@@ -208,9 +208,9 @@ def test_assemble_site_text_structure() -> None:
     assert paras[0] == lead, "лид — первый абзац (анонс на главной, первые ~200 знаков)"
     assert "1. Первая новость" in paras[1] and "Что для бизнеса: Экономия 30%." in paras[1]
     assert "2. Вторая новость" in paras[2]
-    assert paras[-1].splitlines() == ["habr.com — https://habr.com/p/1", "vc.ru — https://vc.ru/2"], (
-        "хвост «домен — url» превращается фронтендом в ссылки target=_blank"
-    )
+    assert "habr.com — https://habr.com/p/1" not in paras[-1], "хвост-источники убраны (ТЗ 23.10)"
+    assert "[Источник: habr.com](https://habr.com/p/1)" in paras[1], "источник — гиперссылкой в тексте (ТЗ 23.10)"
+    assert "[Источник: vc.ru](https://vc.ru/2)" in paras[2]
     vk = assemble_vk_text(lead, blocks)
     assert "rusalts.ru/news" in vk and "#АЛТ" in vk
 
@@ -353,7 +353,8 @@ def test_pipeline_creates_pending_items_without_publish(tmp_content_dirs: Path, 
         lead = data["site_text"].split("\n\n")[0]
         assert 180 <= len(lead) <= 220, f"лид вне диапазона: {len(lead)}"
         assert "Что для бизнеса:" in data["site_text"]
-        assert data["site_text"].rstrip().splitlines()[-1].split(" — ")[0] in ("sber.pro", "habr.com", "vc.ru", "rkn.gov.ru")
+        assert "[Источник:" in data["site_text"] and "](https://" in data["site_text"], "источник — гиперссылкой в тексте (ТЗ 23.10)"
+        assert "[Источник:" in data["site_text"]
 
     # Публикации нет: индекс и markdown сайта не создаются
     site_dir = tmp_content_dirs / "content" / "published" / "site"
