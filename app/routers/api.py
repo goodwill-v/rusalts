@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import re
+import unicodedata
 import uuid
 from pathlib import Path
 
@@ -672,7 +673,7 @@ async def list_document_templates() -> dict:
             continue
         if path.name.startswith(".") or path.name == "README":
             continue
-        rel = f"/api/files/document-templates/{path.name}"
+        rel = f"/api/files/document-templates/{unicodedata.normalize('NFC', path.name)}"
         items.append(
             {
                 "name": path.stem.replace("_", " "),
@@ -686,11 +687,18 @@ async def list_document_templates() -> dict:
 
 @router.get("/files/document-templates/{filename}")
 async def download_template(filename: str) -> FileResponse:
+    # Браузеры могут присылать имена в NFD («й» = и + U+0306) — приводим к NFC,
+    # иначе SAFE_NAME (\w) не покрывает диакритику и отдаёт 400.
+    filename = unicodedata.normalize("NFC", filename)
     if not SAFE_NAME.match(filename):
         raise HTTPException(status_code=400, detail="Недопустимое имя файла")
     base = config.DOCUMENT_TEMPLATES_DIR.resolve()
-    path = (base / filename).resolve()
-    if not path.is_file() or not path.is_relative_to(base):
+    path = None
+    for entry in base.iterdir():  # имена на диске бывают в NFD — сравниваем по NFC
+        if unicodedata.normalize("NFC", entry.name) == filename:
+            path = entry.resolve()
+            break
+    if path is None or not path.is_file() or not path.is_relative_to(base):
         raise HTTPException(status_code=404, detail="Файл не найден")
     return FileResponse(path, filename=filename)
 
