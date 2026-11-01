@@ -282,6 +282,98 @@ class ApproveAllResponse(SimpleOkResponse):
     items: list[ApproveResponse]
 
 
+class ApplyItemCommand(BaseModel):
+    publication_id: str
+    action: str = "publish"  # publish / approve / cancel
+    pinned: bool = False
+    site_text: str = ""
+    vk_text: str = ""
+
+
+class ApplyAllRequest(BaseModel):
+    commands: list[ApplyItemCommand] = Field(default_factory=list, max_length=500)
+
+
+class ApplyAllResponse(SimpleOkResponse):
+    published: int
+    approved: int
+    canceled: int
+    failed: int
+    details: list[dict]
+
+
+@router.post("/queue/apply-all", response_model=ApplyAllResponse, dependencies=[Depends(_require_admin_auth)])
+async def apply_all(request: Request, body: ApplyAllRequest | None = None) -> ApplyAllResponse:
+    """«Применить всё» (ТЗ Шефа 01.11): выполняет команды, проставленные в карточках
+    очереди. Команда не проставлена → новость публикуется. «Одобрить» → одобрить без
+    публикации. «Отмена» → новость не публикуется и удаляется (cancel+архив)."""
+    rid = getattr(request.state, "request_id", uuid.uuid4().hex)
+    commands: dict[str, str] = {}
+    pin_set: dict[str, bool] = {}
+    texts: dict[str, tuple[str, str]] = {}
+    if body and body.commands:
+        for c in body.commands:
+            pid = str(c.publication_id or "").strip()
+            if not pid:
+                continue
+            if c.action in ("publish", "approve", "cancel"):
+                commands[pid] = c.action
+            if c.pinned:
+                pin_set[pid] = True
+            texts[pid] = (c.site_text or "", c.vk_text or "")
+
+    pending = list_items(statuses={"pending", "needs_edit"})
+    res_published = res_approved = res_canceled = res_failed = 0
+    details: list[dict] = []
+
+    async def _do_publish(pid: str) -> dict:
+        r = await approve(request, pid)
+        return {"publication_id": pid, "action": "publish", "ok": bool(r.ok and not r.last_publish_error)}
+
+    for it in pending:
+        pid = it.publication_id
+        action = commands.get(pid, "publish")
+        entry = {"publication_id": pid, "action": action, "ok": False}
+        try:
+            # Правки текстов из карточек применяем до действия (модель ApplyItemCommand)
+            st, vt = texts.get(pid, ("", ""))
+            try:
+                update_item(pid, site_text=st, vk_text=vt) if (st or vt) else None
+            except Exception:
+                pass
+            if action == "cancel":
+                set_status(pid, status="canceled", message_id="web_cancel_batch")
+                archive_item(pid)
+                res_canceled += 1
+                entry["ok"] = True
+            elif action == "approve":
+                set_status(pid, status="approved", message_id="web_approve_batch")
+                res_approved += 1
+                entry["ok"] = True
+            else:
+                r = await _do_publish(pid)
+                entry["ok"] = bool(r.get("ok"))
+                if entry["ok"]:
+                    res_published += 1
+                else:
+                    res_failed += 1
+            if pin_set.get(pid):
+                try:
+                    update_item(pid, pinned=True)
+                except Exception:
+                    pass
+        except Exception as e:  # noqa: BLE001
+            res_failed += 1
+            entry["error"] = str(e)[:200]
+        details.append(entry)
+
+    json_log({"type": "content_apply_all", "request_id": rid, "published": res_published,
+              "approved": res_approved, "canceled": res_canceled, "failed": res_failed})
+    return ApplyAllResponse(ok=True, request_id=rid, published=res_published,
+                            approved=res_approved, canceled=res_canceled,
+                            failed=res_failed, details=details)
+
+
 @router.post("/queue/approve-all", response_model=ApproveAllResponse, dependencies=[Depends(_require_admin_auth)])
 async def approve_all(request: Request) -> ApproveAllResponse:
     rid = getattr(request.state, "request_id", uuid.uuid4().hex)
