@@ -400,6 +400,29 @@ body.layout-app .file-pill {
   opacity: 0.75;
 }
 
+/* F2: кнопка «Прикрепить» — заметная синяя (информация), только в чате консультанта */
+body.layout-app .file-pill--attach {
+  background: var(--site-primary);
+  color: #ffffff;
+  border: 1px solid var(--site-primary);
+  border-radius: 8px;
+  padding: 0.45rem 0.9rem;
+  font-weight: 600;
+  opacity: 1;
+  cursor: pointer;
+  transition: filter 0.15s;
+}
+body.layout-app .file-pill--attach:hover { filter: brightness(1.1); }
+
+/* F2: предупреждение о ПДн рядом с кнопкой прикрепления */
+.pdn-note {
+  font-size: 0.78rem;
+  color: var(--site-muted, #6b7280);
+  max-width: 300px;
+  line-height: 1.3;
+}
+.pdn-note .link { color: var(--site-primary); }
+
 body.layout-app .panel {
   background: var(--site-surface);
   border: 1px solid var(--site-border);
