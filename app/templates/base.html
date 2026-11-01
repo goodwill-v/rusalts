@@ -10,18 +10,31 @@
   <link rel="stylesheet" href="/static/css/components.css" />
   <link rel="stylesheet" href="/static/css/pages.css" />
   {% if metrika_id and not request.url.path.startswith('/admin') and not request.url.path.startswith('/publapprov') %}
-  <!-- Яндекс.Метрика -->
+  <!-- Яндекс.Метрика: загрузка только после согласия на cookies (152-ФЗ) -->
   <script type="text/javascript">
-    window.altGoal = function (goal, params) {  // безопасный reachGoal
+    window.altGoal = function (goal, params) {
       try { if (window.ym) window.ym({{ metrika_id }}, 'reachGoal', goal, params || {}); } catch (e) {}
     };
-    (function(m,e,t,r,i,k,a){m[i]=m[i]||function(){(m[i].a=m[i].a||[]).push(arguments)};
-    m[i].l=1*new Date();for(var j=0;j<document.scripts.length;j++){if(document.scripts[j].src===r){return;}}
-    k=e.createElement(t),a=e.getElementsByTagName(t)[0],k.async=1,k.src=r,a.parentNode.insertBefore(k,a)})
-    (window,document,"script","https://mc.yandex.ru/metrika/tag.js","ym");
-    ym({{ metrika_id }}, "init", { clickmap:true, trackLinks:true, accurateTrackBounce:true, webvisor:true });
+    window.altCookiesConsent = function () {
+      try { return localStorage.getItem('alt_cookies') || ''; } catch (e) { return ''; }
+    };
+    window.altLoadMetrika = function () {
+      if (window.__ymLoaded) return;
+      window.__ymLoaded = true;
+      (function(m,e,t,r,i,k,a){m[i]=m[i]||function(){(m[i].a=m[i].a||[]).push(arguments)};
+      m[i].l=1*new Date();for(var j=0;j<document.scripts.length;j++){if(document.scripts[j].src===r){return;}}
+      k=e.createElement(t),a=e.getElementsByTagName(t)[0],k.async=1,k.src=r,a.parentNode.insertBefore(k,a)})
+      (window,document,"script","https://mc.yandex.ru/metrika/tag.js","ym");
+      ym({{ metrika_id }}, "init", {
+        clickmap: true, trackLinks: true, accurateTrackBounce: true,
+        webvisor: window.altCookiesConsent() === 'all'
+      });
+    };
+    (function () {
+      var c = window.altCookiesConsent();
+      if (c === 'all') window.altLoadMetrika();
+    })();
   </script>
-  <noscript><div><img src="https://mc.yandex.ru/watch/{{ metrika_id }}" style="position:absolute; left:-9999px;" alt="" /></div></noscript>
   {% else %}
   <script>window.altGoal = function () {};</script>
   {% endif %}
@@ -120,8 +133,10 @@
         <a class="footer-link" href="/#contacts">Контакты</a>
       </div>
       <div class="footer-legal">
-        <a class="footer-link" href="#">Политика конфиденциальности</a>
-        <a class="footer-link" href="#">Пользовательское соглашение</a>
+        <a class="footer-link" href="/legal/privacy/">Политика ПДн</a>
+        <a class="footer-link" href="/legal/consent/">Согласие на обработку</a>
+        <a class="footer-link" href="/legal/cookies/">Cookies</a>
+        <a class="footer-link" href="/legal/subject-request/">Запросы по данным</a>
       </div>
     </div>
   </footer>
@@ -141,7 +156,34 @@
     if (a) window.altGoal && altGoal("cta_click", { text: (a.textContent || "").trim().slice(0, 60) });
   });
 </script>
+  {% if not request.url.path.startswith('/admin') and not request.url.path.startswith('/publapprov') %}
+  <div id="cookie-banner" style="display:none;position:fixed;left:12px;right:12px;bottom:12px;max-width:560px;margin:0 auto;z-index:9999;background:#ffffff;border:1px solid var(--site-border);border-radius:12px;box-shadow:0 12px 32px rgba(17,24,39,.18);padding:0.9rem 1rem;font-size:0.88rem;color:var(--site-text)">
+    🍪 Мы используем cookies для работы сайта и (по вашему выбору) веб-аналитику Яндекс.Метрики.
+    <a class="link" href="/legal/cookies/" target="_blank">Подробнее</a>
+    <div style="display:flex;gap:0.5rem;margin-top:0.6rem;flex-wrap:wrap">
+      <button id="cb-all" style="font:inherit;font-weight:700;padding:0.4rem 0.9rem;border:none;border-radius:8px;background:var(--site-accent);color:#fff;cursor:pointer">Хорошо</button>
+      <button id="cb-min" style="font:inherit;font-weight:600;padding:0.4rem 0.9rem;border-radius:8px;border:1px solid var(--site-primary);background:#fff;color:var(--site-primary);cursor:pointer">Только необходимые</button>
+    </div>
+  </div>
+  <script>
+    (function () {
+      try {
+        if (!localStorage.getItem('alt_cookies')) {
+          var b = document.getElementById('cookie-banner');
+          if (b) b.style.display = 'block';
+        }
+        var set = function (v) {
+          try { localStorage.setItem('alt_cookies', v); } catch (e) {}
+          document.getElementById('cookie-banner').style.display = 'none';
+          if (v === 'all' && window.altLoadMetrika) window.altLoadMetrika();
+        };
+        document.getElementById('cb-all').addEventListener('click', function(){ set('all'); });
+        document.getElementById('cb-min').addEventListener('click', function(){ set('min'); });
+      } catch (e) {}
+    })();
+  </script>
 <script type="module" src="/static/js/app.js"></script>
+  {% endif %}{# баннер cookies — конец if not admin #}
   {% block extra_scripts %}{% endblock %}
 </body>
 </html>

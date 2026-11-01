@@ -33,16 +33,24 @@ app.add_middleware(EmbedSecurityMiddleware)
 # ─── Фоновый цикл email-цепочки диагностик (B4) ───────────────────────────
 import asyncio  # noqa: E402
 import logging  # noqa: E402
+import time  # noqa: E402
 
 _followup_logger = logging.getLogger("diagnostics_followup")
 
 
 async def _followup_loop() -> None:
     from app.diagnostics_followup import followup_tick
+    from app.diagnostics_store import cleanup_expired
 
+    last_cleanup = 0.0
     while True:
         try:
             followup_tick()
+            if time.monotonic() - last_cleanup > 86400:  # раз в сутки — очистка по срокам
+                cleaned = cleanup_expired()
+                if any(cleaned.values()):
+                    _followup_logger.info("pdn_retention_cleanup", **cleaned)
+                last_cleanup = time.monotonic()
         except Exception as e:  # цикл не должен умирать
             _followup_logger.warning("followup loop error: %s", e)
         await asyncio.sleep(3600)

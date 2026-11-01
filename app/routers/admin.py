@@ -541,6 +541,31 @@ async def api_expert_dialog_thread(
 # ─── Диагностики: заглушка (раздел 5.4 ТЗ) ────────────────────────────────
 
 
+@router.get("/admin/api/subject-requests")
+async def api_subject_requests(_user: str = Depends(_require_admin_auth)) -> JSONResponse:
+    from app.diagnostics_store import list_subject_requests
+
+    return JSONResponse({"ok": True, "requests": list_subject_requests()})
+
+
+@router.post("/admin/api/purge-subject")
+async def api_purge_subject(
+    request: Request, _user: str = Depends(_require_admin_auth)
+):
+    """Удаление/обезличивание данных субъекта по запросу (152-ФЗ, ст. 20)."""
+    try:
+        body = await request.json()
+    except Exception:
+        return JSONResponse({"ok": False, "error": "invalid JSON"}, status_code=400)
+    from app.diagnostics_store import log_subject_request, purge_subject
+
+    key = str(body.get("contact") or "").strip()
+    if len(key) < 5:
+        return JSONResponse({"ok": False, "error": "укажите email или телефон"}, status_code=400)
+    removed = purge_subject(key)
+    return JSONResponse({"ok": True, "removed": removed})
+
+
 @router.get("/admin/api/diagnostics")
 async def api_diagnostics(_user: str = Depends(_require_admin_auth)) -> JSONResponse:
     """Список заявок диагностик: скоринг/триггеры, PDF, контакты."""

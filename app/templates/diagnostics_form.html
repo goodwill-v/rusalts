@@ -420,6 +420,12 @@
       </div>
       {% endif %}
 
+      <label class="diag-checks" style="margin:1rem 0 0;align-items:flex-start;font-size:0.88rem">
+        <input type="checkbox" name="consent" required id="consent" />
+        <span>Я даю <a class="link" href="/legal/consent/" target="_blank">согласие</a> на обработку моих персональных данных
+        (имя, email, телефон, ответы анкеты) в целях получения результатов диагностики и обратной связи,
+        и ознакомлен(а) с <a class="link" href="/legal/privacy/" target="_blank">Политикой обработки ПДн</a>.</span>
+      </label>
       <div class="diag-actions">
         <button type="submit" class="diag-submit">{{ submit_label }}</button>
         <span class="diag-msg" id="diag-msg"></span>
@@ -454,6 +460,12 @@ document.getElementById("diag-form").addEventListener("submit", async (e) => {
     msg.className = "diag-msg diag-msg--err";
     return;
   }
+  if (!document.getElementById("consent").checked) {
+    msg.textContent = "Требуется согласие на обработку персональных данных.";
+    msg.className = "diag-msg diag-msg--err";
+    return;
+  }
+  data.answers.consent = true;
   const btn = form.querySelector(".diag-submit");
   btn.disabled = true;
   btn.textContent = "Отправляем...";

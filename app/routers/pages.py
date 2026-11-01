@@ -284,6 +284,33 @@ async def diagnostics_unsubscribe(request: Request, id: int = 0, t: str = "") ->
     )
 
 
+_LEGAL_PAGES = {"privacy", "cookies", "consent", "subject-request"}
+
+
+@router.get("/legal/{page_id}/", response_class=HTMLResponse)
+async def legal_page(request: Request, page_id: str) -> HTMLResponse:
+    """Юридические страницы 152-ФЗ (Политика, Cookies, Согласие, Запросы)."""
+    if page_id not in _LEGAL_PAGES:
+        raise HTTPException(status_code=404, detail="Страница не найдена")
+    titles = {
+        "privacy": "Политика обработки персональных данных",
+        "cookies": "Cookies и веб-аналитика",
+        "consent": "Согласие на обработку персональных данных",
+        "subject-request": "Запросы по персональным данным",
+    }
+    return templates.TemplateResponse(
+        request,
+        "legal_page.html",
+        {
+            "vk_app_id": config.VK_APP_ID or None,
+            "is_widget": False,
+            "layout_class": "layout-site",
+            "page_title": titles[page_id],
+            "page_id": page_id,
+        },
+    )
+
+
 @router.get("/for/{segment}/", response_class=HTMLResponse)
 async def segment_landing(request: Request, segment: str) -> HTMLResponse:
     """Посадочные под сегменты (B6): блогеру / предпринимателю / сообществу."""

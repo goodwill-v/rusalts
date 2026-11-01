@@ -16,6 +16,7 @@
       <button class="admin-tab-btn" data-tab="billing">💳 Биллинг</button>
       <button class="admin-tab-btn" data-tab="content">📰 Публикации</button>
       <button class="admin-tab-btn" data-tab="diagnostics">📋 Диагностики</button>
+      <button class="admin-tab-btn" data-tab="pdn">🔒 ПДн</button>
       <button class="admin-tab-btn" data-tab="expert">💬 Диалоги эксперта</button>
     </nav>
 
@@ -420,6 +421,32 @@
       </div>
     </section>
 
+    <!-- ═══ ПДн: запросы субъектов и удаление (152-ФЗ) ═══ -->
+    <section id="tab-pdn" class="admin-tab-content">
+      <div class="admin-panel">
+        <h2>🔒 ПДн: журнал запросов субъектов</h2>
+        <div class="admin-table-wrap">
+          <table class="admin-table">
+            <thead><tr><th>ID</th><th>Дата</th><th>Контакт</th><th>Действие</th><th>Статус</th><th>Заметка</th></tr></thead>
+            <tbody id="sr-tbody"></tbody>
+          </table>
+        </div>
+      </div>
+
+      <div class="admin-panel">
+        <h2>🗑 Удаление данных субъекта (по запросу)</h2>
+        <p class="admin-note">Удаляет анкеты, диалоги, отзывы и рассылки субъекта; платежи обезличиваются (сроки хранения по закону). Необратимо — сначала убедитесь в личности.</p>
+        <div class="admin-form-grid">
+          <div class="admin-field"><label>Email или телефон субъекта</label><input id="pn-contact" placeholder="user@mail.ru / +7999…" /></div>
+          <div class="admin-field"><label>Заметка (основа запроса)</label><input id="pn-note" placeholder="письмо от ДД.ММ" /></div>
+        </div>
+        <div class="admin-actions">
+          <button class="admin-btn admin-btn--danger" id="pn-purge">Удалить данные субъекта</button>
+          <span class="admin-msg" id="pn-msg"></span>
+        </div>
+      </div>
+    </section>
+
     <!-- ═══ Таб: Диалоги эксперта ═══ -->
     <section id="tab-expert" class="admin-tab-content">
       <div class="admin-panel">
@@ -518,6 +545,7 @@ document.querySelectorAll(".admin-tab-btn").forEach((btn) => {
       if (btn.dataset.tab === 'products') loadReviews();
       if (btn.dataset.tab === 'billing') loadPromos();
       if (btn.dataset.tab === 'expert') loadExpertDialogs();
+      if (btn.dataset.tab === 'pdn') loadSubjectRequests();
     }
   });
 });
@@ -1030,5 +1058,30 @@ window.openThread = async (key) => {
 $("#ed-apply").addEventListener("click", loadExpertDialogs);
 $("#ed-search").addEventListener("keydown", (e) => { if (e.key === "Enter") loadExpertDialogs(); });
 $("#ed-leads").addEventListener("change", loadExpertDialogs);
+
+// ─── ПДн: журнал и удаление (F2) ─────────────────────────────────────────
+async function loadSubjectRequests() {
+  const data = await api("/admin/api/subject-requests");
+  $("#sr-tbody").innerHTML = (data.requests || []).map((r) => `
+    <tr><td>${r.id}</td><td>${esc(r.created_at)}</td><td>${esc(r.contact)}</td><td>${esc(r.action)}</td><td>${esc(r.status)}</td><td><small>${esc(r.note || "")}</small></td></tr>`
+  ).join("") || '<tr><td colspan="6" class="admin-note">Запросов нет.</td></tr>';
+}
+
+document.getElementById("pn-purge").addEventListener("click", async () => {
+  const contact = document.getElementById("pn-contact").value.trim();
+  const msg = document.getElementById("pn-msg");
+  if (!contact || contact.length < 5) { msg.textContent = "Укажите email или телефон."; return; }
+  if (!confirm("Необратимо удалить данные субъекта " + contact + "?")) return;
+  try {
+    const data = await api("/admin/api/purge-subject", {
+      method: "POST",
+      body: JSON.stringify({ contact, action: "delete", note: document.getElementById("pn-note").value }),
+    });
+    if (data.ok) {
+      setMsg(msg, "Удалено: " + JSON.stringify(data.removed), true);
+      document.getElementById("pn-contact").value = "";
+    } else msg.textContent = data.error || "Ошибка";
+  } catch (e) { msg.textContent = "Ошибка: " + e.message; }
+});
 </script>
 {% endblock %}
