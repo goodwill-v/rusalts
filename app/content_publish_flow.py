@@ -32,7 +32,8 @@ async def approve_publication_by_id(*, request_id: str, publication_id: str) -> 
     set_status(publication_id, status="approved", message_id="web_approved")
     it = load_item(publication_id)
 
-    site_c = strip_markdown_public(it.site_text or "")
+    from app.markdown_plain import sanitize_public_with_links
+    site_c = sanitize_public_with_links(it.site_text or "")  # markdown-ссылки сохраняются (ТЗ 23.10)
     vk_c = strip_markdown_public((it.vk_text or "").strip() or site_c)
     if len(vk_c) < 10:
         vk_c = site_c

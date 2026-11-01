@@ -394,13 +394,23 @@ function extractNewsSources(raw) {
   return { text: lines.join("\n").trim(), sources };
 }
 
-/** Оформить текст новости: абзацы + кликабельные источники вместо сырых URL. */
+/** Markdown-ссылки [текст](url) → <a target="_blank" rel="noopener"> (ТЗ 23.10: источники в тексте). */
+function renderInlineLinks(html) {
+  return html.replace(
+    /\[([^\]]+)\]\((https?:\/\/[^)\s]+)\)/g,
+    (m, label, url) =>
+      `<a href="${escapeHtml(url)}" target="_blank" rel="noopener noreferrer">${escapeHtml(label)}</a>`
+  );
+}
+
+/** Оформить текст новости: абзацы; источники — гиперссылками в тексте (новое окно);
+ *  хвостовые строки «domain — url» (legacy-выпуски) по-прежнему превращаются в блок ссылок. */
 function renderNewsBody(el, raw) {
   const { text, sources } = extractNewsSources(raw);
   const parts = [];
   for (const p of text.split(/\n{2,}/)) {
     const t = p.replace(/[ \t]+$/gm, "").trim();
-    if (t) parts.push(`<p>${escapeHtml(t)}</p>`);
+    if (t) parts.push(`<p>${renderInlineLinks(escapeHtml(t))}</p>`);
   }
   if (!parts.length) parts.push(`<p>—</p>`);
   if (sources.length) {
@@ -740,21 +750,39 @@ async function initPublApprov() {
     }
   });
 
-  // «Опубликовать всё»: вся очередь → одобрение + публикация на сайт и VK в один клик
-  const publishAllBtn = root.querySelector("[data-approv-publish-all]");
-  publishAllBtn?.addEventListener("click", async () => {
-    if (!confirm("Опубликовать ВСЮ очередь на сайте и в VK?")) return;
+  // «Применить всё» (ТЗ 01.11): выполняет команды, проставленные в карточках.
+  // Отмечено «Отмена» → новость удаляется; «Одобрить» → одобрить без публикации;
+  // ничего не отмечено → новость публикуется.
+  const applyAllBtn = root.querySelector("[data-approv-publish-all]");
+  applyAllBtn?.addEventListener("click", async () => {
+    const commands = [];
+    let cancels = 0;
+    root.querySelectorAll("[data-pub-id]").forEach((card) => {
+      const pid = card.dataset.pubId;
+      if (!pid) return;
+      let action = "publish";
+      if (card.querySelector("[data-flag-cancel]:checked")) { action = "cancel"; cancels += 1; }
+      else if (card.querySelector("[data-flag-approve]:checked")) { action = "approve"; }
+      const pinned = !!card.querySelector("[data-flag-pin]:checked");
+      const site = card.querySelector("[data-edit-site]")?.value || "";
+      const vk = card.querySelector("[data-edit-vk]")?.value || "";
+      commands.push({ publication_id: pid, action, pinned, site_text: site, vk_text: vk });
+    });
+    const label = cancels ? ` (из них отмен/удалений: ${cancels})` : "";
+    if (!confirm(`Применить команды ко всей очереди${label}?\nБез отметки новости публикуются.`)) return;
     try {
-      if (status) status.textContent = "Публикуем всю очередь…";
-      const res = await fetchJson("/api/content/queue/approve-all", { method: "POST" });
-      const failed = Number(res.failed || 0);
-      const approved = Number(res.approved || 0);
-      const vkOk = (res.items || []).filter((i) => i.vk_published).length;
-      if (status) {
-        status.textContent = failed
-          ? `Опубликовано: ${approved}, с ошибками: ${failed}`
-          : `Опубликовано: ${approved} (VK: ${vkOk})`;
-      }
+      if (status) status.textContent = "Применяем команды очереди…";
+      // Сначала сохраняем правки текстов из карточек (если редактировали)
+      const res = await fetchJson("/api/content/queue/apply-all", {
+        method: "POST",
+        body: JSON.stringify({ commands }),
+      });
+      const parts = [];
+      if (res.published) parts.push(`опубликовано: ${res.published}`);
+      if (res.approved) parts.push(`одобрено: ${res.approved}`);
+      if (res.canceled) parts.push(`отменено/удалено: ${res.canceled}`);
+      if (res.failed) parts.push(`ошибки: ${res.failed}`);
+      if (status) status.textContent = parts.length ? `Готово: ${parts.join(", ")}` : "Очередь пуста";
       await load();
     } catch (e) {
       if (status) status.textContent = `Ошибка: ${errText(e)}`;

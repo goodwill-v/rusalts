@@ -38,3 +38,25 @@ def strip_markdown_public(s: str) -> str:
     t = "\n".join(line.rstrip() for line in t.splitlines()).strip()
     t = re.sub(r"\n{3,}", "\n\n", t).strip()
     return t
+
+
+def sanitize_public_with_links(s: str) -> str:
+    """Как strip_markdown_public, но markdown-ссылки [текст](url) СОХРАНЯЕТ
+    (ТЗ 23.10: источники — гиперссылками в тексте, новое окно на фронте).
+    Убирает остальной markdown: заголовки, **bold**, `code`, буллеты, ```json-обёртки."""
+    t = clean_public_text_fragment(s)
+    if not t:
+        return ""
+    # Ссылки НЕ трогаем: [текст](url) остаётся markdown-гиперссылкой — фронт рендерит <a target=_blank>.
+    t = t
+    for _ in range(16):
+        prev = t
+        t = re.sub(r"(?m)^#{1,6}\s+", "", t)
+        t = re.sub(r"\*\*([^*]+)\*\*", r"\1", t)
+        t = re.sub(r"`([^`]+)`", r"\1", t)
+        t = re.sub(r"(?m)^\s*[-*]\s+", "", t)
+        if t == prev:
+            break
+    t = "\n".join(line.rstrip() for line in t.splitlines()).strip()
+    t = re.sub(r"\n{3,}", "\n\n", t).strip()
+    return t

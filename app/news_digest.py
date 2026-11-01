@@ -24,7 +24,7 @@ from urllib.parse import urlparse
 
 from app import config
 from app.content_store import ContentItem, next_publication_id, save_item
-from app.markdown_plain import strip_markdown_public
+from app.markdown_plain import sanitize_public_with_links
 from app.news_dedup import (
     FactDedup,
     add_to_max_pool,
@@ -153,22 +153,25 @@ class DigestBlock:
 
 
 def assemble_site_text(lead: str, blocks: list[DigestBlock], urls: list[str]) -> str:
-    """Вёрстка выпуска для сайта: лид → нумерованные блоки → строки источников.
+    """Вёрстка выпуска для сайта: лид → нумерованные блоки (внутри каждого —
+    гиперссылка на первоисточник, рендерится новым окном).
 
     Абзацы разделяются пустой строкой — фронт рендерит каждый как <p>,
-    хвостовые строки «домен — url» превращает в блок ссылок (новое окно).
+    markdown-ссылки [текст](url) превращает в <a target="_blank">.
     """
     parts: list[str] = [(lead or "").strip()]
     for i, b in enumerate(blocks, start=1):
         block = [f"{i}. {b.headline}".strip()]
-        if b.body:
-            block.append(b.body.strip())
+        body = (b.body or "").strip()
+        if b.url:
+            # Источник — гиперссылкой В ТЕКСТЕ (ТЗ 23.10); фронт рендерит новым окном.
+            link = f"[Источник: {domain_label(b.url)}]({b.url})"
+            body = f"{body} {link}".strip()
+        if body:
+            block.append(body)
         if b.business:
             block.append(f"Что для бизнеса: {b.business.strip()}")
         parts.append("\n".join(p for p in block if p))
-    lines = source_lines(urls)
-    if lines:
-        parts.append("\n".join(lines))
     return "\n\n".join(p for p in parts if p).strip()
 
 
@@ -319,7 +322,7 @@ async def generate_blocks(
     )
     if kind == "max_weekly":
         user = (
-            "Собери еженедельную сводку новостей мессенджера МАКС. "
+            "Собери еженедельную сводку новостей мессенджера МАКС. " "В конце каждого body добавь гиперссылку на первоисточник в markdown-формате [Источник: домен](URL) — URL бери из поля url той же новости, домен из поля source. "
             "Это ВСЕ изменения платформы за неделю одним выпуском: обнови читателя, "
             "что появилось, и что из этого можно применить в ботах и интеграциях.\n"
             f"Верни строго ОДИН JSON-объект: {{\"blocks\": [{{\"id\": string, \"headline\": string, "
@@ -330,7 +333,7 @@ async def generate_blocks(
         )
     elif kind == "standalone":
         user = (
-            "Это ВАЖНАЯ отдельная новость (высокая значимость: влияет на бизнес-процессы, "
+            "Это ВАЖНАЯ отдельная новость (высокая значимость: влияет на бизнес-процессы, " "В конце каждого body добавь гиперссылку на первоисточник в markdown-формате [Источник: домен](URL) — URL бери из поля url той же новости, домен из поля source. "
             "законодательство или крупный релиз ИИ) — выпуск из одного блока. "
             "Заголовок по формуле «действующее лицо + результат», суть — 3–5 предложений "
             "с конкретикой и цифрами, вывод для бизнеса обязателен.\n"
@@ -341,7 +344,7 @@ async def generate_blocks(
         )
     else:
         user = (
-            "Собери ежедневный дайджест новостей для бизнеса. "
+            "Собери ежедневный дайджест новостей для бизнеса. " "В конце каждого body добавь гиперссылку на первоисточник в markdown-формате [Источник: домен](URL) — URL бери из поля url той же новости, домен из поля source. "
             "Каждая новость — самостоятельный блок: цепляющий заголовок (формула «действующее лицо + результат», "
             "цифра или выгода прямо в заголовке), 2–4 предложения сути своими словами (не копируй заголовок источника), "
             "и обязательный практический вывод для бизнеса — что это меняет для компаний прямо сейчас.\n"
@@ -462,7 +465,7 @@ def _save_release_item(
 ) -> str:
     urls = [b.url for b in blocks if b.url]
     site_text = assemble_site_text(lead, blocks, urls)
-    site_text = strip_markdown_public(site_text).strip()
+    site_text = sanitize_public_with_links(site_text).strip()  # markdown-ссылки сохраняются (ТЗ 23.10)
     vk_text = assemble_vk_text(lead, blocks)
     topics = sorted({t for c in candidates for t in c.topic_labels})
     note = (
