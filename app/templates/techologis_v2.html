@@ -154,6 +154,9 @@
               {% elif p.status == "coming" or p.status == "beta" %}
               <div class="prod-card__price">
                 <span class="price-value price-value--coming">от {{ p.price_rub }} ₽/мес</span>
+                {% if p.trial_days %}
+                <span class="price-period" style="display:block;margin-top:0.25rem">🎁 Пробный период {{ p.trial_days }} дней</span>
+                {% endif %}
               </div>
               <button class="btn-buy btn-buy--disabled" disabled>Скоро</button>
               {% elif p.status == "inquiry" %}
