@@ -170,23 +170,163 @@
         {% endif %}
 
         {% if form_kind == 'free' %}
+      <div class="diag-section">
+        <h2>📥 Входящие заявки</h2>
         <div class="diag-field">
-          <label>Сфера деятельности</label>
-          <select name="answers.sphere">
-            <option>Ритейл/E-commerce</option><option>Образование</option>
-            <option>Медиа/Блогинг</option><option>ИТ/Разработка</option>
-            <option>Консалтинг/Услуги</option><option>НКО/Сообщество</option>
-            <option>Производство</option><option>Другое</option>
+          <label>Через какие каналы приходят заявки?</label>
+          <div class="diag-checks">
+            {% for c in ['сайт', 'ВК', 'Telegram', 'МАКС', 'почта', 'телефон'] %}
+            <label><input type="checkbox" name="answers.lead_channels" value="{{ c }}" /> {{ c }}</label>
+            {% endfor %}
+          </div>
+        </div>
+        <div class="diag-field">
+          <label>Заявок в день (примерно)</label>
+          <select name="answers.leads_per_day">
+            <option>1–5</option><option>5–20</option><option>20–50</option><option>50+</option>
           </select>
         </div>
         <div class="diag-field">
-          <label>Размер команды</label>
-          <select name="answers.team_size">
-            <option>Я один</option><option>2–5</option><option>6–15</option>
-            <option>16–50</option><option>50+</option>
+          <label>Есть ли единая точка входа для всех заявок?</label>
+          <select name="answers.single_entry"><option>да</option><option>нет</option></select>
+        </div>
+        <div class="diag-field">
+          <label>Как быстро отвечаете на новую заявку?</label>
+          <select name="answers.reply_hours">
+            <option value="0">до 15 минут</option><option value="1">до 1 часа</option>
+            <option value="2">1–3 часа</option><option value="5">более 3 часов</option>
           </select>
         </div>
-        {% elif form_kind == 'your_business' %}
+        <div class="diag-field">
+          <label>Бывало, что заявка терялась / на неё не ответили?</label>
+          <select name="answers.lost_leads"><option>нет</option><option>иногда</option><option>да</option></select>
+        </div>
+      </div>
+
+      <div class="diag-section">
+        <h2>🤝 Продажи и ручная работа</h2>
+        <div class="diag-field">
+          <label>Сколько часов в неделю уходит на ручной ввод/CRM?</label>
+          <select name="answers.crm_hours_week">
+            <option value="0">почти нет</option><option value="2">до 2</option>
+            <option value="5">3–7</option><option value="10">более 7</option>
+          </select>
+        </div>
+        <div class="diag-field">
+          <label>Ведёте ли follow-up после первого контакта?</label>
+          <select name="answers.followup"><option>да</option><option>иногда</option><option>нет</option></select>
+        </div>
+        <div class="diag-field">
+          <label>Заметки и данные — в одном месте или вразброс?</label>
+          <select name="answers.notes_chaos"><option>в одном месте</option><option>вразброс</option></select>
+        </div>
+      </div>
+
+      <div class="diag-section">
+        <h2>💬 Поддержка клиентов</h2>
+        <div class="diag-field">
+          <label>Однотипных вопросов от клиентов в день?</label>
+          <select name="answers.same_questions_day">
+            <option value="3">до 5</option><option value="10">5–20</option>
+            <option value="25">20–50</option><option value="60">50+</option>
+          </select>
+        </div>
+        <div class="diag-field">
+          <label>Есть ли база знаний / готовые ответы?</label>
+          <select name="answers.has_kb"><option>да</option><option>нет</option></select>
+        </div>
+        <div class="diag-field">
+          <label>Простые вопросы ждут в очереди вместе со сложными?</label>
+          <select name="answers.queue_mix"><option>нет</option><option>да</option></select>
+        </div>
+      </div>
+
+      <div class="diag-section">
+        <h2>📁 Информация и документы</h2>
+        <div class="diag-field">
+          <label>Где хранятся документы и регламенты?</label>
+          <select name="answers.docs_location">
+            <option>в одном месте</option><option>в разных местах</option><option>хаотично / в головах</option>
+          </select>
+        </div>
+        <div class="diag-field">
+          <label>Как часто коллеги отвлекают вопросами «где найти…»?</label>
+          <select name="answers.interruptions_day">
+            <option value="0">редко</option><option value="3">1–3 раза в день</option><option value="6">постоянно</option>
+          </select>
+        </div>
+        <div class="diag-field">
+          <label>Есть ли письменные регламенты процессов?</label>
+          <select name="answers.has_regulations"><option>да</option><option>нет</option></select>
+        </div>
+      </div>
+
+      <div class="diag-section">
+        <h2>📊 Отчётность</h2>
+        <div class="diag-field">
+          <label>Как собираете отчёты?</label>
+          <select name="answers.reports_how">
+            <option>вручную (таблицы/почта)</option><option>автоматически</option><option>смешанно</option>
+          </select>
+        </div>
+        <div class="diag-field">
+          <label>Часов в месяц на отчётность?</label>
+          <select name="answers.report_hours_month">
+            <option value="2">до 3</option><option value="8">3–10</option>
+            <option value="15">10–20</option><option value="25">более 20</option>
+          </select>
+        </div>
+        <div class="diag-field">
+          <label>Есть автоматический дашборд с ключевыми цифрами?</label>
+          <select name="answers.has_dashboard"><option>да</option><option>нет</option></select>
+        </div>
+      </div>
+
+      <div class="diag-section">
+        <h2>🛡 Бонус: риски и комплаенс (20% — надёжность как следствие)</h2>
+        <div class="diag-field">
+          <label>Были ли блокировки ваших каналов/страниц?</label>
+          <select name="answers.blocked_before"><option>нет</option><option>да</option></select>
+        </div>
+        <div class="diag-field">
+          <label>Работаете с персональными данными клиентов?</label>
+          <select name="answers.pdn"><option>да</option><option>нет</option><option>не уверен(а)</option></select>
+        </div>
+        <div class="diag-field">
+          <label>Знакомы с требованиями 152-ФЗ?</label>
+          <select name="answers.fz152">
+            <option>полностью соблюдаем</option><option>знаем, но не уверены</option>
+            <option>слышали</option><option>впервые слышу</option>
+          </select>
+        </div>
+        <div class="diag-field">
+          <label>Зарубежные платформы для контента/рекламы</label>
+          <input type="text" name="answers.foreign_platforms" placeholder="например, Instagram, YouTube" />
+        </div>
+      </div>
+
+      <div class="diag-section">
+        <h2>🎯 Цели</h2>
+        <div class="diag-field">
+          <label>Что важнее всего в ближайшие 6 месяцев?</label>
+          <select name="answers.goal6m">
+            <option>автоматизировать процессы</option><option>обеспечить комплаенс</option>
+            <option>запустить продажи</option><option>снизить риски</option>
+          </select>
+        </div>
+        <div class="diag-field">
+          <label>Бюджет на услуги АЛТ</label>
+          <select name="answers.budget">
+            <option>0</option><option>до 15 000 ₽</option>
+            <option>15–75 тыс. ₽</option><option>от 75 тыс. ₽</option><option>затрудняюсь</option>
+          </select>
+        </div>
+        <div class="diag-field">
+          <label>Откуда узнали об АЛТ?</label>
+          <input type="text" name="answers.source" />
+        </div>
+      </div>
+      {% elif form_kind == 'your_business' %}
         <div class="diag-field">
           <label>Род деятельности</label>
           <select name="answers.occupation">
