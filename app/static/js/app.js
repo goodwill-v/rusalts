@@ -895,12 +895,19 @@ function initVkBridge() {
 }
 
 initConsultantUi();
+console.log("[INIT] consultant ok");
 initA11yToggle();
+console.log("[INIT] a11y ok");
 initNavToggle();
+console.log("[INIT] nav ok");
 initNewsFilter();
+console.log("[INIT] filter ok");
 initHomeNews();
+console.log("[INIT] homenews ok");
 initNewsPage();
+console.log("[INIT] newspage ok");
 initPublApprov();
+console.log("[INIT] publapprov ok");
 initAltExpertWidget();
 initVkBridge();
 
