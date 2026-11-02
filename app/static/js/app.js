@@ -5,14 +5,18 @@
 const $ = (sel, root = document) => root.querySelector(sel);
 
 function errText(e) {
-  if (!e) return "Неизвестная ошибка";
-  if (typeof e === "string") return e;
-  if (e instanceof Error) return e.message || String(e);
-  if (typeof e?.message === "string") return e.message;
+  // 422 FastAPI: detail — массив полей; показываем краткое человеческое сообщение
   try {
-    return JSON.stringify(e);
+    const raw = e?.message || "";
+    if (raw.startsWith("{")) {
+      const d = JSON.parse(raw);
+      if (Array.isArray(d.detail) && d.detail.length)
+        return d.detail.map((x) => x.msg || x.message).join("; ").slice(0, 160);
+      if (d.detail) return String(d.detail).slice(0, 160);
+    }
+    return raw || "Ошибка";
   } catch {
-    return String(e);
+    return "Ошибка";
   }
 }
 
@@ -248,7 +252,9 @@ function initNewsFilter() {
 }
 
 async function fetchJson(url, opts = {}) {
-  const res = await fetch(url, { credentials: "same-origin", ...opts });
+  // F2-fix: JSON-тело без Content-Type FastAPI парсит как form → 422 «не словарь».
+  const headers = { "Content-Type": "application/json", ...(opts.headers || {}) };
+  const res = await fetch(url, { credentials: "same-origin", ...opts, headers });
   const text = await res.text();
   let data = null;
   try {
