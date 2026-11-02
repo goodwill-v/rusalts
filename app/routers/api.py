@@ -265,10 +265,143 @@ def _support_cta() -> str:
     )
 
 
-def _human_handoff_reply(text: str) -> str:
-    """A4: содержательный ответ + мягкая эскалация (не «Понял запрос, уточните…»)."""
+# ─── B2: Квиз подбора инструмента в чате ─────────────────────────────────
+
+_quiz_state: dict[str, dict] = {}  # session_key -> {"step": int, "answers": [..]}
+
+_QUIZ_QUESTIONS = [
+    ("1️⃣ Где вы больше всего общаетесь с клиентами?",
+     ["🟣 МАКС", "🔵 Telegram", "🔷 ВКонтакте", "🌐 Сайт / почта"]),
+    ("2️⃣ Что съедает больше всего времени?",
+     ["💬 Ответы на однотипные вопросы", "📡 Контроль сайтов/сервисов",
+      "📝 Контент и публикации", "⚖️ Документы и законы"]),
+    ("3️⃣ Готовы попробовать до оплаты?",
+     ["🎁 Да — покажите с пробным периодом", "👀 Посмотрю сначала"]),
+]
+
+_QUIZ_MATRIX = {
+    "макс|однотип": ["neyrosotrudnik", "НейроСотрудник — ИИ-ассистент в МАКС закрывает типовые вопросы 24/7"],
+    "макс|контро": ["vezhpom", "ВежПом пришлёт уведомление о сбое прямо в МАКС"],
+    "макс|контен": ["ozhivlenie", "Оживление — контент и переупаковка для канала в МАКС (непрофильная, по запросу)"],
+    "макс|докуме": ["alt_expert", "АЛТ-эксперт (я!) консультирую по 152-ФЗ/168-ФЗ прямо в этом чате"],
+    "telegram|однотип": ["italidia", "ItaLidia — ассистент с памятью и голосом, эталон первой линии"],
+    "telegram|контро": ["vezhpom", "ВежПом шлёт сводки о сбоях в чат"],
+    "telegram|контен": ["italidia", "Для практики итальянского — ItaLidia; для контента — обсудим отдельно"],
+    "telegram|докуме": ["alt_expert", "АЛТ-эксперт консультирует по законам в этом чате"],
+    "вконт|однотип": ["alt_expert", "АЛТ-эксперт работает в ВК и на сайте"],
+    "вконт|контро": ["vezhpom", "ВежПом мониторит, уведомления — в удобный канал"],
+    "вконт|контен": ["ozhivlenie", "Оживление — контент для соцсетей (непрофильная, по запросу)"],
+    "вконт|докуме": ["alt_expert", "Правовые консультации без выхода из ВК"],
+    "сайт|однотип": ["neyrosotrudnik", "НейроСотрудник подключается к сайту и почте (скоро)"],
+    "сайт|контро": ["vezhpom", "Классический мониторинг HTTP/HTTPS, ping, портов"],
+    "сайт|контен": ["openclaw", "OpenClaw — AI-агент под ваши процессы на вашем сервере"],
+    "сайт|докуме": ["anketa_diagnostics", "Начните с аудита: PDF-отчёт по процессам и комплаенсу — 3000 ₽"],
+}
+
+_PRODUCT_LINKS = {
+    "neyrosotrudnik": "Скоро — следите на витрине: https://rusalts.ru/techologis/",
+    "vezhpom": "Запустить пробный период: https://rusalts.ru/techologis/",
+    "italidia": "Запустить пробный период: https://rusalts.ru/techologis/",
+    "alt_expert": "Я здесь! Просто продолжайте задавать вопросы.",
+    "anketa_diagnostics": "Заполнить анкету: https://rusalts.ru/diagnostics/paid-form/",
+    "ozhivlenie": "По запросу: v.devops@yandex.ru",
+    "openclaw": "По запросу: v.devops@yandex.ru",
+}
+
+
+def _quiz_start(session_key: str) -> str:
+    _quiz_state[session_key] = {"step": 1, "answers": []}
+    q, opts = _QUIZ_QUESTIONS[0]
+    opts_txt = "\n".join(f"  {o}" for o in opts)
+    return f"Помогу подобрать инструмент! 3 коротких вопроса.\n\n{q}\n{opts_txt}"
+
+
+def _quiz_step(session_key: str, text: str) -> str | None:
+    """Если идёт квиз — обрабатываем ответ, возвращаем следующий шаг или результат."""
+    st = _quiz_state.get(session_key)
+    if not st:
+        return None
+    step = st["step"]
+    if step > len(_QUIZ_QUESTIONS):
+        return None
+    # Сопоставляем ответ с одним из вариантов (по номеру или подстроке)
+    q, opts = _QUIZ_QUESTIONS[step - 1]
+    matched = None
+    tl = text.lower()
+    for o in opts:
+        # убираем эмодзи-префикс и сравниваем значимые слова
+        core = o.split(" ", 1)[-1].lower()
+        words = [w for w in re.split(r"[^a-zа-яё0-9]+", core) if len(w) >= 5]
+        if any(w in tl for w in words) or core[:8] in tl:
+            matched = o
+            break
+    if matched is None:
+        # Попытка по номеру
+        for o in opts:
+            if o[0].isdigit() and text.strip().startswith(o[0]):
+                matched = o
+                break
+    if matched:
+        st["answers"].append(matched)
+    st["step"] += 1
+
+    if st["step"] <= len(_QUIZ_QUESTIONS):
+        q2, opts2 = _QUIZ_QUESTIONS[st["step"] - 1]
+        opts_txt = "\n".join(f"  {o}" for o in opts2)
+        return f"{q2}\n{opts_txt}"
+
+    # Квиз завершён — результат
+    a = st["answers"]
+    _quiz_state.pop(session_key, None)
+    if len(a) >= 2:
+        def _plat(x: str) -> str:
+            x = x.lower()
+            for tkn in ("макс", "telegram", "вконтакте", "вк", "сайт"):
+                if tkn in x:
+                    return tkn
+            return x[:10]
+        def _pain(x: str) -> str:
+            x = x.lower()
+            for tkn in ("однотип", "контро", "контен", "докуме"):
+                if tkn in x:
+                    return tkn
+            return x[:10]
+        key = _plat(a[0]) + "|" + _pain(a[1])
+        hit = _QUIZ_MATRIX.get(key) or _QUIZ_MATRIX.get(
+            a[0] + "|" + a[1][:10], ["anketa_diagnostics", "Аудит процессов — самый надёжный путь"]
+        )
+        pid, why = hit
+        link = _PRODUCT_LINKS.get(pid, "https://rusalts.ru/techologis/")
+        wants_trial = "Да" in (a[2] if len(a) > 2 else "")
+        result = (
+            f"🎯 Рекомендую: {why}\n\n"
+            f"{link}"
+        )
+        if wants_trial and pid in ("vezhpom", "italidia"):
+            result += "\n\n🎁 Пробный период — без оплаты, просто напишите боту."
+        return result
+    return "Спасибо за ответы! Задайте вопрос — помогу предметно."
+
+
+def _quiz_start_or_step(session_key: str, text: str) -> str | None:
+    """Возвращает текст квиза или None если квиз не идёт."""
+    if session_key in _quiz_state:
+        return _quiz_step(session_key, text)
+    return None
+
+
+def quiz_start_fn(text: str, session_key: str) -> str | None:
+    """Публичный вход: если пользователь просит подбор — начать квиз."""
     t = (text or "").strip().casefold()
-    # Персонализация по типу запроса — даём полезный зацеп, а не пустую форму
+    if any(k in t for k in ("подбери", "что выбрать", "не знаю что", "помоги выбрать", "квиз")):
+        return _quiz_start(session_key)
+    return None
+
+
+def _human_handoff_reply(text: str) -> str:
+    """A4+B4: содержательный ответ по типу запроса + иконки-ссылки для персонального
+    обсуждения (email/МАКС) — вместо шаблонной заглушки «Понял запрос, уточните…»."""
+    t = (text or "").strip().casefold()
     if any(k in t for k in ("внедрить", "заказать", "разработать", "сделать бота", "сделать ии")):
         intro = (
             "Отличная задача! Типичный путь:\n"
@@ -306,9 +439,15 @@ def _human_handoff_reply(text: str) -> str:
             "• Правовое сопровождение (152-ФЗ, 168-ФЗ) — включено в подход\n\n"
             "Уточните, что именно вас интересует — отвечу предметно."
         )
-    return f"{intro}\n\n{'—' * 30}\n{'💬 Нужен человек? Напишите напрямую:'}\n📧 v.devops@yandex.ru\n💬 МАКС: https://max.ru/u/f9LHodD0cOKMhFRsnfRVOT-ChF-0t--tFtjM0b0MwNMgVZQmvpzPQave_6Q"
-
-
+    contact = (
+        "\n\n———\n"
+        "💬 Персональное обсуждение (быстрее и точнее, чем в чате):\n"
+        "📧 <a href=\"mailto:v.devops@yandex.ru\" style=\"color:#1a5c8a\">✉️ v.devops@yandex.ru</a>"
+        " &nbsp;·&nbsp; "
+        "<a href=\"https://max.ru/u/f9LHodD0cOKMhFRsnfRVOT-ChF-0t--tFtjM0b0MwNMgVZQmvpzPQave_6Q\" "
+        "target=\"_blank\" rel=\"noopener\" style=\"color:#1a5c8a\">💬 МАКС — Жлудов В.О.</a>"
+    )
+    return f"{intro}{contact}"
 def _doc_reply(*, query: str) -> tuple[str, list[dict]]:
     config.ensure_data_dirs()
     files: list[dict] = []
@@ -667,7 +806,18 @@ _chat_turn_count: dict[str, int] = {}
 
 @router.post("/chat", response_model=ChatResponse)
 async def chat(request: Request, body: ChatRequest) -> ChatResponse:
-    """Единая точка /api/chat: память (history), лента диалогов, лиды, CTA."""
+    """Единая точка /api/chat: квиз (B2), память (history), лента диалогов, лиды, CTA."""
+    session_key = (body.user_id or "").strip() or "anonymous"
+
+    # B2: квиз — если стартует или идёт, обрабатываем без LLM
+    sk = body.user_id or "anonymous"
+    q_start = quiz_start_fn(body.message, sk)
+    if q_start:
+        return ChatResponse(reply=q_start, request_id=uuid.uuid4().hex, sources=[], used_llm=False)
+    q_step = _quiz_start_or_step(sk, body.message)
+    if q_step is not None:
+        return ChatResponse(reply=q_step, request_id=uuid.uuid4().hex, sources=[], used_llm=False)
+
     # D3: клиентская память — последние реплики сессии как контекст
     if body.history:
         tail = "\n".join(f"Пользователь ранее писал: {_shorten_to(h, 400)}" for h in body.history[-3:])
