@@ -104,6 +104,32 @@ _KW_HUMAN = (
 )
 _KW_DOC = ("шаблон", "образец", "документ", "бланк", "скачать", "файл", "docx", "pdf", "политика", "согласие")
 _KW_WEB = ("новости", "сегодня", "срок", "штраф", "актуально", "что нового", "источник", "официально", "ссылка")
+
+# A1: расширенный routing — профильные темы Платформы АЛТ (не только право)
+_KW_AUTOMATION = (
+    "автоматизац", "автономизац", "рутин", "роботизац", "chatgpt", "chat бот",
+    "ии-ассистент", "ии ассистент", "нейросотрудник", "вежпом", "чат-бот", "чатбот",
+    "ии-агент", "ии агент", "первая линия", "поддержка клиентов", "типовые вопросы",
+    "сократить рабочий день", "делегировать", "искусственный интеллект",
+    "ии в бизнес", "ии для бизнеса", "ии-инструмент", "ии инструмент",
+    "автоответ", "автоответчик", "модерация", "рассылк",
+)
+_KW_AI_PLATFORMS = (
+    "гигачат", "yandexgpt", "yandex gpt", "алиса", "speechkit",
+    "routerai", "открытый ии", "openai", "claude", "gemini",
+    "где взять ии", "какой ии", "выбрать ии", "ии-платформ", "ии платформ",
+    "российский ии", "отечественный ии",
+)
+_KW_PRODUCTS = (
+    "вежпом", "italidia", "италия", "итальянск",
+    "нейросотрудник", "alt-expert", "алт-эксперт",
+    "диагностик", "анкет", "аудит процессов",
+    "openclaw", "окупа", "витрин", "прайс", "цены на",
+    "сколько стоит", "продукты алт", "услуги алт", "что предлагает",
+)
+_KW_SEGMENT_BLOGGER = ("блогер", "блог", "инфлюенсер", "подписчик", "аудитор", "канал")
+_KW_SEGMENT_BUSINESS = ("бизнес", "предприниматель", "компани", "фирм", "ип ", "организац", "офис")
+_KW_SEGMENT_COMMUNITY = ("сообществ", "группа вк", "чат-групп", "паблик")
 _KW_LEGAL = (
     "152-фз",
     "152 фз",
@@ -136,6 +162,25 @@ async def _route_message(*, text: str, triggers: list, templates_bundle: dict | 
     # Legal/regulatory questions: KB first (штрафы/статьи с цитатами в базе),
     # web остаётся автоматическим запасным путём, если KB-синтез дал no_answer.
     # (Было web-first — из-за чего вопросы права уходили мимо базы на max.ru-источники.)
+    # A1: расширенные профильные intents — KB-first для всех тем АЛТ
+    if any(k in t for k in _KW_AUTOMATION):
+        return _RouteDecision(intent="kb_question", confidence=0.9, kb_query=text.strip(),
+                              internal_note="topic=automation")
+    if any(k in t for k in _KW_AI_PLATFORMS):
+        return _RouteDecision(intent="kb_question", confidence=0.85, kb_query=text.strip(),
+                              internal_note="topic=ai_platforms")
+    if any(k in t for k in _KW_PRODUCTS):
+        return _RouteDecision(intent="kb_question", confidence=0.85, kb_query=text.strip(),
+                              internal_note="topic=products")
+    if any(k in t for k in _KW_SEGMENT_BLOGGER):
+        return _RouteDecision(intent="kb_question", confidence=0.75, kb_query=text.strip(),
+                              internal_note="segment=blogger")
+    if any(k in t for k in _KW_SEGMENT_BUSINESS):
+        return _RouteDecision(intent="kb_question", confidence=0.75, kb_query=text.strip(),
+                              internal_note="segment=business")
+    if any(k in t for k in _KW_SEGMENT_COMMUNITY):
+        return _RouteDecision(intent="kb_question", confidence=0.75, kb_query=text.strip(),
+                              internal_note="segment=community")
     if any(k in t for k in _KW_LEGAL):
         return _RouteDecision(intent="kb_question", confidence=0.9, kb_query=text.strip())
 
@@ -166,7 +211,7 @@ async def _route_message(*, text: str, triggers: list, templates_bundle: dict | 
         {
             "role": "user",
             "content": (
-                "Ты маршрутизатор запросов для консультанта (MAX/ВК/законы РФ). "
+                "Ты маршрутизатор запросов для консультанта-эксперта по автоматизации бизнес-процессов с ИИ (MAX/ВК/российские ИИ/законы РФ). "
                 "Верни ОДИН JSON без текста вокруг:\n"
                 "{"
                 "\"intent\": \"human_handoff|document_request|template_answer|kb_question|web_question|unclear\","
@@ -221,15 +266,47 @@ def _support_cta() -> str:
 
 
 def _human_handoff_reply(text: str) -> str:
-    return (
-        "Понял запрос.\n\n"
-        "Чтобы подключить консультанта и решить задачу быстрее, уточните, пожалуйста:\n"
-        "1) ваша роль (бизнес/блогер/разработчик),\n"
-        "2) платформа (MAX/ВК/оба),\n"
-        "3) цель (миграция, канал/сообщество, разработка, комплаенс).\n\n"
-        f"{_support_cta()}\n\n"
-        "Если уместно, можем предложить разработку ИИ‑инструмента под ваш процесс (контент, модерация, комплаенс‑проверки, миграция аудитории)."
-    ).strip()
+    """A4: содержательный ответ + мягкая эскалация (не «Понял запрос, уточните…»)."""
+    t = (text or "").strip().casefold()
+    # Персонализация по типу запроса — даём полезный зацеп, а не пустую форму
+    if any(k in t for k in ("внедрить", "заказать", "разработать", "сделать бота", "сделать ии")):
+        intro = (
+            "Отличная задача! Типичный путь:\n"
+            "1) Пройти бесплатную диагностику (5 минут — покажет, что автоматизировать первым)\n"
+            "2) Спроектировать решение под ваш процесс\n"
+            "3) Запустить пилот на 2 недели — измерить эффект\n\n"
+            "Начните здесь: https://rusalts.ru/diagnostics/free/"
+        )
+    elif any(k in t for k in ("подписк", "оплат", "купить", "цена", "стоит")):
+        intro = (
+            "Все продукты и цены — на витрине:\n"
+            "https://rusalts.ru/techologis/\n\n"
+            "Пробные периоды доступны без оплаты — просто запустите бота и попробуйте."
+        )
+    elif any(k in t for k in ("консульт", "юрист", "закон", "152", "штраф")):
+        intro = (
+            "По юридическим вопросам у нас есть готовые материалы:\n"
+            "• Чек-лист по 152-ФЗ (панель «Шаблоны документов» справа)\n"
+            "• Страница правовой базы: https://rusalts.ru/laws/\n\n"
+            "Если вопрос требует персонального разбора — подключу специалиста."
+        )
+    elif any(k in t for k in ("миграц", "переехать", "перейти", "telegram", "whatsapp")):
+        intro = (
+            "Миграция — наш профиль. Коротко:\n"
+            "• Автопереноса аудитории между платформами НЕТ (это честно)\n"
+            "• Стратегия: кросспостинг + приглашение с оффером + параллельное ведение\n"
+            "• Пошаговый чек-лист — в панели «Шаблоны документов»\n\n"
+            "Для персонального плана — нужна диагностика (5 минут)."
+        )
+    else:
+        intro = (
+            "Готов помочь! Кратко по вашему вопросу:\n"
+            "• Автоматизация и ИИ-инструменты — наша основная специализация\n"
+            "• Российские платформы (МАКС, ВК, Гигачат, Яндекс) — знаем нюансы\n"
+            "• Правовое сопровождение (152-ФЗ, 168-ФЗ) — включено в подход\n\n"
+            "Уточните, что именно вас интересует — отвечу предметно."
+        )
+    return f"{intro}\n\n{'—' * 30}\n{'💬 Нужен человек? Напишите напрямую:'}\n📧 v.devops@yandex.ru\n💬 МАКС: https://max.ru/u/f9LHodD0cOKMhFRsnfRVOT-ChF-0t--tFtjM0b0MwNMgVZQmvpzPQave_6Q"
 
 
 def _doc_reply(*, query: str) -> tuple[str, list[dict]]:
