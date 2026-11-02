@@ -89,7 +89,22 @@ async def api_product_create(request: Request, _user: str = Depends(_require_adm
         row = upsert_product(body)
     except ValueError as e:
         return JSONResponse({"ok": False, "error": str(e)}, status_code=400)
+    _sync_product_tariff(str(body.get("id") or ""), body)
     return JSONResponse({"ok": True, "product": row})
+
+
+def _sync_product_tariff(pid: str, body: dict) -> None:
+    """Форма «Товары» — единая точка: цена/период/триал пишутся и в тарифы,
+    иначе тарифы перезатирают правку при следующем чтении (баг 01.11)."""
+    fields = {
+        k: body.get(k)
+        for k in ("price_rub", "period_days", "trial_days")
+        if body.get(k) is not None
+    }
+    if fields:
+        from app import tariffs_store
+
+        tariffs_store.upsert_tariffs({pid: fields})
 
 
 @router.put("/admin/api/products/{pid}")
@@ -106,6 +121,7 @@ async def api_product_update(
         row = upsert_product(body)
     except ValueError as e:
         return JSONResponse({"ok": False, "error": str(e)}, status_code=400)
+    _sync_product_tariff(pid, body)
     return JSONResponse({"ok": True, "product": row})
 
 
