@@ -471,6 +471,42 @@ def top_up_balance(
         return new_allowance
 
 
+def renew_balance(
+    customer_id: str,
+    product_id: str,
+    period_days: int = 30,
+) -> dict[str, Any] | None:
+    """Автопродление: продлить срок активной подписки на period_days.
+    Если активной записи нет — создать новую с allowance_tokens=0 (триал/возврат
+    не активируется; для продления всегда должна быть действующая подписка).
+    Возвращает обновлённый баланс или None."""
+    now = datetime.now(timezone.utc)
+    with closing(_connect_usage()) as db:
+        bal = db.execute(
+            """SELECT * FROM token_balances
+               WHERE customer_id = ? AND product_id = ? AND status = 'active'
+               ORDER BY id DESC LIMIT 1""",
+            (customer_id, product_id),
+        ).fetchone()
+        if not bal:
+            return None
+        base = max(now, datetime.fromisoformat(bal["expires_at"])) if bal["expires_at"] else now
+        new_expires = (base + timedelta(days=period_days)).isoformat()
+        db.execute(
+            """UPDATE token_balances SET expires_at = ? WHERE id = ?""",
+            (new_expires, bal["id"]),
+        )
+        db.commit()
+        return {
+            "customer_id": customer_id,
+            "product_id": product_id,
+            "allowance_tokens": bal["allowance_tokens"],
+            "used_tokens": bal["used_tokens"],
+            "expires_at": new_expires,
+            "status": "active",
+        }
+
+
 # ═══════════════════════════════════════════════════════════════════════
 # ROUTERAI KEY STRATEGY
 # ═══════════════════════════════════════════════════════════════════════

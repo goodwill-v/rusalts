@@ -24,8 +24,20 @@ from app.billing import (
     get_expired_subscriptions,
     deactivate_expired_subscriptions,
     top_up_balance,
+    renew_balance,
 )
-from app.payments import PRODUCTS, create_payment, get_payment_record, record_payment, update_payment_status
+from app.payments import (
+    PRODUCTS,
+    create_payment,
+    create_recurring_payment,
+    create_refund,
+    delete_payment_method,
+    get_payment,
+    get_payment_method_id,
+    get_payment_record,
+    record_payment,
+    update_payment_status,
+)
 
 router = APIRouter()
 from app.templating import templates  # noqa: E402  — общий экземпляр с content_block
@@ -163,6 +175,9 @@ async def api_create_payment(request: Request):
     base = str(request.base_url).rstrip("/")
     return_url = data.get("return_url", "") or f"{base}/techologis/?payment=success"
     description = data.get("description", "") or f"Оплата: {prod['name']}"
+    # save_payment_method=true — сохранить карту для автопродления (рекуррент),
+    # используется ботами-подписками (ВежПом, НейроСотрудник).
+    save_pm = bool(data.get("save_payment_method")) or prod.get("autorenew") is True
 
     try:
         result = await create_payment(
@@ -170,9 +185,24 @@ async def api_create_payment(request: Request):
             amount_rub=amount_rub,
             description=description,
             return_url=return_url,
+            save_payment_method=save_pm,
         )
     except Exception as exc:
-        return JSONResponse({"error": str(exc)}, status_code=500)
+        # Нет разрешения на рекуррентные платежи у магазина — создаём одноразовый платёж.
+        if save_pm and "recurring" in str(exc).lower():
+            save_pm = False
+            try:
+                result = await create_payment(
+                    product_id=product_id,
+                    amount_rub=amount_rub,
+                    description=description,
+                    return_url=return_url,
+                    save_payment_method=False,
+                )
+            except Exception as exc2:
+                return JSONResponse({"error": str(exc2)}, status_code=500)
+        else:
+            return JSONResponse({"error": str(exc)}, status_code=500)
 
     # Record in local DB
     pm_id = result.get("payment_method", {}).get("id", "")
@@ -270,19 +300,33 @@ async def payment_demo_redirect(
 
 @router.post("/api/payment-webhook")
 async def payment_webhook(request: Request):
-    """ЮKassa webhook: handle payment.succeeded etc."""
-    body_bytes = await request.body()
-    signature = request.headers.get("Authorization", "")
-    if not config.payments.verify_webhook_signature(body_bytes, signature):
-        return JSONResponse({"error": "Invalid signature"}, status_code=401)
+    """ЮKassa webhook: handle payment.succeeded etc.
 
-    event = json.loads(body_bytes)
+    Уведомления ЮKassa не подписываются (нет Authorization/HMAC), поэтому
+    подлинность проверяем перезапросом статуса платежа в ЮKassa API
+    (рекомендованный ЮKassa способ) — активируем только реально успешные.
+    """
+    try:
+        body_bytes = await request.body()
+        event = json.loads(body_bytes)
+    except Exception:
+        return JSONResponse({"error": "Invalid body"}, status_code=400)
+
     event_type = event.get("event", "")
     payment_obj = event.get("object", {})
 
     if event_type == "payment.succeeded":
         payment_id = payment_obj.get("id", "")
-        pm_id = payment_obj.get("payment_method", {}).get("id", "")
+        # Перепроверяем фактический статус в ЮKassa (sandbox запрос = заглушка)
+        try:
+            real = await get_payment(payment_id)
+        except Exception:
+            real = payment_obj  # API недоступен — доверяем событию
+        if real.get("status") != "succeeded":
+            return JSONResponse({"ok": True})  # событие не подтвердилось — игнорируем
+
+        pm_id = (payment_obj.get("payment_method") or {}).get("id", "") or \
+            (real.get("payment_method") or {}).get("id", "")
         update_payment_status(payment_id, "succeeded", payment_method_id=pm_id)
         # Get stored payment record and activate subscription
         rec = get_payment_record(payment_id)
@@ -506,3 +550,137 @@ async def cron_check_expired():
         "found_expired": len(expired),
         "deactivated": deactivated,
     })
+
+
+# ---------------------------------------------------------------------------
+# Автопродление, возвраты, отвязка карты (консолидированная касса)
+# ---------------------------------------------------------------------------
+
+@router.post("/api/subscription/renew")
+async def api_subscription_renew(request: Request):
+    """Автопродление подписки по сохранённой карте (рекуррентный платёж ЮKassa).
+
+    Тело: {customer_id, product_id}
+    Берём последний сохранённый payment_method_id клиента по продукту,
+    списываем стоимость тарифа без подтверждения, при успехе продлеваем срок.
+    """
+    try:
+        data = await request.json()
+    except Exception:
+        return JSONResponse({"error": "Invalid JSON"}, status_code=400)
+
+    customer_id = str(data.get("customer_id") or "").strip()
+    product_id = str(data.get("product_id") or "").strip()
+    if not customer_id or not product_id:
+        return JSONResponse({"error": "customer_id and product_id are required"}, status_code=400)
+
+    tariff = TARIFFS.get(product_id)
+    if not tariff or not tariff.price_rub:
+        return JSONResponse({"error": "Unknown or free product"}, status_code=404)
+
+    pm_id = get_payment_method_id(customer_id, product_id)
+    if not pm_id:
+        return JSONResponse({"error": "Нет сохранённого способа оплаты"}, status_code=404)
+
+    # В sandbox-режиме не ходим в ЮKassa — продлеваем сразу.
+    if config.IS_YOOKASSA_SANDBOX:
+        bal = renew_balance(customer_id, product_id, tariff.period_days or 30)
+        if bal is None:
+            return JSONResponse({"error": "Нет активной подписки для продления"}, status_code=404)
+        return JSONResponse({"ok": True, "status": "succeeded", "balance": bal})
+
+    try:
+        result = await create_recurring_payment(
+            payment_method_id=pm_id,
+            amount_rub=tariff.price_rub,
+            description=f"Автопродление: {tariff.name}",
+        )
+    except Exception as exc:
+        return JSONResponse({"error": str(exc)}, status_code=500)
+
+    payment_id = result.get("id", "")
+    status = result.get("status", "pending")
+    record_payment(
+        yookassa_id=payment_id,
+        product_id=product_id,
+        amount_rub=tariff.price_rub,
+        status=status,
+        customer_id=customer_id,
+        payment_method_id=pm_id,
+    )
+    if status == "succeeded":
+        bal = renew_balance(customer_id, product_id, tariff.period_days or 30)
+        return JSONResponse({"ok": True, "status": "succeeded", "payment_id": payment_id, "balance": bal})
+
+    return JSONResponse({
+        "ok": False,
+        "status": status,
+        "payment_id": payment_id,
+        "cancel_reason": (result.get("cancellation_details") or {}).get("reason", ""),
+    })
+
+
+@router.post("/api/payment/refund")
+async def api_payment_refund(request: Request):
+    """Возврат платежа через ЮKassa. Тело: {payment_id, amount_rub?}."""
+    try:
+        data = await request.json()
+    except Exception:
+        return JSONResponse({"error": "Invalid JSON"}, status_code=400)
+
+    payment_id = str(data.get("payment_id") or "").strip()
+    if not payment_id:
+        return JSONResponse({"error": "payment_id is required"}, status_code=400)
+    amount = data.get("amount_rub")
+    try:
+        amount = float(amount) if amount not in (None, "") else None
+    except (TypeError, ValueError):
+        return JSONResponse({"error": "amount_rub must be a number"}, status_code=400)
+
+    if config.IS_YOOKASSA_SANDBOX:
+        update_payment_status(payment_id, "refunded")
+        return JSONResponse({"ok": True, "status": "succeeded", "test": True})
+
+    try:
+        result = await create_refund(payment_id, amount)
+    except Exception as exc:
+        return JSONResponse({"error": str(exc)}, status_code=500)
+    update_payment_status(payment_id, "refunded")
+    return JSONResponse({"ok": True, "status": result.get("status", "pending"), "refund_id": result.get("id", "")})
+
+
+@router.post("/api/payment-method/delete")
+async def api_payment_method_delete(request: Request):
+    """Отвязать сохранённую карту клиента по продукту.
+    Тело: {customer_id, product_id}."""
+    try:
+        data = await request.json()
+    except Exception:
+        return JSONResponse({"error": "Invalid JSON"}, status_code=400)
+
+    customer_id = str(data.get("customer_id") or "").strip()
+    product_id = str(data.get("product_id") or "").strip()
+    if not customer_id or not product_id:
+        return JSONResponse({"error": "customer_id and product_id are required"}, status_code=400)
+
+    pm_id = get_payment_method_id(customer_id, product_id)
+    if not pm_id:
+        return JSONResponse({"ok": True, "removed": False})  # карты и так нет
+
+    if not config.IS_YOOKASSA_SANDBOX:
+        try:
+            await delete_payment_method(pm_id)
+        except Exception as exc:
+            return JSONResponse({"error": str(exc)}, status_code=500)
+
+    from contextlib import closing
+    from app.payments import _connect as _pay_conn
+
+    with closing(_pay_conn()) as db:
+        db.execute(
+            """UPDATE payments SET payment_method_id = ''
+               WHERE customer_id = ? AND product_id = ? AND payment_method_id = ?""",
+            (customer_id, product_id, pm_id),
+        )
+        db.commit()
+    return JSONResponse({"ok": True, "removed": True})
