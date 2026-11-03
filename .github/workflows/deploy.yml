@@ -116,3 +116,25 @@ jobs:
               docker image prune -f >> deploy.log 2>&1; \
               echo \"==== deploy done \$(date -Is) ====\" >> deploy.log'"
 
+      - name: Deploy VeZhPom bot (rsync + systemd restart)
+        env:
+          DEPLOY_PATH: ${{ secrets.DEPLOY_PATH }}
+        run: |
+          ssh -p "${{ secrets.SSH_PORT }}" \
+            -o ServerAliveInterval=20 \
+            -o ServerAliveCountMax=10 \
+            -o TCPKeepAlive=yes \
+            -o ConnectTimeout=15 \
+            "${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }}" \
+            "bash -lc 'set -euo pipefail; \
+              rsync -az --delete \
+                --exclude=\".env\" --exclude=\".env.*\" \
+                --exclude=\"*.db\" --exclude=\"*.log\" --exclude=\"*.bak*\" \
+                --exclude=\"backup*\" --exclude=\"patches\" --exclude=\"__pycache__\" \
+                --exclude=\"convert_vz_md_to_docx.py\" \
+                \"${DEPLOY_PATH}/bot/vezpom/\" /opt/vezpom/; \
+              systemctl restart vezpom; \
+              sleep 3; \
+              curl -fsS http://127.0.0.1:4321/health; \
+              echo \"==== VeZhPom bot deployed \$(date -Is) ====\" >> \"${DEPLOY_PATH}/deploy.log\"'"
+

@@ -228,6 +228,80 @@ def update_payment_status(yookassa_id: str, status: str, payment_method_id: str 
         db.commit()
 
 
+async def create_recurring_payment(
+    payment_method_id: str,
+    amount_rub: int,
+    description: str = "",
+) -> dict[str, Any]:
+    """Рекуррентный платёж по сохранённому способу оплаты (автопродление).
+    Не требует подтверждения пользователя (сценарий сценарий recurring payment)."""
+    body = {
+        "amount": {"value": f"{amount_rub}.00", "currency": "RUB"},
+        "capture": True,
+        "payment_method_id": payment_method_id,
+        "description": description or "Автопродление подписки",
+        "metadata": {"auto": "1"},
+    }
+    async with httpx.AsyncClient() as client:
+        resp = await client.post(
+            f"{_YOOKASSA_API}/payments",
+            json=body,
+            headers={
+                "Authorization": _auth_header(),
+                "Idempotence-Key": _idempotency_key(),
+                "Content-Type": "application/json",
+            },
+        )
+        if resp.status_code not in (200, 201):
+            raise RuntimeError(f"ЮKassa error {resp.status_code}: {resp.text}")
+        return resp.json()
+
+
+async def create_refund(payment_id: str, amount_rub: int | None = None) -> dict[str, Any]:
+    """Возврат платежа: полный (amount=None) или частичный."""
+    body: dict[str, Any] = {"payment_id": payment_id}
+    if amount_rub is not None:
+        body["amount"] = {"value": f"{amount_rub}.00", "currency": "RUB"}
+    async with httpx.AsyncClient() as client:
+        resp = await client.post(
+            f"{_YOOKASSA_API}/refunds",
+            json=body,
+            headers={
+                "Authorization": _auth_header(),
+                "Idempotence-Key": _idempotency_key(),
+                "Content-Type": "application/json",
+            },
+        )
+        if resp.status_code not in (200, 201):
+            raise RuntimeError(f"ЮKassa error {resp.status_code}: {resp.text}")
+        return resp.json()
+
+
+async def delete_payment_method(payment_method_id: str) -> bool:
+    """Отвязать сохранённый способ оплаты в ЮKassa."""
+    async with httpx.AsyncClient() as client:
+        resp = await client.delete(
+            f"{_YOOKASSA_API}/payment_methods/{payment_method_id}",
+            headers={"Authorization": _auth_header()},
+        )
+        if resp.status_code in (200, 204, 404):
+            return True
+        raise RuntimeError(f"ЮKassa error {resp.status_code}: {resp.text}")
+
+
+def get_payment_method_id(customer_id: str, product_id: str) -> str:
+    """Последний сохранённый способ оплаты клиента по продукту (или '')."""
+    with closing(_connect()) as db:
+        row = db.execute(
+            """SELECT payment_method_id FROM payments
+               WHERE customer_id = ? AND product_id = ?
+                 AND status = 'succeeded' AND payment_method_id != ''
+               ORDER BY id DESC LIMIT 1""",
+            (customer_id, product_id),
+        ).fetchone()
+    return row["payment_method_id"] if row and row["payment_method_id"] else ""
+
+
 def get_payment_record(yookassa_id: str) -> dict[str, Any] | None:
     """Получить запись платежа из локальной БД."""
     with closing(_connect()) as db:
@@ -278,6 +352,7 @@ async def create_payment(
     description: str = "",
     return_url: str = "",
     capture: bool = True,
+    save_payment_method: bool = False,
 ) -> dict[str, Any]:
     """Create a ЮKassa payment with redirect confirmation.
     In sandbox mode returns a fake confirmation_url."""
@@ -300,6 +375,7 @@ async def create_payment(
                 "confirmation_url": f"/api/payment-demo?yookassa_id={fake_id}&product_id={product_id}",
             },
             "test": True,
+            "payment_method": {"id": f"pm-{fake_id}"},
             "description": description or f"Оплата: {prod['name']}",
         }
 
@@ -313,6 +389,8 @@ async def create_payment(
         "description": description or f"Оплата: {prod['name']}",
         "metadata": {"product_id": product_id},
     }
+    if save_payment_method:
+        body["save_payment_method"] = "true"
 
     async with httpx.AsyncClient() as client:
         resp = await client.post(

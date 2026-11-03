@@ -1,0 +1,20 @@
+# ВежПом — сервис бота мониторинга в МАКС (прод: сервер АЛТ)
+# Установка: cp deploy/systemd/vezpom.service /etc/systemd/system/vezpom.service && systemctl enable --now vezpom
+# Секреты: /opt/vezpom/.env (см. bot/vezpom/.env.example)
+# Код: bot/vezpom/ в монорепо → CI rsync-ит в /opt/vezpom/
+
+[Unit]
+Description=VeZhPom Webhook — proxy from Uptime Kuma to MAX
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+EnvironmentFile=/opt/vezpom/.env
+ExecStart=/usr/bin/python3 /opt/vezpom/vezpom_webhook.py
+Restart=always
+RestartSec=5
+User=root
+
+[Install]
+WantedBy=multi-user.target

@@ -26,3 +26,7 @@ ssh-keyscan.err
 
 # Системный промпт АЛТ-эксперта — контент, не код (читается из /opt/alt_docs/ALT-expert/system_prompt_v2.md)
 АЛЬТЕРНАТИВА_АЛТбот/ALT_sist.prompt.md
+
+# ВежПом: рантайм бота (не в git)
+bot/vezpom/*.db
+bot/vezpom/*.log
