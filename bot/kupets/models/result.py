@@ -66,6 +66,8 @@ class SearchResponse:
     # True, если поиск не удался из‑за антибота Ozon (403/429/circuit)
     ozon_unavailable: bool = False
     ozon_retry_sec: int = 0
+    # True, если поиск остановлен исчерпанием лимитов поискового провайдера
+    provider_limited: bool = False
 
     @classmethod
     def empty(cls, filters: SearchFilters) -> SearchResponse:

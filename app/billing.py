@@ -116,6 +116,18 @@ TARIFFS: dict[str, Tariff] = {
         trial_tokens=50_000,
         additional_token_price_per_1m=8.0,
     ),
+    "kupec": Tariff(
+        product_id="kupec",
+        name="Купец — анализ маркетплейсов",
+        price_rub=150,               # Шеф, 03.11.2026
+        token_allowance=0,           # лимиты — квоты поиска в боте, не токены
+        routerai_model_id="",        # пояснения топ-3 идут через ботовый RouterAI-ключ
+        routerai_prompt_price_per_1m=0.0,
+        routerai_completion_price_per_1m=0.0,
+        token_cost_ratio=0.0,        # себестоимость = кредиты Firecrawl (~50₽/мес)
+        estimated_dialogues="до ~180 поисков/мес",
+        trial_tokens=0,              # триал 7 дней, ограничение квотами бота
+    ),
     "neyrosotrudnik": Tariff(
         product_id="neyrosotrudnik",
         name="НейроСотрудник — ИИ-ассистент",

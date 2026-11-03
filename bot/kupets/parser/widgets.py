@@ -62,6 +62,7 @@ def search_item_to_product(item: SearchItem) -> ProductData:
         specs_confirmed=specs.confirmed,
         url=item.url,
         photos=[],
+        marketplace=item.marketplace,
     )
     enrich_delivery_from_tile(product, item.delivery_text)
     return product

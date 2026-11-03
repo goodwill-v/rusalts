@@ -31,18 +31,21 @@ def apply_filters(
         return FilterBuckets([], [], [])
 
     # Медиану считаем по товарам в ценовом диапазоне запроса —
-    # иначе флагманы/фейки ломают пороги.
-    priced = products
+    # иначе флагманы/фейки ломают пороги. Товары без цены (price=0, «цена по
+    # ссылке») в медиану и ценовые фильтры не попадают.
     if filters.price_max is not None or filters.price_min is not None:
         tmp = []
         for p in products:
+            if p.price <= 0:
+                continue
             if filters.price_max is not None and p.price > filters.price_max:
                 continue
             if filters.price_min is not None and p.price < filters.price_min:
                 continue
             tmp.append(p)
-        if tmp:
-            priced = tmp
+        priced = tmp if tmp else [p for p in products if p.price > 0]
+    else:
+        priced = [p for p in products if p.price > 0]
 
     prices = [p.price for p in priced if p.price > 0]
     med = median(prices) if prices else 0.0
@@ -62,16 +65,18 @@ def apply_filters(
         if filters.only_fbo and p.delivery_type != "FBO":
             hard.append("не FBO (склад Ozon)")
 
-        if filters.price_max is not None and p.price > filters.price_max:
-            hard.append(f"цена выше {int(filters.price_max)} руб")
-        if filters.price_min is not None and p.price < filters.price_min:
-            hard.append(f"цена ниже {int(filters.price_min)} руб")
+        # Ценовые фильтры — только когда цена известна (price=0 = «по ссылке»)
+        if p.price > 0:
+            if filters.price_max is not None and p.price > filters.price_max:
+                hard.append(f"цена выше {int(filters.price_max)} руб")
+            if filters.price_min is not None and p.price < filters.price_min:
+                hard.append(f"цена ниже {int(filters.price_min)} руб")
 
         price_ok = not any("цена выше" in r or "цена ниже" in r for r in hard)
         in_budget = price_ok and junk is None
 
         popular = (p.reviews_count or 0) >= 200 and (p.rating or 0) >= 4.0
-        if in_budget and med > 0 and p.price < med * 0.3 and not popular:
+        if in_budget and med > 0 and 0 < p.price < med * 0.3 and not popular:
             hard.append("подозрительно низкая цена")
         if in_budget and med > 0 and p.price > med * 2.5:
             hard.append("цена завышена")

@@ -13,16 +13,25 @@ MEDALS = ("🥇", "🥈", "🥉")
 def start_message() -> str:
     return (
         "🛒 *Купец*\n"
-        "Помогу найти лучший товар на Ozon.\n\n"
+        "Найду и сравню товары на Ozon, Wildberries и Яндекс.Маркете.\n\n"
         "Просто напиши, что ищешь:\n"
-        "«найди андроид с оперативкой от 8ГБ, до 20000 руб»\n\n"
+        "«найди андроид с оперативкой от 8ГБ, до 20000 руб»\n"
+        "«термос для школы до 2000»\n\n"
         "⭐ *SCORE* — рейтинг по 4 показателям, "
-        "включая цену и надёжность продавца.\n\n"
-        "Или отправь *фото* — распознаю товар и найду похожие на Ozon."
+        "включая цену и надёжность продавца. Если цены в выдаче нет — "
+        "она по ссылке на товар.\n\n"
+        "Или отправь *фото* — распознаю товар и найду похожий."
     )
 
 
 def format_results(response: SearchResponse) -> str:
+    if getattr(response, "provider_limited", False):
+        return (
+            "🛠 *Поиск временно приостановлен*\n\n"
+            "У сервиса закончился месячный лимит запросов к поисковым системам.\n"
+            "Мы уже знаем об этом и пополняем тариф — обычно это занимает пару часов.\n\n"
+            "Напишите /start чуть позже или попробуйте снова."
+        )
     if response.ozon_unavailable:
         q = _md(response.query_display or response.filters.text or "запрос")
         wait = response.ozon_retry_sec
@@ -141,11 +150,14 @@ def format_all_results(response: SearchResponse, page: int = 0, page_size: int =
         return "Больше товаров нет."
 
     lines = [f"📋 Все прошедшие отбор (стр. {page + 1}):\n"]
+    mp_label = {"ozon": "Ozon", "wb": "WB", "yam": "ЯМ"}
     for i, sp in enumerate(chunk, start=start + 1):
         p = sp.product
+        mp = mp_label.get(getattr(p, "marketplace", "ozon"), "Ozon")
+        price = format_price(p.price) if p.price > 0 else "цена по ссылке"
         lines.append(
-            f"{i}. *{_md(p.name)}* · SCORE *{sp.score}*\n"
-            f"   {format_price(p.price)} · [ссылка]({p.url})"
+            f"{i}. [{mp}] *{_md(p.name)}* · SCORE *{sp.score}*\n"
+            f"   {price} · [ссылка]({p.url})"
         )
     return "\n".join(lines)
 
@@ -186,14 +198,26 @@ def _format_product_card(sp: ScoredProduct, index: int) -> str:
         f"отзывы {b.reviews:.0f} · доставка {b.delivery:.0f}"
     )
 
+    price_line = (
+        f"💰 {format_price(p.price)}"
+        if p.price > 0
+        else "💰 Цена по ссылке"
+    )
+    mp_label = {"ozon": "Ozon", "wb": "Wildberries", "yam": "Я.Маркет"}.get(
+        getattr(p, "marketplace", "ozon"), "Ozon"
+    )
+    if p.price <= 0:
+        link_line = f"{mp_label}: [открыть товар]({p.url})"
+    else:
+        link_line = f"[{mp_label}]({p.url})"
     parts = [
         f"{medal} *{_md(p.name)}* · ⭐ SCORE *{sp.score} / 100* {badge}",
         score_line,
-        f"💰 {format_price(p.price)} | Рейтинг товара {rating_line}",
+        f"{price_line} | Рейтинг товара {rating_line}",
         f"🏪 Продавец: {_md(p.seller_name or '—')}{seller_rating}{orders}",
         f"🚚 Доставка: {delivery}",
         fbo,
-        f"[ozon.ru/product/{p.product_id}]({p.url})",
+        link_line,
     ]
     if verdict_line:
         parts.append(verdict_line)

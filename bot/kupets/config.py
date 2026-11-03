@@ -43,13 +43,35 @@ class Config:
     PARSING_PROXY_URL: str = os.getenv("PARSING_PROXY_URL", "")
     PARSING_CONCURRENCY: int = int(os.getenv("PARSING_CONCURRENCY", "3"))
 
-    # Firecrawl — внешний поиск (обход Composer API)
+    # Firecrawl — внешний поиск (основной канал; Composer отключён)
     FIRECRAWL_API_KEY: str = os.getenv("FIRECRAWL_API_KEY", "")
-    TAVILY_API_KEY: str = os.getenv("TAVILY_API_KEY", "")
+    TAVILY_API_KEY: str = os.getenv("TAVILY_API_KEY", "")  # резерв: с сервера АЛТ пока 403 (WAF)
     ENABLE_FIRECRAWL: bool = _bool("ENABLE_FIRECRAWL", "true")
+    # Composer API Ozon — мёртв с 09.2026 (403 fab_chlg); включать только по решению Шефа
+    ENABLE_COMPOSER: bool = _bool("ENABLE_COMPOSER", "false")
+
+    # --- Лимиты поиска и алерты (Шеф, 03.11.2026) ---
+    # /search Firecrawl = 2 кредита за каждые 10 результатов (округление вверх)
+    CREDITS_COST_PER_SEARCH: int = int(os.getenv("CREDITS_COST_PER_SEARCH", "2"))
+    FIRECRAWL_MONTHLY_CREDITS: int = int(os.getenv("FIRECRAWL_MONTHLY_CREDITS", "1000"))
+    TAVILY_MONTHLY_CREDITS: int = int(os.getenv("TAVILY_MONTHLY_CREDITS", "1000"))
+    CREDITS_WARN_PCT: int = int(os.getenv("CREDITS_WARN_PCT", "80"))
+    CREDITS_CRIT_PCT: int = int(os.getenv("CREDITS_CRIT_PCT", "95"))
+    # Повтор алерта одного уровня не чаще, чем раз в N часов
+    ALERT_COOLDOWN_HOURS: float = float(os.getenv("ALERT_COOLDOWN_HOURS", "12"))
+    # Уведомления Шефу в МАКС (тот же бот, что шлёт лиды из /opt/alt/.env)
+    MAX_BOT_TOKEN: str = os.getenv("MAX_BOT_TOKEN", "")
+    MAX_ALERT_CHAT_ID: str = os.getenv("MAX_ALERT_CHAT_ID", "")
 
     REDIS_URL: str = os.getenv("REDIS_URL", "")
     CACHE_TTL_SECONDS: int = int(os.getenv("CACHE_TTL_SECONDS", "300"))
+    # Кэш ответов поиска: 3 ч (повтор запроса не тратит кредиты)
+    CACHE_TTL_SEARCH_SECONDS: int = int(os.getenv("CACHE_TTL_SEARCH_SECONDS", "10800"))
+    # SQLite-хранилище состояния (кэш, кредиты, алерты)
+    STATE_DB_PATH: str = os.getenv(
+        "STATE_DB_PATH",
+        str(Path(__file__).resolve().parent / "data" / "kupets_state.db"),
+    )
 
     VISION_ENABLED: bool = _bool("VISION_ENABLED", "true")
     DRY_RUN: bool = _bool("DRY_RUN", "true")
@@ -69,8 +91,8 @@ class Config:
     SMTP_FROM: str = os.getenv("SMTP_FROM", "")
     SMTP_USE_SSL: bool = _bool("SMTP_USE_SSL", "false")
 
-    # Лимиты пайплайна
-    SEARCH_ITEMS_LIMIT: int = int(os.getenv("SEARCH_ITEMS_LIMIT", "36"))
+    # Лимиты пайплайна (10 результатов = 2 кредита Firecrawl; TOP-10 потолок)
+    SEARCH_ITEMS_LIMIT: int = int(os.getenv("SEARCH_ITEMS_LIMIT", "10"))
     ENRICH_PRODUCTS_LIMIT: int = int(os.getenv("ENRICH_PRODUCTS_LIMIT", "24"))
     ENRICH_SELLERS_LIMIT: int = int(os.getenv("ENRICH_SELLERS_LIMIT", "8"))
     TOP_RESULTS: int = 10

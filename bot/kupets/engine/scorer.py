@@ -101,8 +101,10 @@ class ProductScorer:
         return min(score, 1.0)
 
     def _score_price(self, product: ProductData, context: SearchContext) -> float:
-        prices = sorted(context.all_prices)
-        if len(prices) < 2:
+        # Неизвестная цена («цена по ссылке») не участвует в сравнении:
+        # нейтральный балл вместо ложного «самый дешёвый» (price=0).
+        prices = sorted(p for p in context.all_prices if p > 0)
+        if product.price <= 0 or len(prices) < 2:
             return 0.5
         # позиция в отсортированном списке (инвертировано: дешевле → выше)
         # при дубликатах берём первое вхождение

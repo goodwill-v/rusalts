@@ -23,8 +23,8 @@ from bot.messages import (
     start_message,
 )
 from bot.states import SearchStates
+from engine.query_guard import is_smalltalk
 from models.result import SearchFilters, SearchResponse
-from parser.circuit import ozon_circuit
 from services.mailer import ErrorReport, send_error_report, smtp_configured
 from services.search_pipeline import SearchPipeline
 from config import Config
@@ -152,6 +152,17 @@ async def on_text_search(message: Message, state: FSMContext) -> None:
         return
     query = (message.text or "").strip()
     if not query or query.startswith("/"):
+        return
+    if is_smalltalk(query):
+        await message.answer(
+            "👋 Привет! Я Купец — ищу и сравниваю товары на Ozon, "
+            "Wildberries и Яндекс.Маркете.\n\n"
+            "Напишите, что искать, например:\n"
+            "• «термос для школы до 2000 руб»\n"
+            "• «найди андроид 8ГБ/128ГБ до 20000»\n"
+            "• «чехол для iPhone 15»\n\n"
+            "Или пришлите фото товара — найду похожий."
+        )
         return
     await _run_and_reply(message, state, query=query)
 
@@ -291,18 +302,10 @@ async def _run_and_reply(
     skip_cache: bool = False,
     progress_message: Message | None = None,
 ) -> None:
-    if ozon_circuit.is_open:
-        text = (
-            f"⚠️ Ozon временно ограничивает запросы. "
-            f"Подожди ~{ozon_circuit.remaining_sec()} сек."
-        )
-        if progress_message:
-            await progress_message.edit_text(text)
-        else:
-            await message.answer(text)
-        return
-
-    progress = progress_message or await message.answer("🔍 Ищу на Ozon...")
+    # Старый circuit-gate снят: поиск не блокируется на «Ozon ограничивает
+    # запросы» — живой канал Firecrawl работает всегда (лимиты ведёт
+    # credit_monitor, у пользователя честное пояснение при исчерпании).
+    progress = progress_message or await message.answer("🔍 Ищу по маркетплейсам...")
     if progress_message:
         try:
             await progress.edit_text(f"🔍 Ищу на Ozon: {query}")

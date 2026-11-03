@@ -1,4 +1,11 @@
-"""Оркестратор поиска: фильтры → парсинг → SCORE → AI."""
+"""Оркестратор поиска: Firecrawl (3 маркетплейса) → фильтры → SCORE → AI.
+
+Composer API Ozon отключён (ENABLE_COMPOSER=false, по умолчанию): антибот
+режет датацентр-IP с сентября 2026. Живой канал — поисковые сниппеты Firecrawl;
+ответы кэшируются в SQLite на CACHE_TTL_SEARCH_SECONDS — повторный запрос
+не тратит кредиты. Исчерпание лимита — честное сообщение пользователю и
+алерты Шефу (services.credit_monitor), а не «Ничего не нашёл».
+"""
 
 from __future__ import annotations
 
@@ -8,7 +15,6 @@ from collections.abc import Awaitable, Callable
 from copy import deepcopy
 
 from ai.explainer import AIExplainer
-from cache.memory_cache import MemoryCache
 from config import Config
 from engine.filter import apply_filters
 from engine.junk import filter_junk_items
@@ -17,20 +23,17 @@ from engine.query_parser import extract_filters
 from engine.scorer import ProductScorer
 from models.product import ProductData, SearchItem
 from models.result import SearchContext, SearchFilters, SearchResponse
-from parser.circuit import ozon_circuit
 from parser.composer import ComposerClient
-from parser.firecrawl_search import FirecrawlClient
+from parser.firecrawl_search import FirecrawlClient, ProviderQuotaError
 from parser.product import parse_product
 from parser.search import parse_search
 from parser.seller import attach_sellers
+from services import credit_monitor, sqlite_store
 from utils import get_logger
 
 logger = get_logger("services.pipeline")
 
 ProgressCallback = Callable[[str], Awaitable[None]]
-
-# Кэш полных ответов поиска (5–10 мин по CACHE_TTL)
-_response_cache: MemoryCache[SearchResponse] = MemoryCache()
 
 
 class SearchPipeline:
@@ -53,23 +56,6 @@ class SearchPipeline:
                 except Exception as exc:
                     logger.debug("progress_error", error=str(exc))
 
-        # Если есть Firecrawl — не блокируемся на circuit, пробуем Composer → fallback
-        if ozon_circuit.is_open and not Config.DRY_RUN and not Config.ENABLE_FIRECRAWL:
-            wait = ozon_circuit.remaining_sec()
-            filters = filters_override or extract_filters(query)
-            display = (
-                filters_override.text if filters_override else query
-            )
-            await progress(
-                f"⚠️ Ozon временно ограничивает запросы. "
-                f"Подожди ~{wait} сек и попробуй снова."
-            )
-            return SearchResponse.blocked(
-                filters,
-                query_display=display,
-                retry_sec=wait,
-            )
-
         filters = filters_override or extract_filters(query)
         display = filters.text or query
         search_text = self._build_search_text(filters)
@@ -77,10 +63,10 @@ class SearchPipeline:
 
         cache_key = self._cache_key(search_text, filters)
         if not skip_cache and not Config.DRY_RUN:
-            cached = _response_cache.get(cache_key)
+            cached = sqlite_store.cache_get(cache_key)
             if cached is not None:
                 logger.info("cache_hit", key=cache_key[:16])
-                await progress("✅ Из кэша")
+                await progress("✅ Из кэша (свежий за 3 часа)")
                 return deepcopy(cached)
 
         logger.info(
@@ -90,53 +76,29 @@ class SearchPipeline:
             filters=filters.__dict__,
         )
 
-        await progress(f"🔍 Ищу на Ozon: {display}...")
-
+        # Composer мёртв (антибот 403) — по умолчанию не создаём клиент вовсе
         client: ComposerClient | None = None
-        if not Config.DRY_RUN:
+        if Config.ENABLE_COMPOSER and not Config.DRY_RUN:
             client = ComposerClient()
 
         try:
-            items = await parse_search(
-                search_text,
-                client=client,
-                price_min=filters.price_min,
-                price_max=filters.price_max,
+            items = await self._search_items(
+                search_text, filters, client, progress
             )
-            # Fallback to Firecrawl if Composer API is blocked
-            if not items and (ozon_circuit.is_open or (client and client.last_blocked)) and Config.ENABLE_FIRECRAWL:
-                logger.info("firecrawl_fallback", query=search_text)
-                fc = FirecrawlClient()
-                try:
-                    items = await fc.search_ozon(
-                        search_text,
-                        price_min=filters.price_min,
-                        price_max=filters.price_max,
-                        limit=Config.SEARCH_ITEMS_LIMIT,
-                    )
-                    if items:
-                        ozon_circuit.record_success()
-                        await progress(f"🔍 Нашёл {len(items)} товаров (Firecrawl)")
-                finally:
-                    await fc.aclose()
+            if items is None:
+                # Лимит Firecrawl исчерпан — вежливо и честно останавливаем поиск
+                notice = credit_monitor.user_notice() or (
+                    "🛠 Поиск временно недоступен из-за лимитов сервиса. "
+                    "Попробуйте позже."
+                )
+                await progress(notice)
+                resp = SearchResponse(filters=filters, found_total=0)
+                resp.provider_limited = True
+                resp.query_display = display
+                return resp
+
             if not items:
-                fc_tried = Config.ENABLE_FIRECRAWL and not Config.DRY_RUN
-                if not fc_tried and (client and client.last_blocked):
-                    wait = ozon_circuit.remaining_sec()
-                    logger.warning(
-                        "search_blocked_by_ozon",
-                        query=search_text,
-                        retry_sec=wait,
-                    )
-                    await progress(
-                        "⚠️ Ozon заблокировал запрос (антибот)."
-                    )
-                    return SearchResponse.blocked(
-                        filters,
-                        query_display=display,
-                        retry_sec=wait,
-                    )
-                await progress("😕 Ничего не нашёл")
+                await progress("😕 По этим запросам товары не нашлись")
                 empty = SearchResponse.empty(filters)
                 empty.query_display = display
                 return empty
@@ -186,7 +148,9 @@ class SearchPipeline:
                 )
 
             all_for_ctx = buckets.passed + [p for p, _ in buckets.near_miss]
-            prices = [p.price for p in all_for_ctx] or [p.price for p in products]
+            prices = [p.price for p in all_for_ctx if p.price > 0] or [
+                p.price for p in products if p.price > 0
+            ]
             context = SearchContext(
                 all_prices=prices,
                 median_price=median(prices) if prices else 0.0,
@@ -222,11 +186,66 @@ class SearchPipeline:
                 query_display=display,
             )
             if not Config.DRY_RUN:
-                _response_cache.set(cache_key, deepcopy(response))
+                sqlite_store.cache_set(
+                    cache_key, deepcopy(response), Config.CACHE_TTL_SEARCH_SECONDS
+                )
             return response
         finally:
             if client is not None:
                 await client.aclose()
+
+    async def _search_items(
+        self,
+        search_text: str,
+        filters: SearchFilters,
+        client: ComposerClient | None,
+        progress: ProgressCallback,
+    ) -> list[SearchItem] | None:
+        """Firecrawl первым (живой канал). None = лимит исчерпан.
+
+        Composer остаётся аварийным запасом под флагом ENABLE_COMPOSER:
+        если Firecrawl пуст, а Composer включён — пробуем его как прежде.
+        """
+        if Config.ENABLE_FIRECRAWL and not Config.DRY_RUN:
+            if credit_monitor.usage_snapshot()["level"] == "exhausted":
+                credit_monitor.check_and_alert()
+                return None
+            await progress(
+                f"🔍 Ищу на Ozon, Wildberries и Яндекс.Маркете: {search_text}..."
+            )
+            fc = FirecrawlClient()
+            try:
+                items = await fc.search_marketplaces(
+                    search_text,
+                    price_min=filters.price_min,
+                    price_max=filters.price_max,
+                    limit=Config.SEARCH_ITEMS_LIMIT,
+                )
+                if items:
+                    await progress(f"🔍 Нашёл {len(items)} товаров (поиск по 3 площадкам)")
+                    credit_monitor.check_and_alert()
+                    return items
+            except ProviderQuotaError:
+                credit_monitor.mark_provider_exhausted()
+                return None
+            finally:
+                await fc.aclose()
+            # Firecrawl пуст — при включённом Composer пробуем его до того,
+            # как честно сказать «не нашлось»
+        elif Config.DRY_RUN:
+            return await parse_search(search_text, client=None)
+
+        if client is not None:
+            await progress(f"🔍 Ищу на Ozon: {search_text}...")
+            items = await parse_search(
+                search_text,
+                client=client,
+                price_min=filters.price_min,
+                price_max=filters.price_max,
+            )
+            if items:
+                return items
+        return []
 
     def _build_search_text(self, filters: SearchFilters) -> str:
         search_text = filters.text
@@ -284,6 +303,7 @@ class SearchPipeline:
         products: list[ProductData] = []
         try_detail = (
             (Config.TRY_PRODUCT_DETAIL or Config.USE_BROWSER)
+            and client is not None
             and not Config.DRY_RUN
         )
         for idx, item in enumerate(items):

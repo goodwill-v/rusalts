@@ -89,14 +89,14 @@ PRODUCTS: dict[str, dict[str, Any]] = {
     "kupec": {
         "id": "kupec",
         "name": "Купец — анализ маркетплейсов",
-        "description": "ИИ-поиск и анализ товаров Ozon: находит по описанию, сравнивает цены, готовит сводки для продавцов.\nБесплатно (до решения проблемы парсинга).",
-        "price_rub": 0,
-        "period_days": 0,
-        "trial_days": 0,
+        "description": "ИИ-поиск и сравнение товаров на Ozon, Wildberries и Яндекс.Маркете: разброс цен, слежка за скидками, проверка на клоны. Сводки для продавцов.",
+        "price_rub": 150,
+        "period_days": 30,
+        "trial_days": 7,
         "category": "product",
-        "platform": "MAX (бот)",
-        "bot_url": "",
-        "status": "free",  # бесплатно до решения проблемы парсинга
+        "platform": "Telegram",
+        "bot_url": "https://t.me/KupetBot",
+        "status": "available",
     },
     "anketa_diagnostics": {
         "id": "anketa_diagnostics",
