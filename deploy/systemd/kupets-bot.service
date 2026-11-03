@@ -1,0 +1,21 @@
+# Купец — Telegram-бот поиска по маркетплейсам (прод: сервер АЛТ)
+# Установка: cp deploy/systemd/kupets-bot.service /etc/systemd/system/ && systemctl daemon-reload
+# Секреты: /opt/kupets/.env (см. bot/kupets/.env.example)
+# Код: bot/kupets/ в монорепо → CI rsync-ит в /opt/kupets/ (deploy.yml)
+
+[Unit]
+Description=Kupets Telegram bot (поиск и сравнение товаров: Ozon/WB/Я.Маркет)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+WorkingDirectory=/opt/kupets
+EnvironmentFile=/opt/kupets/.env
+ExecStart=/opt/kupets/venv/bin/python /opt/kupets/bot/main.py
+Restart=always
+RestartSec=10
+User=root
+
+[Install]
+WantedBy=multi-user.target

@@ -138,3 +138,28 @@ jobs:
               curl -fsS http://127.0.0.1:4321/health; \
               echo \"==== VeZhPom bot deployed \$(date -Is) ====\" >> \"${DEPLOY_PATH}/deploy.log\"'"
 
+      - name: Deploy Kupets bot (rsync + venv + systemd restart)
+        env:
+          DEPLOY_PATH: ${{ secrets.DEPLOY_PATH }}
+        run: |
+          ssh -p "${{ secrets.SSH_PORT }}" \
+            -o ServerAliveInterval=20 \
+            -o ServerAliveCountMax=10 \
+            -o TCPKeepAlive=yes \
+            -o ConnectTimeout=15 \
+            "${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }}" \
+            "bash -lc 'set -euo pipefail; \
+              rsync -az --delete \
+                --exclude=\".env\" --exclude=\".env.*\" \
+                --exclude=\"venv\" --exclude=\"data\" \
+                --exclude=\"__pycache__\" --exclude=\".pytest_cache\" \
+                --exclude=\"*.db\" --exclude=\"*.log\" \
+                \"${DEPLOY_PATH}/bot/kupets/\" /opt/kupets/; \
+              cd /opt/kupets; \
+              [ -d venv ] || python3 -m venv venv; \
+              ./venv/bin/pip install -q -r requirements.txt; \
+              systemctl restart kupets-bot; \
+              sleep 3; \
+              systemctl is-active kupets-bot; \
+              echo \"==== Kupets bot deployed \$(date -Is) ====\" >> \"${DEPLOY_PATH}/deploy.log\"'"
+
