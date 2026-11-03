@@ -22,6 +22,7 @@ from http.server import ThreadingHTTPServer, BaseHTTPRequestHandler
 
 import db
 import kuma
+import vezlogic
 import vitrina_client as vitrina
 
 BOT_TOKEN = os.environ.get("BOT_TOKEN", "")
@@ -189,10 +190,43 @@ def _is_active(chat_id):
     return db.is_active(chat_id)
 
 
+def _record_event(result, chat_id, data):
+    """Журнал событий + открытые предупреждения (PR-2). Не влияет на отправку."""
+    monitor = data.get("monitor") or {}
+    kuma_id = monitor.get("id")
+    name = monitor.get("name") or result.get("name") or ""
+    target = result.get("target") or monitor.get("url") or ""
+    kind, st = result.get("kind"), result.get("status")
+    now = int(time.time())
+    detail = result.get("detail") or result.get("message") or ""
+    try:
+        if kind == vezlogic.KIND_INCIDENT:
+            if st == "down":
+                db.add_event(chat_id, kuma_id, target, kind, "down", detail, started_at=now)
+            elif st == "up":
+                db.close_open_incident(chat_id, target, now)
+                db.add_event(chat_id, kuma_id, target, kind, "up", detail, started_at=now)
+        elif kind == vezlogic.KIND_BACKUP:
+            if st == "down":
+                db.add_event(chat_id, kuma_id, "backup", kind, "down", detail, started_at=now)
+                db.upsert_warning(chat_id, "backup", name)
+            elif st == "up":
+                db.resolve_warning(chat_id, "backup", name)
+                db.add_event(chat_id, kuma_id, "backup", kind, "up", detail, started_at=now)
+        elif kind == vezlogic.KIND_SSL:
+            days = result.get("days")
+            target_key = target or name
+            db.upsert_warning(chat_id, "ssl", target_key, days=days)
+            db.add_event(chat_id, kuma_id, target_key, kind, "info",
+                         ("%d дн." % days) if days else "", started_at=now)
+    except Exception as exc:
+        print("[VeZhPom] record_event error:", exc, flush=True)
+
+
 def handle_monitor(data):
     """Check subscription before forwarding a monitor event."""
     # PR-1: лог сырого payload — верифицируем формат сроковых событий SSL
-    # (certificate expiry) на живых данных перед анти-шумом (PR-2).
+    # (certificate expiry) на живых данных; после стабилизации можно убрать.
     try:
         mtype = (data.get("monitor") or {}).get("type", "?")
         print("[VeZhPom] payload type=%s:" % mtype,
@@ -202,18 +236,24 @@ def handle_monitor(data):
     if "monitor" in data:
         name = data.get("monitor", {}).get("name", "")
         chat_id = owner_chat_id(name)
-        status, _, message = build_message(data)
+        status, _, legacy_message = build_message(data)
         db.update_monitor_status(name, status)
     else:
         chat_id = CHAT_ID
-        status, _, message = build_message(data)
+        status, _, legacy_message = build_message(data)
+    # PR-2: классификация → журнал/предупреждения → человекочитаемый формат
+    result = vezlogic.classify_event(data)
+    _record_event(result, chat_id, data)
+    message = vezlogic.format_event(result) or legacy_message
     if not _is_active(chat_id):
         user = db.get_user(chat_id)
         if user and not user["notify_sent"]:
             send(chat_id, "ВежПом: бесплатный период закончился. Оплатите подписку 150 руб/мес — команда /pay")
             db.mark_notify_sent(chat_id)
         return
-    if message:
+    # Тихие часы по МСК (фиксированный UTC+3, чтобы не зависеть от TZ сервера)
+    msk_hour = time.gmtime(time.time() + 3 * 3600).tm_hour
+    if message and vezlogic.should_forward(result, msk_hour):
         send(chat_id, message)
 
 
