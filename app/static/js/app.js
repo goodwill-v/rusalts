@@ -450,7 +450,7 @@ async function initNewsPage() {
       const dt = fmtDate(it.published_at_utc);
       card.innerHTML = `
         <div class="news-meta">
-          <span class="news-meta__left">${it.pinned ? "📎 Закреплено" : ""}</span>
+          <span class="news-meta__left">${it.pinned ? "📎 Закреплено" : ""} №${escapeHtml(pubId)}</span>
           <time datetime="${String(it.published_at_utc || "")}">${dt}</time>
         </div>
         <div class="news-text" data-news-body>Загрузка…</div>
