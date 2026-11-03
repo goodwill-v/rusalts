@@ -28,6 +28,11 @@ BOT_TOKEN = os.environ.get("BOT_TOKEN", "")
 CHAT_ID = int(os.environ.get("CHAT_ID", "0"))
 API_URL = os.environ.get("API_URL", "https://platform-api2.max.ru")
 PORT = int(os.environ.get("PORT", "4321"))
+# Секретный путь вебхука: Kuma шлёт на /kuma/<секрет>; пусто — прежнее поведение
+# (принимать всё), используется только на переходный период (PR-1).
+WEBHOOK_SECRET = os.environ.get("VEZPOM_WEBHOOK_SECRET", "").strip()
+# Публичный базовый URL пульсов бэкапов (nginx location /kuma-push/)
+PUSH_PUBLIC_URL = os.environ.get("VEZPOM_PUSH_URL", "https://rusalts.ru/kuma-push/")
 
 if not BOT_TOKEN or not CHAT_ID:
     sys.exit("ERROR: BOT_TOKEN and CHAT_ID must be set (see .env.example)")
@@ -71,9 +76,10 @@ def main_menu_keyboard():
                 ],
                 [
                     {"type": "callback", "text": "📊 Статус", "payload": "menu:status"},
-                    {"type": "callback", "text": "❌ Отмена", "payload": "menu:cancel"},
+                    {"type": "callback", "text": "💾 Бэкапы", "payload": "menu:backup"},
                 ],
                 [
+                    {"type": "callback", "text": "❌ Отмена", "payload": "menu:cancel"},
                     {"type": "callback", "text": "📖 Правила", "payload": "menu:rules"},
                     {"type": "callback", "text": "🆘 Помощь", "payload": "menu:help"},
                 ],
@@ -185,6 +191,14 @@ def _is_active(chat_id):
 
 def handle_monitor(data):
     """Check subscription before forwarding a monitor event."""
+    # PR-1: лог сырого payload — верифицируем формат сроковых событий SSL
+    # (certificate expiry) на живых данных перед анти-шумом (PR-2).
+    try:
+        mtype = (data.get("monitor") or {}).get("type", "?")
+        print("[VeZhPom] payload type=%s:" % mtype,
+              json.dumps(data, ensure_ascii=False)[:600], flush=True)
+    except Exception:
+        pass
     if "monitor" in data:
         name = data.get("monitor", {}).get("name", "")
         chat_id = owner_chat_id(name)
@@ -337,8 +351,55 @@ def _add_monitor_flow(chat_id, target):
     except kuma.KumaError as exc:
         send(chat_id, "Не удалось настроить мониторинг: " + str(exc)[:200])
         return
-    db.add_monitor(chat_id, norm, name, kuma_id, kuma_server="alt")
-    send(chat_id, "✅ Мониторинг настроен: %s. Уведомления о сбоях и восстановлении будут приходить в этот чат. Проверить текущее состояние: /check" % norm)
+    row_id = db.add_monitor(chat_id, norm, name, kuma_id, kuma_server="alt")
+    # Для https-целей сразу включаем контроль срока SSL-сертификата
+    # (Kuma предупреждает на порогах 21/14/7 дней, дедуп встроен в Kuma)
+    cert_note = ""
+    if urllib.parse.urlparse(norm).scheme == "https":
+        try:
+            cert_id = kuma.add_cert_monitor("VeZhPom chat%d: %s · SSL" % (chat_id, norm), norm)
+            db.set_cert_monitor(row_id, cert_id)
+            cert_note = "\n🔒 Срок SSL-сертификата тоже под контролем: предупрежу заранее, до пугающей надписи «сайт небезопасен»."
+        except kuma.KumaError as exc:
+            print("[VeZhPom] cert monitor failed:", exc, flush=True)
+    send(chat_id, "✅ Мониторинг настроен: %s. Уведомления о сбоях и восстановлении будут приходить в этот чат. Проверить текущее состояние: /check%s" % (norm, cert_note))
+
+
+def _send_backup_instructions(chat_id, token):
+    """Инструкция по пульсу бэкапа (push-URL через nginx /kuma-push/)."""
+    url = PUSH_PUBLIC_URL + token
+    send(chat_id,
+         "💾 Контроль резервных копий настроен.\n\n"
+         "Добавьте последней строкой в скрипт бэкапа (после успешного копирования):\n"
+         'curl -fsS "' + url + '?status=up&msg=OK"\n\n'
+         "Если пульс не придёт за сутки, пришлю алерт: «Резервная копия не создалась».")
+
+
+def _add_backup_flow(chat_id):
+    """Команда /backup: push-монитор контроля резервных копий.
+
+    Один push-монитор на пользователя (MVP): повторный вызов возвращает
+    существующий push-URL.
+    """
+    if not kuma.available():
+        send(chat_id, "Настройка недоступна: Kuma не настроен на сервере. Попробуйте позже.")
+        return
+    for m in db.list_monitors(chat_id):
+        if m.get("push_token"):
+            _send_backup_instructions(chat_id, m["push_token"])
+            return
+    name = "VeZhPom chat%d: BACKUP" % chat_id
+    try:
+        kuma_id, token = kuma.add_push_monitor(name, interval=86400)
+    except kuma.KumaError as exc:
+        send(chat_id, "Не удалось настроить контроль бэкапов: " + str(exc)[:200])
+        return
+    if not token:
+        send(chat_id, "Монитор создан, но токен от Kuma не получен. Попробуйте позже или напишите в поддержку.")
+        return
+    db.add_monitor(chat_id, "backup", name, kuma_id, kuma_server="alt",
+                   push_kuma_id=kuma_id, push_token=token)
+    _send_backup_instructions(chat_id, token)
 
 
 def _check_monitors(chat_id):
@@ -440,7 +501,10 @@ def handle_command(text, chat_id):
     if low in ("/monitor", "/monitor_on", "/настройка", "/настройка_мониторинга"):
         with AWAIT_LOCK:
             awaiting_target[chat_id] = True
-        send(chat_id, "Введите URL сайта или IP сервера для мониторинга. Примеры: https://example.com, example.com, 192.168.1.10")
+        send(chat_id, "Введите URL сайта или IP сервера для мониторинга. Примеры: https://example.com, example.com, 192.168.1.10\n\nДля https-сайтов сразу включу и контроль срока SSL-сертификата.")
+        return
+    if low == "/backup":
+        _add_backup_flow(chat_id)
         return
     if low == "/check":
         _check_monitors(chat_id)
@@ -467,7 +531,7 @@ def handle_command(text, chat_id):
         _user_refund(chat_id)
         return
     if low in ("/start", "/help"):
-        send_menu(chat_id, "ВежПом — мониторинг работоспособности серверов и сайтов.\n\nВыберите действие кнопками ниже или введите команду:\n/monitor — настроить мониторинг (URL или IP)\n/check — текущее состояние\n/pay — оплатить подписку\n/status — статус и мониторы\n/cancel — отписка\n/возврат_средств — возврат\n/rules — правила")
+        send_menu(chat_id, "ВежПом — мониторинг работоспособности серверов и сайтов.\n\nВыберите действие кнопками ниже или введите команду:\n/monitor — настроить мониторинг (URL или IP, https → и SSL-сроки)\n/backup — контроль резервных копий (пульс из скрипта бэкапа)\n/check — текущее состояние\n/pay — оплатить подписку\n/status — статус и мониторы\n/cancel — отписка\n/возврат_средств — возврат\n/rules — правила")
         return
     if low in ("/menu", "/меню"):
         send_menu(chat_id, "Меню ВежПом — выберите действие:")
@@ -479,7 +543,7 @@ def handle_command(text, chat_id):
     # Важно: событие bot_started приходит только при ПЕРВОМ запуске бота, у существующих
     # пользователей (начали раньше) его не будет — поэтому меню показываем на любой текст.
     if not cmd.startswith("/"):
-        send_menu(chat_id, "👋 Я **ВежПом** — мониторинг работоспособности серверов и сайтов.\n\n💡 Просто напишите любое сообщение — меню появится снова.\nВыберите действие кнопками ниже или введите команду:\n/monitor — настроить мониторинг (URL или IP)\n/check — текущее состояние\n/pay — оплатить подписку\n/status — статус и мониторы\n/cancel — отписка\n/возврат_средств — возврат\n/rules — правила")
+        send_menu(chat_id, "👋 Я **ВежПом** — мониторинг работоспособности серверов и сайтов.\n\n💡 Просто напишите любое сообщение — меню появится снова.\nВыберите действие кнопками ниже или введите команду:\n/monitor — настроить мониторинг (URL или IP)\n/backup — контроль резервных копий\n/check — текущее состояние\n/pay — оплатить подписку\n/status — статус и мониторы\n/cancel — отписка\n/возврат_средств — возврат\n/rules — правила")
         return
     # Неизвестная команда
     send(chat_id, "Неизвестная команда. /menu — меню с кнопками, /help — список команд")
@@ -499,6 +563,9 @@ def handle_callback(chat_id, callback_id, payload):
     elif action == "menu:check":
         answer_callback(callback_id, notification="Проверяю…")
         _check_monitors(chat_id)
+    elif action == "menu:backup":
+        answer_callback(callback_id, notification="Бэкапы")
+        _add_backup_flow(chat_id)
     elif action == "menu:pay":
         answer_callback(callback_id, notification="Оплата")
         handle_command("/pay", chat_id)
@@ -604,10 +671,17 @@ class Handler(BaseHTTPRequestHandler):
         try:
             length = int(self.headers.get("Content-Length", 0))
             data = json.loads(self.rfile.read(length))
-            if self.path == "/yookassa":
+            path = self.path.split("?")[0].rstrip("/")
+            if path == "/yookassa":
                 handle_yookassa_webhook(data)
-            else:
+            elif not WEBHOOK_SECRET or path == "/kuma/" + WEBHOOK_SECRET:
                 handle_monitor(data)
+            else:
+                # секрет настроен, путь не совпал — не отдаём содержимое чужим запросам
+                print("[VeZhPom] webhook rejected (bad path):", path[:80], flush=True)
+                self.send_response(403)
+                self.end_headers()
+                return
         except Exception as exc:
             print("[VeZhPom] handler error:", exc, flush=True)
         self.send_response(200)

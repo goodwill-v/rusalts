@@ -82,6 +82,14 @@ def connect():
         " last_status TEXT,"
         " created_at INTEGER)"
     )
+    # Миграции блока «контроль сроков» (PR-1): SSL- и push-мониторы
+    cols = {row[1] for row in conn.execute("PRAGMA table_info(monitors)")}
+    if "cert_kuma_id" not in cols:
+        conn.execute("ALTER TABLE monitors ADD COLUMN cert_kuma_id INTEGER")
+    if "push_kuma_id" not in cols:
+        conn.execute("ALTER TABLE monitors ADD COLUMN push_kuma_id INTEGER")
+    if "push_token" not in cols:
+        conn.execute("ALTER TABLE monitors ADD COLUMN push_token TEXT")
     return conn
 
 
@@ -223,7 +231,8 @@ def list_payments(chat_id, limit=20):
     return [_row_to_payment(r) for r in rows]
 
 
-MONITOR_KEYS = ["id", "chat_id", "target", "monitor_name", "kuma_id", "kuma_server", "last_status", "created_at"]
+MONITOR_KEYS = ["id", "chat_id", "target", "monitor_name", "kuma_id", "kuma_server",
+                "last_status", "created_at", "cert_kuma_id", "push_kuma_id", "push_token"]
 
 
 def _row_to_monitor(row):
@@ -232,16 +241,42 @@ def _row_to_monitor(row):
     return dict(zip(MONITOR_KEYS, row))
 
 
-def add_monitor(chat_id, target, monitor_name, kuma_id, kuma_server="alt"):
+def add_monitor(chat_id, target, monitor_name, kuma_id, kuma_server="alt",
+                cert_kuma_id=None, push_kuma_id=None, push_token=None):
     conn = connect()
     try:
         cur = conn.execute(
-            "INSERT INTO monitors (chat_id, target, monitor_name, kuma_id, kuma_server, created_at)"
-            " VALUES (?, ?, ?, ?, ?, ?)",
-            (chat_id, target, monitor_name, kuma_id, kuma_server, int(time.time())),
+            "INSERT INTO monitors (chat_id, target, monitor_name, kuma_id, kuma_server,"
+            " created_at, cert_kuma_id, push_kuma_id, push_token)"
+            " VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+            (chat_id, target, monitor_name, kuma_id, kuma_server,
+             int(time.time()), cert_kuma_id, push_kuma_id, push_token),
         )
         conn.commit()
         return cur.lastrowid
+    finally:
+        conn.close()
+
+
+def set_cert_monitor(monitor_id, cert_kuma_id):
+    """Привязать SSL-монитор Kuma к записи мониторинга пользователя."""
+    conn = connect()
+    try:
+        conn.execute("UPDATE monitors SET cert_kuma_id=? WHERE id=?", (cert_kuma_id, monitor_id))
+        conn.commit()
+    finally:
+        conn.close()
+
+
+def set_push_monitor(monitor_id, push_kuma_id, push_token):
+    """Привязать push-монитор бэкапов (kuma id + токен пульса) к записи."""
+    conn = connect()
+    try:
+        conn.execute(
+            "UPDATE monitors SET push_kuma_id=?, push_token=? WHERE id=?",
+            (push_kuma_id, push_token, monitor_id),
+        )
+        conn.commit()
     finally:
         conn.close()
 
