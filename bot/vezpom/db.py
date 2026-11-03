@@ -90,6 +90,33 @@ def connect():
         conn.execute("ALTER TABLE monitors ADD COLUMN push_kuma_id INTEGER")
     if "push_token" not in cols:
         conn.execute("ALTER TABLE monitors ADD COLUMN push_token TEXT")
+    # Журнал событий и открытые предупреждения (PR-2, анти-шум)
+    # events: kind = incident | ssl | backup | domain; status = down | up | info
+    conn.execute(
+        "CREATE TABLE IF NOT EXISTS events ("
+        " id INTEGER PRIMARY KEY AUTOINCREMENT,"
+        " chat_id INTEGER NOT NULL,"
+        " kuma_id INTEGER,"
+        " target TEXT,"
+        " kind TEXT NOT NULL,"
+        " status TEXT NOT NULL,"
+        " detail TEXT,"
+        " started_at INTEGER,"
+        " resolved_at INTEGER)"
+    )
+    # warnings: kind = ssl | domain | backup; last_level = отправленный порог (дней)
+    conn.execute(
+        "CREATE TABLE IF NOT EXISTS warnings ("
+        " id INTEGER PRIMARY KEY AUTOINCREMENT,"
+        " chat_id INTEGER NOT NULL,"
+        " kind TEXT NOT NULL,"
+        " target TEXT NOT NULL,"
+        " due_ts INTEGER,"
+        " last_level INTEGER DEFAULT 99,"
+        " last_notified_at INTEGER,"
+        " open INTEGER DEFAULT 1,"
+        " UNIQUE(chat_id, kind, target))"
+    )
     return conn
 
 
@@ -331,3 +358,161 @@ def find_monitor_by_id(monitor_id):
     finally:
         conn.close()
     return _row_to_monitor(row)
+
+
+# ---- Журнал событий (PR-2) ----
+
+EVENT_KEYS = ["id", "chat_id", "kuma_id", "target", "kind", "status",
+              "detail", "started_at", "resolved_at"]
+
+
+def _row_to_event(row):
+    if row is None:
+        return None
+    return dict(zip(EVENT_KEYS, row))
+
+
+def add_event(chat_id, kuma_id, target, kind, status, detail="",
+              started_at=None, resolved_at=None):
+    """Записать событие в журнал инцидентов и сроков. Возвращает id записи."""
+    now = int(time.time())
+    conn = connect()
+    try:
+        cur = conn.execute(
+            "INSERT INTO events (chat_id, kuma_id, target, kind, status, detail,"
+            " started_at, resolved_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+            (chat_id, kuma_id, target, kind, status, detail,
+             started_at if started_at is not None else now,
+             resolved_at),
+        )
+        conn.commit()
+        return cur.lastrowid
+    finally:
+        conn.close()
+
+
+def close_open_incident(chat_id, target, resolved_at):
+    """Закрыть последний открытый инцидент (down без resolved_at) по цели.
+
+    Возвращает число закрытых записей (0 — открытого инцидента не было).
+    """
+    conn = connect()
+    try:
+        row = conn.execute(
+            "SELECT id FROM events"
+            " WHERE chat_id=? AND target=? AND kind='incident'"
+            "   AND status='down' AND resolved_at IS NULL"
+            " ORDER BY id DESC LIMIT 1",
+            (chat_id, target),
+        ).fetchone()
+        if row is None:
+            return 0
+        conn.execute("UPDATE events SET resolved_at=? WHERE id=?", (resolved_at, row[0]))
+        conn.commit()
+        return 1
+    finally:
+        conn.close()
+
+
+def list_events(chat_id, since_ts, limit=500):
+    """События пользователя с момента since_ts (новые последними)."""
+    conn = connect()
+    try:
+        rows = conn.execute(
+            "SELECT * FROM events WHERE chat_id=? AND started_at>=?"
+            " ORDER BY id ASC LIMIT ?",
+            (chat_id, since_ts, limit),
+        ).fetchall()
+    finally:
+        conn.close()
+    return [_row_to_event(r) for r in rows]
+
+
+# ---- Открытые предупреждения (анти-шум: дедуп порогов) ----
+
+WARNING_KEYS = ["id", "chat_id", "kind", "target", "due_ts", "last_level",
+                "last_notified_at", "open"]
+
+
+def _row_to_warning(row):
+    if row is None:
+        return None
+    return dict(zip(WARNING_KEYS, row))
+
+
+def upsert_warning(chat_id, kind, target, days=None):
+    """Открыть/обновить предупреждение о сроке.
+
+    days — дней до истечения (известно для ssl/domain); last_level НЕ понижаем
+    здесь: его выставляет mark_warning_notified при фактической отправке.
+    Если срок «отскочил» вперёд более чем на 60 суток — это продление,
+    сбрасываем last_level в 99 (новый цикл, пороги снова активны).
+    Возвращает текущее предупреждение.
+    """
+    now = int(time.time())
+    conn = connect()
+    try:
+        conn.execute(
+            "INSERT INTO warnings (chat_id, kind, target, due_ts, last_level,"
+            " last_notified_at, open)"
+            " VALUES (?, ?, ?, ?, ?, ?, 1)"
+            " ON CONFLICT(chat_id, kind, target) DO UPDATE SET"
+            "  due_ts=COALESCE(excluded.due_ts, warnings.due_ts),"
+            "  last_level=CASE"
+            "   WHEN excluded.due_ts IS NOT NULL AND warnings.due_ts IS NOT NULL"
+            "        AND excluded.due_ts - warnings.due_ts > 5184000"
+            "    THEN 99"                              # продление: новый цикл
+            "   ELSE warnings.last_level END,"
+            "  open=1",
+            (chat_id, kind, target,
+             now + days * 86400 if days else None,
+             days, now),
+        )
+        conn.commit()
+        row = conn.execute(
+            "SELECT * FROM warnings WHERE chat_id=? AND kind=? AND target=?",
+            (chat_id, kind, target),
+        ).fetchone()
+        return _row_to_warning(row)
+    finally:
+        conn.close()
+
+
+def mark_warning_notified(chat_id, kind, target, level):
+    """Отметить, что сообщение по порогу level отправлено (анти-повтор)."""
+    conn = connect()
+    try:
+        conn.execute(
+            "UPDATE warnings SET last_level=?, last_notified_at=?"
+            " WHERE chat_id=? AND kind=? AND target=?",
+            (level, int(time.time()), chat_id, kind, target),
+        )
+        conn.commit()
+    finally:
+        conn.close()
+
+
+def resolve_warning(chat_id, kind, target):
+    """Закрыть предупреждение (например, пульс бэкапа снова приходит)."""
+    conn = connect()
+    try:
+        conn.execute(
+            "UPDATE warnings SET open=0 WHERE chat_id=? AND kind=? AND target=?",
+            (chat_id, kind, target),
+        )
+        conn.commit()
+    finally:
+        conn.close()
+
+
+def list_open_warnings(chat_id):
+    """Все открытые предупреждения пользователя (для светофора/отчёта)."""
+    conn = connect()
+    try:
+        rows = conn.execute(
+            "SELECT * FROM warnings WHERE chat_id=? AND open=1 ORDER BY id ASC",
+            (chat_id,),
+        ).fetchall()
+    finally:
+        conn.close()
+    return [_row_to_warning(r) for r in rows]
