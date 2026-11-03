@@ -84,27 +84,27 @@ def _emit(sio, event, payload, timeout=3):
     return resp
 
 
-def add_http_monitor(name, url, interval=60):
-    """Create an HTTP monitor in Uptime Kuma. Returns kuma monitor id."""
+def _notify_sparse():
+    # Kuma хранит связи как sparse-массив: for...in по notificationIDList даёт
+    # ИНДЕКСЫ, поэтому элемент должен стоять на позиции, равной id уведомления:
+    # [null, null, 2] привязывает уведомление с id=2 (а не [2]!)
+    notify_sparse = [None] * (KUMA_NOTIFY_ID + 1)
+    notify_sparse[KUMA_NOTIFY_ID] = KUMA_NOTIFY_ID
+    return notify_sparse
+
+
+def add_monitor(payload):
+    """Create any monitor in Uptime Kuma. Returns kuma monitor id.
+
+    payload должен содержать type/name/interval и др.; notificationIDList
+    (вебхук VeZhPom - MAX) привязывается автоматически.
+    """
+    payload = dict(payload)
+    # привязываем вебхук-уведомление VeZhPom, чтобы события доходили до бота
+    payload["notificationIDList"] = _notify_sparse()
     sio = _connect()
     try:
         _login(sio)
-        # Kuma хранит связи как sparse-массив: for...in по notificationIDList даёт
-        # ИНДЕКСЫ, поэтому элемент должен стоять на позиции, равной id уведомления:
-        # [null, null, 2] привязывает уведомление с id=2 (а не [2]!)
-        notify_sparse = [None] * (KUMA_NOTIFY_ID + 1)
-        notify_sparse[KUMA_NOTIFY_ID] = KUMA_NOTIFY_ID
-        payload = {
-            "type": "http",
-            "name": name,
-            "url": url,
-            "interval": interval,
-            "retryInterval": 60,
-            "maxretries": 3,
-            "accepted_statuscodes": ["200-299"],
-            # привязываем вебхук-уведомление VeZhPom, чтобы события доходили до бота
-            "notificationIDList": notify_sparse,
-        }
         resp = _emit(sio, "add", payload)
         # Uptime Kuma отвечает: {"ok": true, "msg": "Added Successfully.", "monitorID": 20}
         monitor_id = resp.get("monitorID")
@@ -116,6 +116,61 @@ def add_http_monitor(name, url, interval=60):
             sio.disconnect()
         except Exception:
             pass
+
+
+def add_http_monitor(name, url, interval=60):
+    """Create an HTTP monitor in Uptime Kuma. Returns kuma monitor id."""
+    return add_monitor({
+        "type": "http",
+        "name": name,
+        "url": url,
+        "interval": interval,
+        "retryInterval": 60,
+        "maxretries": 3,
+        "accepted_statuscodes": ["200-299"],
+    })
+
+
+def add_cert_monitor(name, url, interval=86400):
+    """HTTP-монитор контроля срока SSL-сертификата.
+
+    Флаг expiryNotification включает в Kuma (1.23.x) предупреждения о скором
+    истечении сертификата на глобальных порогах tlsExpiryNotifyDays (7/14/21
+    дней) — дедуп по notification_sent_history, максимум одно сообщение на
+    порог. Проверка раз в сутки, уведомление только через вебхук VeZhPom.
+    """
+    return add_monitor({
+        "type": "http",
+        "name": name,
+        "url": url,
+        "interval": interval,
+        "retryInterval": interval,
+        "maxretries": 0,
+        "accepted_statuscodes": ["200-299"],
+        "expiryNotification": True,
+    })
+
+
+def add_push_monitor(name, interval=86400):
+    """Push-монитор контроля резервных копий.
+
+    Внешний скрипт бэкапа дёргает push-URL после успешного копирования;
+    молчание дольше interval = монитор «упал» («копия не создалась»).
+    Возвращает (kuma_id, push_token); токен читается из monitorList.
+    """
+    monitor_id = add_monitor({
+        "type": "push",
+        "name": name,
+        "interval": interval,
+        "retryInterval": interval,
+        "maxretries": 0,
+    })
+    token = None
+    for m in get_monitors():
+        if m.get("id") == monitor_id:
+            token = m.get("push_token")
+            break
+    return monitor_id, token
 
 
 def delete_monitor(kuma_id):
@@ -162,6 +217,7 @@ def get_monitors():
                 "name": m.get("name", ""),
                 "url": m.get("url", ""),
                 "active": m.get("active"),
+                "push_token": m.get("push_token"),
             })
         return monitors
     except Exception:
