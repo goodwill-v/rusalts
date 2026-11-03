@@ -32,7 +32,7 @@ class ProductSpecs:
 class SearchItem:
     product_id: str
     name: str
-    price: float
+    price: float  # 0.0 = цена из сниппета не извлечена («цена по ссылке»)
     old_price: float | None = None
     rating: float | None = None
     reviews_count: int | None = None
@@ -41,6 +41,7 @@ class SearchItem:
     seller_id: str | None = None
     has_fbo: bool = False
     delivery_text: str | None = None
+    marketplace: str = "ozon"  # ozon | wb | yam
 
 
 @dataclass
@@ -73,3 +74,4 @@ class ProductData:
     specs_confirmed: bool = False
     rejection_reasons: list[str] = field(default_factory=list)
     near_miss_reasons: list[str] = field(default_factory=list)
+    marketplace: str = "ozon"  # ozon | wb | yam

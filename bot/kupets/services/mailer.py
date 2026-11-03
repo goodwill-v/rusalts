@@ -37,6 +37,42 @@ async def send_error_report(report: ErrorReport) -> bool:
     return await asyncio.to_thread(_send_sync, report)
 
 
+async def send_service_alert(subject: str, body: str) -> bool:
+    """Служебный алерт Шефу (лимиты, сбои). Тот же SMTP; анти-спам ведает
+    credit_monitor (кулдауны), здесь только отправка."""
+    if not smtp_configured():
+        logger.error("smtp_not_configured", hint="алерт уйдёт только в лог/МАКС")
+        return False
+    return await asyncio.to_thread(_send_plain_sync, subject, body)
+
+
+def _send_plain_sync(subject: str, body: str) -> bool:
+    msg = EmailMessage()
+    msg["Subject"] = subject
+    msg["From"] = Config.SMTP_FROM or Config.SMTP_USER
+    msg["To"] = Config.REPORT_EMAIL_TO or "v.devops@yandex.ru"
+    msg.set_content(body)
+    try:
+        if Config.SMTP_USE_SSL:
+            context = ssl.create_default_context()
+            with smtplib.SMTP_SSL(
+                Config.SMTP_HOST, Config.SMTP_PORT, context=context, timeout=30
+            ) as server:
+                server.login(Config.SMTP_USER, Config.SMTP_PASSWORD)
+                server.send_message(msg)
+        else:
+            with smtplib.SMTP(Config.SMTP_HOST, Config.SMTP_PORT, timeout=30) as server:
+                server.ehlo()
+                server.starttls(context=ssl.create_default_context())
+                server.login(Config.SMTP_USER, Config.SMTP_PASSWORD)
+                server.send_message(msg)
+        logger.info("service_alert_sent", subject=subject[:60])
+        return True
+    except Exception as exc:
+        logger.warning("service_alert_send_failed", error=str(exc))
+        return False
+
+
 def _send_sync(report: ErrorReport) -> bool:
     to_addr = Config.REPORT_EMAIL_TO or "v.devops@yandex.ru"
     subject = f"[Купец] Обратная связь от пользователя {report.user_id or '?'}"

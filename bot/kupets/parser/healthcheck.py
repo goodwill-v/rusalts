@@ -13,6 +13,10 @@ async def run_healthcheck() -> bool:
     if Config.DRY_RUN:
         logger.info("healthcheck_skip_dry_run")
         return True
+    if not Config.ENABLE_COMPOSER:
+        # Composer отключён (антибот 403) — сетевой healthcheck не имеет смысла
+        logger.info("healthcheck_skip_composer_disabled")
+        return True
 
     client = ComposerClient()
     try:
