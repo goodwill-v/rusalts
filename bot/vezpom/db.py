@@ -117,6 +117,18 @@ def connect():
         " open INTEGER DEFAULT 1,"
         " UNIQUE(chat_id, kind, target))"
     )
+    # Настройки оповещений (PR-3): светофор и еженедельный отчёт
+    conn.execute(
+        "CREATE TABLE IF NOT EXISTS prefs ("
+        " chat_id INTEGER PRIMARY KEY,"
+        " traffic_light INTEGER DEFAULT 1,"
+        " light_time TEXT DEFAULT '09:00',"   # МСК
+        " weekly_report INTEGER DEFAULT 1,"
+        " weekly_day INTEGER DEFAULT 0,"      # 0 = понедельник
+        " weekly_time TEXT DEFAULT '10:00',"  # МСК
+        " last_light_sent INTEGER DEFAULT 0," # идемпотентность: не слать дважды в день
+        " last_weekly_sent INTEGER DEFAULT 0)"
+    )
     return conn
 
 
@@ -516,3 +528,65 @@ def list_open_warnings(chat_id):
     finally:
         conn.close()
     return [_row_to_warning(r) for r in rows]
+
+
+# ---- Настройки оповещений и планирование (PR-3) ----
+
+PREF_KEYS = ["chat_id", "traffic_light", "light_time", "weekly_report",
+             "weekly_day", "weekly_time", "last_light_sent", "last_weekly_sent"]
+
+
+def get_prefs(chat_id):
+    """Настройки пользователя; при первом обращении создаются дефолтные."""
+    conn = connect()
+    try:
+        conn.execute("INSERT OR IGNORE INTO prefs (chat_id) VALUES (?)", (chat_id,))
+        conn.commit()
+        row = conn.execute("SELECT * FROM prefs WHERE chat_id=?", (chat_id,)).fetchone()
+    finally:
+        conn.close()
+    return dict(zip(PREF_KEYS, row))
+
+
+def set_prefs(chat_id, **fields):
+    """Обновить перечисленные поля настроек (traffic_light, weekly_report и т.п.)."""
+    allowed = [k for k in fields if k in PREF_KEYS and k != "chat_id"]
+    if not allowed:
+        return
+    conn = connect()
+    try:
+        conn.execute("INSERT OR IGNORE INTO prefs (chat_id) VALUES (?)", (chat_id,))
+        sets = ", ".join("%s=?" % k for k in allowed)
+        conn.execute(
+            "UPDATE prefs SET " + sets + " WHERE chat_id=?",
+            [fields[k] for k in allowed] + [chat_id],
+        )
+        conn.commit()
+    finally:
+        conn.close()
+
+
+def list_active_users():
+    """chat_id пользователей с действующей подпиской/триалом (локальная копия)."""
+    conn = connect()
+    try:
+        rows = conn.execute(
+            "SELECT chat_id FROM users"
+            " WHERE status!='canceled' AND paid_until > ?",
+            (int(time.time()),),
+        ).fetchall()
+    finally:
+        conn.close()
+    return [r[0] for r in rows]
+
+
+def mark_digest_sent(chat_id, field, ts):
+    """Отметить время отправки светофора/отчёта (идемпотентность дня/недели)."""
+    if field not in ("last_light_sent", "last_weekly_sent"):
+        return
+    conn = connect()
+    try:
+        conn.execute("UPDATE prefs SET %s=? WHERE chat_id=?" % field, (ts, chat_id))
+        conn.commit()
+    finally:
+        conn.close()

@@ -22,6 +22,7 @@ from http.server import ThreadingHTTPServer, BaseHTTPRequestHandler
 
 import db
 import kuma
+import digest
 import vezlogic
 import vitrina_client as vitrina
 
@@ -546,6 +547,33 @@ def handle_command(text, chat_id):
     if low == "/backup":
         _add_backup_flow(chat_id)
         return
+    if low == "/digest":
+        text = digest.build_traffic_light(chat_id)
+        send(chat_id, text or "Мониторы не настроены — /monitor и /backup добавят наблюдение.")
+        return
+    if low in ("/settings", "/настройки"):
+        p = db.get_prefs(chat_id)
+        send(chat_id,
+             "⚙️ Настройки оповещений:\n"
+             "• Светофор по утрам: %s (в %s МСК)\n"
+             "• Еженедельный отчёт: %s (Пн %s МСК)\n\n"
+             "Переключить: /settings light on|off, /settings weekly on|off"
+             % ("вкл" if p["traffic_light"] else "выкл", p["light_time"],
+                "вкл" if p["weekly_report"] else "выкл", p["weekly_time"]))
+        return
+    if low.startswith("/settings "):
+        parts = cmd.split()
+        if len(parts) == 3 and parts[1] in ("light", "weekly") and parts[2] in ("on", "off"):
+            value = 1 if parts[2] == "on" else 0
+            if parts[1] == "light":
+                db.set_prefs(chat_id, traffic_light=value)
+            else:
+                db.set_prefs(chat_id, weekly_report=value)
+            send(chat_id, "Готово: %s — %s." % ("светофор" if parts[1] == "light" else "еженедельный отчёт",
+                                                "вкл" if value else "выкл"))
+        else:
+            send(chat_id, "Формат: /settings light on|off, /settings weekly on|off")
+        return
     if low == "/check":
         _check_monitors(chat_id)
         return
@@ -571,7 +599,7 @@ def handle_command(text, chat_id):
         _user_refund(chat_id)
         return
     if low in ("/start", "/help"):
-        send_menu(chat_id, "ВежПом — мониторинг работоспособности серверов и сайтов.\n\nВыберите действие кнопками ниже или введите команду:\n/monitor — настроить мониторинг (URL или IP, https → и SSL-сроки)\n/backup — контроль резервных копий (пульс из скрипта бэкапа)\n/check — текущее состояние\n/pay — оплатить подписку\n/status — статус и мониторы\n/cancel — отписка\n/возврат_средств — возврат\n/rules — правила")
+        send_menu(chat_id, "ВежПом — мониторинг и охрана ваших сайтов и серверов.\n\nВыберите действие кнопками ниже или введите команду:\n/monitor — настроить мониторинг (URL или IP, https → и SSL-сроки)\n/backup — контроль резервных копий (пульс из скрипта бэкапа)\n/check — текущее состояние\n/digest — светофор прямо сейчас\n/settings — светофор и еженедельный отчёт: вкл/выкл\n/pay — оплатить подписку\n/status — статус и мониторы\n/cancel — отписка\n/возврат_средств — возврат\n/rules — правила")
         return
     if low in ("/menu", "/меню"):
         send_menu(chat_id, "Меню ВежПом — выберите действие:")
@@ -734,6 +762,7 @@ class Handler(BaseHTTPRequestHandler):
 if __name__ == "__main__":
     db.connect()
     threading.Thread(target=poll_commands, daemon=True).start()
+    digest.start(send)  # светофор 09:00 МСК и еженедельный отчёт Пн 10:00 (PR-3)
     server = ThreadingHTTPServer(("0.0.0.0", PORT), Handler)
-    print("[VeZhPom v3.1] listening on port", PORT, flush=True)
+    print("[VeZhPom v3.2] listening on port", PORT, flush=True)
     server.serve_forever()
