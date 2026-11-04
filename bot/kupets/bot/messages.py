@@ -20,7 +20,128 @@ def start_message() -> str:
         "⭐ *SCORE* — рейтинг по 4 показателям, "
         "включая цену и надёжность продавца. Если цены в выдаче нет — "
         "она по ссылке на товар.\n\n"
-        "Или отправь *фото* — распознаю товар и найду похожий."
+        "Или отправь *фото* — распознаю товар и найду похожий.\n\n"
+        "🔔 *Жду скидку*: /watch <запрос> — раз в сутки проверю "
+        "минимальную цену и сообщу, когда она изменится. "
+        "Список слежек: /watches, отключить: /unwatch <номер>."
+    )
+
+
+def quota_exhausted_message(info: dict) -> str:
+    """Вежливый отказ при исчерпании дневной квоты поисков (с тарифом)."""
+    plan = info.get("plan") or "free"
+    used = info.get("used", 0)
+    limit = info.get("limit", 0)
+    upsell = ""
+    if plan == "kupec":
+        tariff_line = "тарифе «Покупатель»"
+    else:
+        tariff_line = "бесплатном тарифе"
+        upsell = (
+            "\n\nНа тарифе «Покупатель» — 6 поисков в день и слежка за ценой "
+            "(до 5 товаров). Подробнее: rusalts.ru"
+        )
+    return (
+        f"⏳ *Дневной лимит поисков исчерпан* — {used} из {limit} "
+        f"на {tariff_line}.\n\nКвота обнуляется в 00:00 по Москве.{upsell}"
+    )
+
+
+def watch_usage_message() -> str:
+    return (
+        "Укажите, за чем следить: /watch <запрос>\n"
+        "Например: /watch термос для школы до 2000"
+    )
+
+
+def watch_not_available_message() -> str:
+    return (
+        "🔒 *Слежка за ценой* («Жду скидку») доступна на тарифе «Покупатель».\n\n"
+        "На бесплатном тарифе — 3 поиска в день, без слежки.\n"
+        "«Покупатель» (150 ₽/мес, триал 7 дней): 6 поисков в день "
+        "и слежка за 5 товарами.\n"
+        "Оформить: rusalts.ru"
+    )
+
+
+def watch_limit_message(info: dict) -> str:
+    return (
+        f"⚠️ Активных слежек уже максимум — {info.get('count', 5)} "
+        f"из {info.get('limit', 5)}.\n\n"
+        "Отключите одну: /unwatch <номер> (список: /watches), "
+        "потом добавьте новую."
+    )
+
+
+def watch_added_message(query: str, info: dict) -> str:
+    return (
+        "🔔 *Слежка включена*\n\n"
+        f"Запрос: _{_md(query)}_\n\n"
+        "Раз в сутки утром (07:00–09:00 МСК) проверю минимальную цену "
+        "по Ozon, Wildberries и Яндекс.Маркету. Напишу только когда цена "
+        "изменится — без лишнего шума.\n"
+        f"Занято слежек: {info.get('count', 0) + 1} из {info.get('limit', 5)}.\n\n"
+        "Список: /watches · Отключить: /unwatch <номер>"
+    )
+
+
+def watch_duplicate_message(query: str) -> str:
+    return f"Вы уже следите за _{_md(query)}_. Список слежек: /watches"
+
+
+def watches_list_message(watches: list[dict], info: dict) -> str:
+    if not watches:
+        return (
+            "Слежек пока нет.\n\n"
+            "Добавить: /watch <запрос> — например, "
+            "/watch термос для школы до 2000"
+        )
+    from datetime import datetime
+
+    from utils import format_price
+
+    from services.quotas import MOSCOW
+
+    lines = [
+        f"🔔 *Ваши слежки* ({len(watches)} из {info.get('limit', 5)}):\n"
+    ]
+    for w in watches:
+        price_part = "цена ещё не проверялась"
+        if w.get("last_min_price") is not None:
+            lp = w["last_min_price"]
+            price_part = (
+                "цены в выдаче не было" if lp <= 0 else format_price(lp)
+            )
+        checked_part = "не проверялась"
+        if w.get("last_check_at"):
+            checked_part = datetime.fromtimestamp(
+                w["last_check_at"], tz=MOSCOW
+            ).strftime("проверена %d.%m в %H:%M МСК")
+        lines.append(
+            f"{w['id']}. {_md(w['query'])} — 💰 {price_part} ({checked_part})"
+        )
+    lines.append("\nОтключить: /unwatch <номер>")
+    return "\n".join(lines)
+
+
+def watch_disabled_message(watch: dict) -> str:
+    return (
+        f"✅ Слежка №{watch['id']} отключена: _{_md(watch['query'])}_.\n"
+        "Вернуть можно новой командой /watch."
+    )
+
+
+def watch_not_found_message(watch_id: int) -> str:
+    return (
+        f"Не нашёл активную слежку №{watch_id}.\n"
+        "Посмотрите номера: /watches"
+    )
+
+
+def watch_hint_message() -> str:
+    return (
+        "Чтобы отключить слежку, напишите: /unwatch <номер>\n"
+        "Номера — в списке /watches"
     )
 
 

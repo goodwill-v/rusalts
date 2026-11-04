@@ -20,11 +20,22 @@ from bot.messages import (
     format_product_detail,
     format_reject_details,
     format_results,
+    quota_exhausted_message,
     start_message,
+    watch_added_message,
+    watch_disabled_message,
+    watch_duplicate_message,
+    watch_hint_message,
+    watch_limit_message,
+    watch_not_available_message,
+    watch_not_found_message,
+    watch_usage_message,
+    watches_list_message,
 )
 from bot.states import SearchStates
 from engine.query_guard import is_smalltalk
 from models.result import SearchFilters, SearchResponse
+from services import quotas, sqlite_store
 from services.mailer import ErrorReport, send_error_report, smtp_configured
 from services.search_pipeline import SearchPipeline
 from config import Config
@@ -43,6 +54,112 @@ async def cmd_start(message: Message, state: FSMContext) -> None:
     await state.clear()
     await state.set_state(SearchStates.idle)
     await message.answer(start_message(), parse_mode=ParseMode.MARKDOWN)
+
+
+# ─── «Жду скидку»: слежка за ценой (Ф1) ──────────────────────────────
+# Команды зарегистрированы ДО catch-all F.text-хендлера поиска.
+
+
+@router.message(Command("watch"))
+async def cmd_watch(message: Message, state: FSMContext) -> None:
+    await state.clear()
+    await _handle_watch_request(message, _command_arg(message.text or ""))
+
+
+@router.message(Command("watches"))
+async def cmd_watches(message: Message) -> None:
+    await _send_watches_list(message)
+
+
+@router.message(Command("unwatch"))
+async def cmd_unwatch(message: Message) -> None:
+    await _handle_unwatch(message, _command_arg(message.text or ""))
+
+
+async def _handle_watch_request(message: Message, query: str) -> None:
+    user = message.from_user
+    if not user:
+        return
+    query = query.strip()
+    if not query:
+        await message.answer(watch_usage_message())
+        return
+    if is_smalltalk(query):
+        await message.answer(
+            "Это не похоже на товарный запрос. "
+            "Например: /watch термос для школы до 2000"
+        )
+        return
+
+    plan = await quotas.user_plan(user.id)
+    allowed, info = quotas.check_watch_quota(user.id, plan)
+    if not allowed:
+        # free (лимит 0) — фича недоступна; kupec — исчерпан лимит 5
+        await message.answer(
+            watch_not_available_message()
+            if plan == quotas.FREE_PLAN
+            else watch_limit_message(info)
+        )
+        return
+
+    watch_id = sqlite_store.watch_add(
+        str(user.id), str(message.chat.id), query
+    )
+    if watch_id is None:
+        await message.answer(watch_duplicate_message(query))
+        return
+    logger.info(
+        "watch_added",
+        extra={"user_id": user.id, "watch_id": watch_id, "plan": plan},
+    )
+    await message.answer(
+        watch_added_message(query, info), parse_mode=ParseMode.MARKDOWN
+    )
+
+
+async def _send_watches_list(message: Message) -> None:
+    user = message.from_user
+    if not user:
+        return
+    plan = await quotas.user_plan(user.id)
+    watches = sqlite_store.watch_list(str(user.id))
+    _, info = quotas.check_watch_quota(user.id, plan)
+    await message.answer(
+        watches_list_message(watches, info), parse_mode=ParseMode.MARKDOWN
+    )
+
+
+async def _handle_unwatch(message: Message, arg: str) -> None:
+    user = message.from_user
+    if not user:
+        return
+    try:
+        watch_id = int(arg)
+    except ValueError:
+        await message.answer(watch_hint_message())
+        return
+    if sqlite_store.watch_deactivate(str(user.id), watch_id):
+        watch = next(
+            (
+                w
+                for w in sqlite_store.watch_list(
+                    str(user.id), active_only=False
+                )
+                if w["id"] == watch_id
+            ),
+            None,
+        )
+        await message.answer(
+            watch_disabled_message(watch or {"id": watch_id, "query": ""}),
+            parse_mode=ParseMode.MARKDOWN,
+        )
+    else:
+        await message.answer(watch_not_found_message(watch_id))
+
+
+def _command_arg(text: str) -> str:
+    parts = text.split(maxsplit=1)
+    return parts[1].strip() if len(parts) > 1 else ""
 
 
 @router.message(F.photo)
@@ -99,7 +216,13 @@ async def on_photo(message: Message, state: FSMContext) -> None:
     except Exception:
         await progress.edit_text(f"🔎 По фото ищу: {query}")
 
-    await _run_and_reply(message, state, query=query, progress_message=progress)
+    await _run_and_reply(
+        message,
+        state,
+        query=query,
+        progress_message=progress,
+        user_id=message.from_user.id if message.from_user else None,
+    )
 
 
 @router.message(SearchStates.awaiting_error_report, F.text)
@@ -153,6 +276,22 @@ async def on_text_search(message: Message, state: FSMContext) -> None:
     query = (message.text or "").strip()
     if not query or query.startswith("/"):
         return
+
+    # Разговорные команды слежки — до guard болтовни и поиска
+    lower = query.lower()
+    if lower.startswith(("следи за", "следить за")):
+        prefix = "следи за" if lower.startswith("следи за") else "следить за"
+        await _handle_watch_request(message, query[len(prefix):])
+        return
+    if lower in {"мои слежки", "слежки", "мои подписки"}:
+        await _send_watches_list(message)
+        return
+    if lower.startswith(
+        ("перестань следить", "не следи", "отключи слежк", "убери слежк")
+    ):
+        await message.answer(watch_hint_message())
+        return
+
     if is_smalltalk(query):
         await message.answer(
             "👋 Привет! Я Купец — ищу и сравниваю товары на Ozon, "
@@ -164,7 +303,12 @@ async def on_text_search(message: Message, state: FSMContext) -> None:
             "Или пришлите фото товара — найду похожий."
         )
         return
-    await _run_and_reply(message, state, query=query)
+    await _run_and_reply(
+        message,
+        state,
+        query=query,
+        user_id=message.from_user.id if message.from_user else None,
+    )
 
 
 @router.callback_query(F.data == "new_search")
@@ -270,6 +414,7 @@ async def cb_refine(callback: CallbackQuery, state: FSMContext) -> None:
         query=last_query or filters.text,
         filters_override=filters,
         skip_cache=True,
+        user_id=callback.from_user.id if callback.from_user else None,
     )
 
 
@@ -301,11 +446,22 @@ async def _run_and_reply(
     filters_override: SearchFilters | None = None,
     skip_cache: bool = False,
     progress_message: Message | None = None,
+    user_id: int | None = None,
 ) -> None:
     # Старый circuit-gate снят: поиск не блокируется на «Ozon ограничивает
     # запросы» — живой канал Firecrawl работает всегда (лимиты ведёт
     # credit_monitor, у пользователя честное пояснение при исчерпании).
     progress = progress_message or await message.answer("🔍 Ищу по маркетплейсам...")
+
+    # Квота тарифа: free — 3 поиска/сутки, «Покупатель» (вкл. триал) — 6.
+    # Списываем за попытку (до пайплайна) — защита от параллельных запросов.
+    if user_id is not None:
+        plan = await quotas.user_plan(user_id)
+        allowed, info = quotas.check_search_quota(user_id, plan)
+        if not allowed:
+            await progress.edit_text(quota_exhausted_message(info))
+            return
+        quotas.consume_search(user_id, plan)
     if progress_message:
         try:
             await progress.edit_text(f"🔍 Ищу на Ozon: {query}")
