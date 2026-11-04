@@ -275,6 +275,98 @@ def check_watch_quota(
     }
 
 
+# ─── Квоты фич (матрица ТЗ v2 §3.0, корректировка 05.11 — месячные) ──
+# feature → план → (лимит, период); None = безлимит. Неизвестный план → free
+# (консервативно; user_plan возвращает только известные коды).
+FEATURE_LIMITS: dict[str, dict[str, tuple[int | None, str]]] = {
+    "xvsy": {
+        "free": (0, "month"),
+        "base": (10, "month"),
+        "advanced": (40, "month"),
+        "marketing": (150, "month"),
+    },
+    "check": {
+        "free": (1, "day"),
+        "base": (20, "month"),
+        "advanced": (80, "month"),
+        "marketing": (None, "month"),
+    },
+    "podarok": {
+        "free": (0, "month"),
+        "base": (5, "month"),
+        "advanced": (20, "month"),
+        "marketing": (60, "month"),
+    },
+    "report": {
+        "free": (0, "month"),
+        "base": (0, "month"),
+        "advanced": (0, "month"),
+        "marketing": (10, "month"),
+    },
+}
+
+
+def feature_limit(plan: str, feature: str) -> tuple[int | None, str]:
+    """(лимит, период) фичи для плана; limit None = безлимит."""
+    table = FEATURE_LIMITS.get(feature)
+    if not table:
+        return (0, "month")
+    return table.get(plan, table["free"])
+
+
+def check_feature_quota(
+    user_id: int | str,
+    plan: str,
+    feature: str,
+    *,
+    now: datetime | None = None,
+    path: str | None = None,
+) -> tuple[bool, dict]:
+    """Можно ли сработать фиче: (разрешено, info). Счётчик не трогает."""
+    limit, period = feature_limit(plan, feature)
+    if limit is None:
+        return True, {"plan": plan, "feature": feature, "limit": None,
+                      "used": 0, "period": period}
+    dt = now or datetime.now(MOSCOW)
+    if dt.tzinfo is None:
+        dt = dt.replace(tzinfo=MOSCOW)
+    dt = dt.astimezone(MOSCOW)
+    period_key = (
+        dt.strftime("%Y-%m") if period == "month" else dt.strftime("%Y-%m-%d")
+    )
+    used = sqlite_store.feature_count(str(user_id), feature, period_key, path=path)
+    return used < limit, {
+        "plan": plan,
+        "feature": feature,
+        "limit": limit,
+        "used": used,
+        "period": period,
+        "period_key": period_key,
+    }
+
+
+def consume_feature(
+    user_id: int | str,
+    feature: str,
+    plan: str,
+    *,
+    now: datetime | None = None,
+    path: str | None = None,
+) -> int:
+    """+1 к счётчику фичи в её периоде. Возвращает новое значение."""
+    limit, period = feature_limit(plan, feature)
+    dt = now or datetime.now(MOSCOW)
+    if dt.tzinfo is None:
+        dt = dt.replace(tzinfo=MOSCOW)
+    dt = dt.astimezone(MOSCOW)
+    period_key = (
+        dt.strftime("%Y-%m") if period == "month" else dt.strftime("%Y-%m-%d")
+    )
+    return sqlite_store.feature_increment(
+        str(user_id), feature, period_key, path=path
+    )
+
+
 def _get_client() -> Any:
     global _client
     if _client is None:

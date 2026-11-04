@@ -58,6 +58,12 @@ def _connect(path: str | None = None) -> sqlite3.Connection:
         "CREATE TABLE IF NOT EXISTS sweeps ("
         " day TEXT PRIMARY KEY, finished_at REAL NOT NULL)"
     )
+    db.execute(
+        "CREATE TABLE IF NOT EXISTS feature_usage ("
+        " user_id TEXT NOT NULL, feature TEXT NOT NULL, period TEXT NOT NULL,"
+        " count INTEGER NOT NULL DEFAULT 0,"
+        " PRIMARY KEY (user_id, feature, period))"
+    )
     return db
 
 
@@ -125,6 +131,35 @@ def credits_add(provider: str, credits: float, *, path: str | None = None) -> No
             " ON CONFLICT(provider, month) DO UPDATE SET credits = credits + ?",
             (provider, _current_month(), credits, credits),
         )
+
+
+# ─── Счётчики фич (X vs Y, /check, подарочный, сводки) ───────────────
+
+
+def feature_count(user_id: str, feature: str, period: str, *, path: str | None = None) -> int:
+    """Срабатываний фичи в периоде («2026-11» месяц / «2026-11-05» день)."""
+    with _connect(path) as db:
+        row = db.execute(
+            "SELECT count FROM feature_usage"
+            " WHERE user_id = ? AND feature = ? AND period = ?",
+            (user_id, feature, period),
+        ).fetchone()
+    return int(row[0]) if row else 0
+
+
+def feature_increment(user_id: str, feature: str, period: str, *, path: str | None = None) -> int:
+    """+1 к счётчику фичи, вернуть новое значение."""
+    with _LOCK, _connect(path) as db:
+        db.execute(
+            "INSERT INTO feature_usage (user_id, feature, period, count) VALUES (?,?,?,1)"
+            " ON CONFLICT(user_id, feature, period) DO UPDATE SET count = count + 1",
+            (user_id, feature, period),
+        )
+        row = db.execute(
+            "SELECT count FROM feature_usage WHERE user_id = ? AND feature = ? AND period = ?",
+            (user_id, feature, period),
+        ).fetchone()
+    return int(row[0]) if row else 0
 
 
 # ─── Журнал алертов (анти-спам) ──────────────────────────────────────

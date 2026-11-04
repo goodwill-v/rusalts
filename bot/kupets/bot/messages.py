@@ -56,6 +56,86 @@ def quota_exhausted_message(info: dict) -> str:
 
 
 
+def feature_limit_message(feature_label: str, info: dict) -> str:
+    """Вежливый отказ по лимиту фичи (месяц/день) + апселл."""
+    period = "в этом месяце" if info.get("period") == "month" else "сегодня"
+    plan = info.get("plan_name") or "Покупатель"
+    return (
+        f"⚠️ Лимит «{_md(feature_label)}» на тарифе «{_md(plan)}» "
+        f"исчерпан: {info.get('used', 0)} из {info.get('limit', 0)} {period}.\n\n"
+        "Посмотреть тарифы: rusalts.ru"
+    )
+
+
+def compare_result_message(
+    qa: str,
+    qb: str,
+    a: dict | None,
+    b: dict | None,
+    ai_verdict: str,
+    searches_note: str,
+) -> str:
+    """Таблица сравнения X vs Y (ТЗ v2 фича б). a/b: {name, price, rating,
+    reviews_count, marketplace, url} или None, если сторона пустая."""
+
+    def side(letter, q, d):
+        if d is None:
+            return f"{letter} *{_md(q)}*\n   — не нашёл, переформулируйте"
+        mp = {"ozon": "Ozon", "wb": "Wildberries", "yam": "Я.Маркет"}.get(
+            d.get("marketplace", "ozon"), "Ozon"
+        )
+        price = (
+            format_price(d["price"]) if d.get("price") else "цена по ссылке"
+        )
+        rating = (
+            f"{d['rating']} ★ ({d.get('reviews_count') or 0} отз.)"
+            if d.get("rating")
+            else "рейтинг не виден"
+        )
+        link = f"[{_md(d['name'][:40])}]({d['url']})" if d.get("url") else _md(d["name"][:50])
+        return (
+            f"{letter} {link}\n"
+            f"   {price} · {rating} · {mp}"
+        )
+
+    lines = [
+        "⚖️ *Сравнение*",
+        "",
+        side("🅰", qa, a),
+        "",
+        side("🅱", qb, b),
+        "",
+        f"📌 *Итог:* {_md(ai_verdict)}",
+        "",
+        f"_💡 {searches_note}_",
+    ]
+    return "\n".join(lines)
+
+
+def check_result_message(name: str, verdict: dict) -> str:
+    """Вердикт анти-клон проверки (ТЗ v2 фича в)."""
+    level_icon = {"ok": "✅", "warn": "🟡", "danger": "🔴"}.get(
+        verdict.get("level", "ok"), "✅"
+    )
+    level_text = {
+        "ok": "явных признаков подделки не нашёл",
+        "warn": "есть подозрительные признаки",
+        "danger": "высокая вероятность подделки/клона",
+    }.get(verdict.get("level", "ok"), "")
+    lines = [
+        f"🛡 *Проверка: {_md(name[:60])}*",
+        "",
+        f"{level_icon} Вердикт: *{_md(level_text)}*",
+        "",
+    ]
+    for r in verdict.get("reasons", []):
+        lines.append(f"• {_md(r)}")
+    lines.append("")
+    lines.append(f"Уверенность: {_md(verdict.get('confidence', 'средняя'))}. "
+                 "Проверка по сниппетам поиска — не гарантия.")
+    return "\n".join(lines)
+
+
 def watch_usage_message() -> str:
     return (
         "Укажите, за чем следить: /watch <запрос>\n"
