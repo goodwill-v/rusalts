@@ -444,6 +444,41 @@ async def api_tariffs_save(
     return JSONResponse({"ok": True, "saved": saved})
 
 
+# ─── Тарифные планы (ТЗ tarify v2, generalized) ──────────────────────────
+
+
+@router.get("/admin/api/plans/{pid}")
+async def api_plans_list(pid: str, _user: str = Depends(_require_admin_auth)):
+    from app.tariffs_store import list_plans
+
+    return JSONResponse({"ok": True, "plans": list_plans(pid, active_only=False)})
+
+
+@router.put("/admin/api/plans/{pid}/{plan}")
+async def api_plan_upsert(
+    pid: str, plan: str, request: Request, _user: str = Depends(_require_admin_auth)
+):
+    from app.tariffs_store import upsert_plan
+
+    try:
+        body = await request.json()
+    except Exception:
+        return JSONResponse({"ok": False, "error": "invalid JSON"}, status_code=400)
+    body = dict(body)
+    body["product_id"] = pid
+    body["plan"] = plan
+    return JSONResponse({"ok": True, "plan": upsert_plan(body)})
+
+
+@router.delete("/admin/api/plans/{pid}/{plan}")
+async def api_plan_delete(
+    pid: str, plan: str, _user: str = Depends(_require_admin_auth)
+):
+    from app.tariffs_store import delete_plan
+
+    return JSONResponse({"ok": delete_plan(pid, plan)})
+
+
 # ─── Отзывы/кейсы (Этап C2) ──────────────────────────────────────────────
 
 

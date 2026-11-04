@@ -161,3 +161,117 @@ def upsert_tariffs(values: dict[str, dict[str, Any]]) -> int:
         db.commit()
     invalidate_cache()
     return saved
+
+
+# ─── Тарифные планы (ТЗ Vitrina tarify v2, generalized) ──────────────────
+# plans: покупаемые пакеты продукта (ВежПом: monitoring/guard/business).
+# Базовый тариф (tariffs) остаётся для витринной карточки и ботов до перехода.
+
+PLAN_FIELDS = (
+    "name", "price_rub", "period_days", "trial_days",
+    "resource_limit", "position", "active",
+)
+
+
+def _plans_connect() -> sqlite3.Connection:
+    db = sqlite3.connect(str(config.DATA_DIR / "shop.db"))
+    db.row_factory = sqlite3.Row
+    db.execute(
+        """CREATE TABLE IF NOT EXISTS tariff_plans (
+            product_id TEXT NOT NULL,
+            plan TEXT NOT NULL,
+            name TEXT NOT NULL DEFAULT '',
+            price_rub INTEGER NOT NULL DEFAULT 0,
+            period_days INTEGER NOT NULL DEFAULT 30,
+            trial_days INTEGER NOT NULL DEFAULT 0,
+            resource_limit INTEGER NOT NULL DEFAULT 0,
+            position INTEGER NOT NULL DEFAULT 100,
+            active INTEGER NOT NULL DEFAULT 1,
+            PRIMARY KEY (product_id, plan)
+        )"""
+    )
+    return db
+
+
+def seed_product_plans(product_id: str, plans: list[dict[str, Any]]) -> int:
+    """Идемпотентный сидинг планов продукта (только если у продукта ещё нет планов)."""
+    n = 0
+    with closing(_plans_connect()) as db:
+        have = db.execute(
+            "SELECT COUNT(*) FROM tariff_plans WHERE product_id = ?", (product_id,)
+        ).fetchone()[0]
+        if have:
+            return 0
+        for p in plans:
+            db.execute(
+                "INSERT INTO tariff_plans (product_id, plan, name, price_rub, period_days,"
+                " trial_days, resource_limit, position, active) VALUES (?,?,?,?,?,?,?,?,1)",
+                (
+                    product_id, p.get("plan", ""), p.get("name", ""),
+                    p.get("price_rub", 0), p.get("period_days", 30),
+                    p.get("trial_days", 0), p.get("resource_limit", 0),
+                    p.get("position", 100),
+                ),
+            )
+            n += 1
+        db.commit()
+    return n
+
+
+def list_plans(product_id: str, *, active_only: bool = True) -> list[dict[str, Any]]:
+    q = "SELECT * FROM tariff_plans WHERE product_id = ?"
+    if active_only:
+        q += " AND active = 1"
+    q += " ORDER BY position, price_rub"
+    with closing(_plans_connect()) as db:
+        rows = db.execute(q, (product_id,)).fetchall()
+    return [dict(r) for r in rows]
+
+
+def upsert_plan(data: dict[str, Any]) -> dict[str, Any]:
+    pid = str(data.get("product_id") or "").strip()
+    plan = str(data.get("plan") or "").strip().lower()
+    if not pid or not plan:
+        raise ValueError("product_id и plan обязательны")
+    fields = {
+        "name": str(data.get("name") or "").strip()[:80],
+        "price_rub": max(0, int(data.get("price_rub") or 0)),
+        "period_days": max(1, int(data.get("period_days") or 30)),
+        "trial_days": max(0, int(data.get("trial_days") or 0)),
+        "resource_limit": max(0, int(data.get("resource_limit") or 0)),
+        "position": int(data.get("position") or 100),
+        "active": 1 if data.get("active") in (1, "1", True) else 0,
+    }
+    sets = ", ".join(f"{k} = ?" for k in fields)
+    with closing(_plans_connect()) as db:
+        exists = db.execute(
+            "SELECT 1 FROM tariff_plans WHERE product_id = ? AND plan = ?", (pid, plan)
+        ).fetchone()
+        if exists:
+            db.execute(
+                f"UPDATE tariff_plans SET {sets} WHERE product_id = ? AND plan = ?",
+                (*fields.values(), pid, plan),
+            )
+        else:
+            cols = ["product_id", "plan", *fields]
+            db.execute(
+                f"INSERT INTO tariff_plans ({', '.join(cols)}) VALUES ({', '.join('?' * len(cols))})",
+                (pid, plan, *fields.values()),
+            )
+        db.commit()
+        row = db.execute(
+            "SELECT * FROM tariff_plans WHERE product_id = ? AND plan = ?", (pid, plan)
+        ).fetchone()
+    invalidate_cache()
+    return dict(row)
+
+
+def delete_plan(product_id: str, plan: str) -> bool:
+    with closing(_plans_connect()) as db:
+        cur = db.execute(
+            "DELETE FROM tariff_plans WHERE product_id = ? AND plan = ?",
+            (product_id, plan),
+        )
+        db.commit()
+    invalidate_cache()
+    return cur.rowcount > 0
