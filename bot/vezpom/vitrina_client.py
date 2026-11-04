@@ -21,6 +21,7 @@ TARIFF_TTL_SECONDS = 60.0
 _TIMEOUT = 10
 
 _tariff_cache: dict = {"at": 0.0, "value": None}
+_plans_cache: dict = {"at": 0.0, "value": []}
 
 
 def _base_url() -> str:
@@ -73,6 +74,22 @@ def get_tariff() -> dict:
     if _tariff_cache["value"] is not None:
         return _tariff_cache["value"]  # последнее известное
     return {}
+
+
+def get_plans(product_id: str = "vezhpom") -> list[dict]:
+    """Список тарифных планов продукта (/api/tariffs/<id>), кэш TTL 60 с.
+
+    [{plan, name, price_rub, period_days, trial_days, resource_limit}].
+    [] — витрина недоступна (вызывающий использует фолбэк-лимиты).
+    """
+    now = time.monotonic()
+    if _plans_cache["value"] and now - _plans_cache["at"] < TARIFF_TTL_SECONDS:
+        return _plans_cache["value"]
+    data = _get("/api/tariffs/" + product_id)
+    plans = (data or {}).get("plans") or []
+    if plans:
+        _plans_cache.update(at=now, value=plans)
+    return _plans_cache["value"]
 
 
 def get_trial_days(default: int = 14) -> int:
