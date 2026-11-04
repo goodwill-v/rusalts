@@ -7,7 +7,7 @@ import secrets
 
 from fastapi import APIRouter, HTTPException, Request
 from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse
-from datetime import datetime
+from datetime import datetime, timezone
 
 from app import config
 from app.billing import (
@@ -118,6 +118,8 @@ async def product_generated_page(request: Request, pid: str):
     # Тарифные планы продукта (ТЗ tarify v2): карточки на странице продукта
     from app.tariffs_store import list_plans
     plans = list_plans(pid)
+    # Подпись к resource_limit (kupec: слежки «Жду скидку», иначе — ресурсы)
+    limit_label = "Слежек" if pid == "kupec" else "Лимит ресурсов"
 
     return templates.TemplateResponse(
         request,
@@ -130,6 +132,7 @@ async def product_generated_page(request: Request, pid: str):
             "p": prod,
             "features": features,
             "plans": plans,
+            "limit_label": limit_label,
             "category_label": "услуга" if prod.get("category") == "service" else "продукт",
             "buyable": buyable,
         },
@@ -381,6 +384,20 @@ async def payment_webhook(request: Request):
                     allowance_tokens=allowance if allowance else tariff.token_allowance,
                     period_days=period_days or tariff.period_days,
                 )
+            # План подписки — в subscriptions (ТЗ Купец v2 §7): /api/subscription
+            # отдаёт план ботам. Раньше таблица не писалась и гейтинг фолбэчил
+            # всех платных на первый план.
+            from app.payments import activate_subscription
+            try:
+                activate_subscription(
+                    rec["id"], rec["product_id"], str(rec.get("customer_email") or ""),
+                    pm_id,
+                    period_days=period_days or (tariff.period_days if tariff else 30),
+                    plan=plan,
+                    customer_id=rec["customer_id"],
+                )
+            except Exception:
+                pass
 
     return JSONResponse({"ok": True})
 
@@ -454,6 +471,7 @@ async def api_list_tariff_plans(product_id: str):
                     "period_days": p["period_days"],
                     "trial_days": p["trial_days"],
                     "resource_limit": p["resource_limit"],
+                    "searches_per_month": p.get("searches_per_month") or 0,
                 }
                 for p in list_plans(product_id)
             ],
@@ -463,28 +481,26 @@ async def api_list_tariff_plans(product_id: str):
 
 @router.get("/api/subscription/{customer_id}/{product_id}")
 async def api_get_subscription(customer_id: str, product_id: str):
-    """Получить статус подписки клиента."""
+    """Статус подписки клиента.
+
+    trial=true — идёт зарегистрированный пробный период (ТЗ Купец v2 §7.3):
+    боты применяют «триал = все опции старшего плана». searches_per_month —
+    месячный пакет поисков плана (для ботов с гейтингом по API).
+    """
     bal = get_balance(customer_id, product_id)
-    if bal is None:
-        return JSONResponse({"status": "no_subscription"}, status_code=404)
 
-    remaining = get_remaining_tokens(customer_id, product_id)
-    low = is_balance_low(customer_id, product_id)
-    usage_stats = get_usage_summary(customer_id)
-
-    # Тарифный план подписки (ТЗ Vitrina tarify v2): из БД подписок, фолбэк — base
     sub_plan = ""
     plan_name = ""
     resource_limit = 0
+    searches_per_month = 0
+    trial = False
+    sub_expires = ""
     try:
-        from app.payments import _connect as _pc
-        with closing(_pc()) as db:
-            row = db.execute(
-                "SELECT plan FROM subscriptions WHERE customer_id = ? AND product_id = ?"
-                " ORDER BY id DESC LIMIT 1",
-                (customer_id, product_id),
-            ).fetchone()
-            if row and row["plan"]:
+        from app.payments import latest_subscription_row
+        row = latest_subscription_row(customer_id, product_id)
+        if row:
+            sub_expires = row.get("expires_at") or ""
+            if row.get("plan"):
                 sub_plan = row["plan"]
                 from app.tariffs_store import list_plans
                 pl = next(
@@ -493,13 +509,47 @@ async def api_get_subscription(customer_id: str, product_id: str):
                 if pl:
                     plan_name = pl["name"]
                     resource_limit = pl["resource_limit"]
+                    searches_per_month = pl.get("searches_per_month") or 0
+            if row.get("status") == "trial":
+                try:
+                    trial = bool(sub_expires) and datetime.fromisoformat(sub_expires) > datetime.now(timezone.utc)
+                except (ValueError, TypeError):
+                    trial = False
+
     except Exception:
         pass
+
+    if bal is None:
+        # Токен-баланса нет (триал без платежа) — триал всё равно отдаём
+        if trial:
+            return JSONResponse({
+                "customer_id": customer_id,
+                "product_id": product_id,
+                "status": "trial",
+                "trial": True,
+                "plan": sub_plan,
+                "plan_name": plan_name or "Пробный период",
+                "resource_limit": resource_limit,
+                "searches_per_month": searches_per_month,
+                "expires_at": sub_expires,
+                "allowance_tokens": 0,
+                "used_tokens": 0,
+                "remaining_tokens": 0,
+                "percent_used": 0,
+                "balance_low": False,
+                "usage_summary": get_usage_summary(customer_id),
+            })
+        return JSONResponse({"status": "no_subscription"}, status_code=404)
+
+    remaining = get_remaining_tokens(customer_id, product_id)
+    low = is_balance_low(customer_id, product_id)
+    usage_stats = get_usage_summary(customer_id)
 
     return JSONResponse({
         "customer_id": customer_id,
         "product_id": product_id,
         "status": bal["status"],
+        "trial": trial,
         "allowance_tokens": bal["allowance_tokens"],
         "used_tokens": bal["used_tokens"],
         "remaining_tokens": remaining,
@@ -510,6 +560,63 @@ async def api_get_subscription(customer_id: str, product_id: str):
         "plan": sub_plan,
         "plan_name": plan_name,
         "resource_limit": resource_limit,
+        "searches_per_month": searches_per_month,
+    })
+
+
+@router.post("/api/subscription/trial/start")
+async def api_subscription_trial_start(request: Request):
+    """Старт пробного периода (ТЗ Купец v2 §7.3): один на клиента+продукт, навсегда.
+
+    Триал регистрируется записью status='trial' в subscriptions; что делать
+    триалу (набор опций старшего плана), решает бот по флагу trial=true.
+    """
+    try:
+        data = await request.json()
+    except Exception:
+        return JSONResponse({"error": "Invalid JSON"}, status_code=400)
+
+    customer_id = str(data.get("customer_id") or "").strip()
+    product_id = str(data.get("product_id") or "").strip()
+    plan_code = str(data.get("plan") or "").strip().lower()
+    if not customer_id or not product_id:
+        return JSONResponse({"error": "customer_id и product_id обязательны"}, status_code=400)
+
+    from app.tariffs_store import list_plans, seed_defined_products
+    plans = list_plans(product_id)
+    if not plans:
+        seed_defined_products()
+        plans = list_plans(product_id)
+    if not plans:
+        return JSONResponse({"error": f"У продукта {product_id} нет тарифных планов"}, status_code=404)
+
+    if plan_code:
+        pl = next((x for x in plans if x["plan"] == plan_code and x["active"]), None)
+        if not pl:
+            return JSONResponse({"error": f"Неизвестный план: {plan_code}"}, status_code=400)
+    else:
+        pl = plans[0]
+
+    from app.payments import start_trial_subscription
+    res = start_trial_subscription(
+        product_id, customer_id, pl["plan"], pl["trial_days"]
+    )
+    if not res["started"]:
+        row = res.get("row") or {}
+        return JSONResponse({
+            "trial": False,
+            "reason": res["reason"],
+            "plan": row.get("plan", ""),
+            "expires_at": row.get("expires_at", ""),
+        })
+    return JSONResponse({
+        "trial": True,
+        "customer_id": customer_id,
+        "product_id": product_id,
+        "plan": pl["plan"],
+        "plan_name": pl["name"],
+        "trial_days": pl["trial_days"],
+        "expires_at": (res.get("row") or {}).get("expires_at", ""),
     })
 
 
