@@ -184,6 +184,10 @@ def add_push_monitor(name, interval=86400):
     Внешний скрипт бэкапа дёргает push-URL после успешного копирования;
     молчание дольше interval = монитор «упал» («копия не создалась»).
     Возвращает (kuma_id, push_token); токен читается из monitorList.
+
+    ВАЖНО: Kuma на КАЖДОМ add проверяет accepted_statuscodes
+    (server.js: «accepted_statuscodes.every(...)») — без поля push-монитор
+    отклоняется с «Cannot read properties of undefined (reading 'every')».
     """
     monitor_id = add_monitor({
         "type": "push",
@@ -191,6 +195,7 @@ def add_push_monitor(name, interval=86400):
         "interval": interval,
         "retryInterval": interval,
         "maxretries": 0,
+        "accepted_statuscodes": ["200-299"],
     })
     token = None
     for m in get_monitors():

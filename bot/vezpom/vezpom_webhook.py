@@ -479,7 +479,10 @@ def _add_backup_flow(chat_id):
     try:
         kuma_id, token = kuma.add_push_monitor(name, interval=86400)
     except kuma.KumaError as exc:
-        send(chat_id, "Не удалось настроить контроль бэкапов: " + str(exc)[:200])
+        print("[VeZhPom] /backup add failed:", exc, flush=True)
+        send(chat_id, "😕 Сервис наблюдения не принял настройку контроля бэкапов."
+             " Попробуйте ещё раз через пару минут; если повторится — напишите"
+             " в поддержку (v.devops@yandex.ru), мы уже видим такие ошибки в журнале.")
         return
     if not token:
         send(chat_id, "Монитор создан, но токен от Kuma не получен. Попробуйте позже или напишите в поддержку.")
