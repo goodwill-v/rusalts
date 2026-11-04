@@ -147,3 +147,35 @@ def test_check_message_format():
         "level": "danger", "confidence": "высокая", "reasons": ["похоже на клон"],
     })
     assert "высокая вероятность" in text and "похоже на клон" in text
+
+
+# ─── Этап 3: подарочный подбор ───────────────────────────────────────
+
+
+def test_gift_parse():
+    from services.gift import parse_gift_request
+
+    assert parse_gift_request("маме до 2000") == ("маме", 2000)
+    assert parse_gift_request("мальчику 7 лет до 3 000 руб") == ("мальчику 7 лет", 3000)
+    assert parse_gift_request("маме") is None            # нет бюджета
+    assert parse_gift_request("до 2000") is None          # нет описания
+
+
+def test_gift_queries_from_llm():
+    from services.gift import queries_from_llm
+
+    text = "1) набор для рукоделия\n2) плед флисовый\n3) шкатулка для украшений\n4) книга любимому жанру"
+    assert len(queries_from_llm(text)) == 4
+    assert queries_from_llm("плед\nноски")[0] == "плед"
+    assert queries_from_llm("") == []
+
+
+def test_gift_message_format():
+    from bot.messages import gift_message
+
+    item = _item("Плед флисовый", 1500, 4.6, 210, "wb")
+    text = gift_message("маме", 2000, [("плед", item), ("носки", None)])
+    assert "Подарки: маме" in text and "1\u202f500 ₽" in text
+    assert "не нашёл" in text
+    empty = gift_message("маме", 2000, [("плед", None)])
+    assert "Ничего не нашёл" in empty

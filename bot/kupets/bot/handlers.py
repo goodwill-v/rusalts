@@ -23,6 +23,8 @@ from bot.messages import (
     check_result_message,
     compare_result_message,
     feature_limit_message,
+    gift_message,
+    gift_usage_message,
     quota_exhausted_message,
     start_message,
     watch_added_message,
@@ -38,7 +40,7 @@ from bot.messages import (
 from bot.states import SearchStates
 from engine.query_guard import is_smalltalk
 from models.result import SearchFilters, SearchResponse
-from services import anticlone, compare, quotas, sqlite_store
+from services import anticlone, compare, gift, quotas, sqlite_store
 from services.mailer import ErrorReport, send_error_report, smtp_configured
 from services.search_pipeline import SearchPipeline
 from config import Config
@@ -66,6 +68,7 @@ async def cmd_start(message: Message, state: FSMContext) -> None:
 FEATURE_LABELS = {
     "xvsy": "Сравнение",
     "check": "Проверка на подделку",
+    "podarok": "Подарочный подбор",
 }
 
 
@@ -178,6 +181,54 @@ async def _run_check(message: Message, name: str) -> None:
         )
 
 
+@router.message(Command("gift"))
+async def cmd_gift(message: Message, state: FSMContext) -> None:
+    await state.clear()
+    parsed = gift.parse_gift_request(_command_arg(message.text or ""))
+    if not parsed:
+        await message.answer(gift_usage_message())
+        return
+    if not await _feature_gate(message, "podarok", pool=gift.max_searches()):
+        return
+    await _run_gift(message, parsed[0], parsed[1])
+
+
+async def _run_gift(message: Message, description: str, budget: int) -> None:
+    progress = await message.answer(
+        f"🎁 Подбираю подарки: {description} до {budget}₽…"
+    )
+    try:
+        from ai.explainer import AIExplainer
+        from parser.firecrawl_search import FirecrawlClient
+
+        ex = AIExplainer()
+        queries = await ex.expand_gift(description, budget, gift.max_searches())
+        if not queries:
+            await progress.edit_text(
+                "😔 Не смог придумать варианты — попробуйте уточнить "
+                "описание: /gift маме до 2000"
+            )
+            return
+        fc = FirecrawlClient()
+        picks: list[tuple[str, object]] = []
+        try:
+            for q in queries:
+                items = await fc.search_marketplaces(q, limit=5)
+                picks.append((q, compare.pick_best(items)))
+        finally:
+            await fc.aclose()
+        await progress.edit_text(
+            gift_message(description, budget, picks),
+            parse_mode="Markdown",
+            disable_web_page_preview=True,
+        )
+    except Exception as exc:
+        logger.exception("gift_failed", extra={"error": str(exc)})
+        await progress.edit_text(
+            "⚠️ Не удалось собрать подбор — попробуйте чуть позже."
+        )
+
+
 @router.message(Command("compare"))
 async def cmd_compare(message: Message, state: FSMContext) -> None:
     await state.clear()
@@ -238,6 +289,14 @@ async def _handle_watch_request(message: Message, query: str) -> None:
             return
         await _run_compare(message, parsed_compare[0], parsed_compare[1])
         return
+    if query.lower().lstrip().startswith(("подбери подарок", "подбери подарки")):
+        name = query.split(" ", 1)[1].strip() if " " in query else ""
+        parsed_gift = gift.parse_gift_request(name)
+        if parsed_gift:
+            if not await _feature_gate(message, "podarok", pool=gift.max_searches()):
+                return
+            await _run_gift(message, parsed_gift[0], parsed_gift[1])
+            return
     if query.lower().lstrip().startswith("проверь "):
         name = query.split(" ", 1)[1].strip()
         if name and not is_smalltalk(name):

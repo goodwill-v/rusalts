@@ -136,6 +136,42 @@ def check_result_message(name: str, verdict: dict) -> str:
     return "\n".join(lines)
 
 
+def gift_message(description: str, budget: int, picks: list[tuple[str, object]]) -> str:
+    """Подборка подарков (ТЗ v2 фича г). picks: [(запрос, SearchItem|None)]."""
+    mp_labels = {"ozon": "Ozon", "wb": "Wildberries", "yam": "Я.Маркет"}
+    lines = [
+        f"🎁 *Подарки: {_md(description)}* — до {format_price(budget)}",
+        "",
+    ]
+    found = 0
+    for i, (q, item) in enumerate(picks, 1):
+        if item is None:
+            lines.append(f"{i}. {q} — не нашёл")
+            continue
+        found += 1
+        mp = mp_labels.get(getattr(item, "marketplace", "ozon"), "Ozon")
+        price = format_price(item.price) if item.price > 0 else "цена по ссылке"
+        lines.append(
+            f"{i}. *{_md(item.name[:44])}* — {price} · {mp}\n"
+            f"   [открыть]({item.url})"
+        )
+    if not found:
+        return (
+            "😔 Ничего не нашёл по подбору. Попробуйте изменить бюджет "
+            "или описание: /gift маме до 2000"
+        )
+    lines.append("")
+    lines.append("_💡 Подбор потратил до 4 поисков из вашего месячного пакета._")
+    return "\n".join(lines)
+
+
+def gift_usage_message() -> str:
+    return (
+        "Опишите, кому подарок и бюджет:\n"
+        "/gift маме до 2000\n/gift мальчику 7 лет до 3000"
+    )
+
+
 def watch_usage_message() -> str:
     return (
         "Укажите, за чем следить: /watch <запрос>\n"

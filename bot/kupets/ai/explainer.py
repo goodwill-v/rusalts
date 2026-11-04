@@ -97,6 +97,33 @@ class AIExplainer:
                 parsed.append(self._fallback_verdict(products[len(parsed)]))
         return parsed
 
+    async def expand_gift(self, description: str, budget: int, n: int = 4) -> list[str]:
+        """Подарочный подбор (фича г): «маме до 2000₽» → 3–4 конкретных
+        товарных запроса для поиска. Пустой список = сбой (честный отказ)."""
+        if self._client is None:
+            return []
+        prompt = (
+            f"Нужно купить подарок: {description}, бюджет {budget}₽. "
+            f"Придумай {n} конкретных товарных запросов для поиска на "
+            "маркетплейсах (то, что реально введёшь в поисковую строку). "
+            "Формат ответа строго:\n1) запрос\n2) запрос\n...\n"
+            "Без пояснений, по-русски, каждый запрос 2–4 слова."
+        )
+        resp = await self._client.chat.completions.create(
+            model=Config.ROUTERAI_MODEL,
+            messages=[
+                {"role": "system", "content": "Ты — помощник по подаркам. Кратко, по-русски."},
+                {"role": "user", "content": prompt},
+            ],
+            max_tokens=200,
+            temperature=0.6,
+        )
+        msg = resp.choices[0].message
+        text = (msg.content or "").strip() or (getattr(msg, "reasoning", None) or "")
+        from services.gift import queries_from_llm
+
+        return queries_from_llm(text, n)
+
     async def explain_compare(self, a: dict, b: dict) -> str:
         """Итог сравнения двух товаров (фича X vs Y, ТЗ v2): 2–3 короткие строки.
 
