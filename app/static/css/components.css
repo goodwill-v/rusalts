@@ -481,3 +481,15 @@ body.layout-app .template-list a {
   color: var(--site-primary);
 }
 
+
+/* chat-actions: левая группа (прикрепить/файлы/отправить) + ПДн-заметка справа/ниже */
+.chat-actions__left {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  align-items: center;
+  flex: 1 1 auto;
+  min-width: 0;
+}
+.chat-actions__left .file-names { flex: 0 1 auto; }
+.chat-actions > .pdn-note { flex: 1 1 220px; }
