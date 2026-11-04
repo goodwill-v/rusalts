@@ -482,7 +482,8 @@ body.layout-app .template-list a {
 }
 
 
-/* chat-actions: левая группа (прикрепить/файлы/отправить) + ПДн-заметка справа/ниже */
+/* chat-actions: левая группа (прикрепить/файлы/ПДн-заметка) + «Отправить» в правом краю.
+   Заметка живёт внутри левой группы — на широких экранах одна строка между кнопками. */
 .chat-actions__left {
   display: flex;
   flex-wrap: wrap;
@@ -492,4 +493,12 @@ body.layout-app .template-list a {
   min-width: 0;
 }
 .chat-actions__left .file-names { flex: 0 1 auto; }
-.chat-actions > .pdn-note { flex: 1 1 220px; }
+.chat-actions__left .pdn-note {
+  flex: 1 1 auto;
+  max-width: none;
+  white-space: nowrap;
+}
+/* Узкий экран: заметке разрешаем переносить строки, как раньше */
+@media (max-width: 760px) {
+  .chat-actions__left .pdn-note { white-space: normal; }
+}
