@@ -328,13 +328,14 @@ def activate_subscription(
     payment_method_id: str,
     period_days: int = 30,
     plan: str = "",
+    customer_id: str = "",
 ) -> int:
     with closing(_connect()) as db:
         expires = (datetime.now(timezone.utc) + timedelta(days=period_days)).isoformat()
         cur = db.execute(
-            """INSERT INTO subscriptions (payment_id, product_id, customer_email, payment_method_id, status, expires_at, plan)
-               VALUES (?, ?, ?, ?, 'active', ?, ?)""",
-            (payment_id, product_id, customer_email, payment_method_id, expires, plan),
+            """INSERT INTO subscriptions (payment_id, product_id, customer_email, payment_method_id, customer_id, status, expires_at, plan)
+               VALUES (?, ?, ?, ?, ?, 'active', ?, ?)""",
+            (payment_id, product_id, customer_email, payment_method_id, customer_id, expires, plan),
         )
         db.commit()
         return cur.lastrowid
@@ -387,9 +388,9 @@ def start_trial_subscription(
         days = max(1, min(int(trial_days or 0), 60))
         expires = (datetime.now(timezone.utc) + timedelta(days=days)).isoformat()
         cur = db.execute(
-            """INSERT INTO subscriptions (payment_id, product_id, customer_email, payment_method_id, status, expires_at, plan)
-               VALUES (0, ?, ?, '', 'trial', ?, ?)""",
-            (product_id, customer_email or "", expires, plan),
+            """INSERT INTO subscriptions (payment_id, product_id, customer_email, payment_method_id, customer_id, status, expires_at, plan)
+               VALUES (0, ?, ?, '', ?, 'trial', ?, ?)""",
+            (product_id, customer_email or "", customer_id, expires, plan),
         )
         db.commit()
         created = db.execute(

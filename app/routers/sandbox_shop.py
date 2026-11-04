@@ -394,6 +394,7 @@ async def payment_webhook(request: Request):
                     pm_id,
                     period_days=period_days or (tariff.period_days if tariff else 30),
                     plan=plan,
+                    customer_id=rec["customer_id"],
                 )
             except Exception:
                 pass
