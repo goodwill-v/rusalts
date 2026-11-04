@@ -16,6 +16,8 @@ Config (env): KUMA_URL, KUMA_USER, KUMA_PASS, KUMA_NOTIFY_ID
 """
 import json
 import os
+import secrets
+import string
 import time
 
 KUMA_URL = os.environ.get("KUMA_URL", "http://127.0.0.1:3001")
@@ -183,12 +185,16 @@ def add_push_monitor(name, interval=86400):
 
     Внешний скрипт бэкапа дёргает push-URL после успешного копирования;
     молчание дольше interval = монитор «упал» («копия не создалась»).
-    Возвращает (kuma_id, push_token); токен читается из monitorList.
+    Возвращает (kuma_id, push_token).
 
-    ВАЖНО: Kuma на КАЖДОМ add проверяет accepted_statuscodes
-    (server.js: «accepted_statuscodes.every(...)») — без поля push-монитор
-    отклоняется с «Cannot read properties of undefined (reading 'every')».
+    Два нюанса Kuma 1.23 (обнаружено на проде 04.11):
+      * на КАЖДОМ add валидируется accepted_statuscodes (server.js:652,
+        «.every») — без поля push-монитор отклоняется;
+      * Kuma НЕ генерирует push-токен сам: поле pushToken копируется из
+        payload (server.js:761) — генерируем и передаём сами, иначе пульсы
+        не привязываются к монитору.
     """
+    token = "".join(secrets.choice(string.ascii_letters + string.digits) for _ in range(32))
     monitor_id = add_monitor({
         "type": "push",
         "name": name,
@@ -196,12 +202,8 @@ def add_push_monitor(name, interval=86400):
         "retryInterval": interval,
         "maxretries": 0,
         "accepted_statuscodes": ["200-299"],
+        "pushToken": token,
     })
-    token = None
-    for m in get_monitors():
-        if m.get("id") == monitor_id:
-            token = m.get("push_token")
-            break
     return monitor_id, token
 
 
