@@ -503,7 +503,7 @@ def upsert_warning(chat_id, kind, target, days=None):
             "   ELSE warnings.last_level END,"
             "  open=1",
             (chat_id, kind, target,
-             now + days * 86400 if days else None,
+             now + days * 86400 if days is not None else None,
              days, now),
         )
         conn.commit()

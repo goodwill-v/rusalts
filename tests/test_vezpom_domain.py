@@ -15,6 +15,7 @@ sys.path.insert(0, str(ROOT))
 sys.path.insert(0, str(ROOT / "bot" / "vezpom"))
 
 import db as vezdb  # noqa: E402
+import digest as vzdigest  # noqa: E402
 import domain_watch as dw  # noqa: E402
 import vezlogic  # noqa: E402
 
@@ -371,3 +372,33 @@ def test_sweep_tick_idempotent(tmp_path, monkeypatch):
     assert len(calls) == 1
     dw._sweep_tick(None, now_ts=day_ts + 86400)     # новые сутки — снова работает
     assert len(calls) == 2
+
+
+# ---- интеграция со светофором и еженедельным отчётом (digest) ----
+
+def test_traffic_light_domain_warning(tmp_path, monkeypatch):
+    _tmp_db(tmp_path, monkeypatch)
+    vezdb.add_monitor(1, "https://x.ru", "VeZhPom chat1: https://x.ru", 10)
+    vezdb.update_monitor_status("VeZhPom chat1: https://x.ru", "up")
+    vezdb.upsert_warning(1, "domain", "company.ru", days=9)
+    text = vzdigest.build_traffic_light(1)
+    assert chr(0x1F7E1) in text and "домен продлевается через 9 дн." in text
+
+
+def test_traffic_light_domain_unknown_and_expired(tmp_path, monkeypatch):
+    _tmp_db(tmp_path, monkeypatch)
+    vezdb.add_monitor(1, "https://x.ru", "VeZhPom chat1: https://x.ru", 10)
+    vezdb.update_monitor_status("VeZhPom chat1: https://x.ru", "up")
+    vezdb.upsert_warning(1, "domain", "unknown.ru")   # срок неизвестен (due_ts=None)
+    vezdb.upsert_warning(1, "domain", "dead.ru", days=0)  # истёкший домен
+    text = vzdigest.build_traffic_light(1)
+    assert "не удалось определить" in text
+    assert "истёк" in text
+
+
+def test_weekly_report_domain_recommendation(tmp_path, monkeypatch):
+    _tmp_db(tmp_path, monkeypatch)
+    vezdb.upsert_warning(1, "domain", "company.ru", days=9)
+    text = vzdigest.build_weekly_report(1)
+    assert "Незакрытых предупреждений: 1" in text
+    assert "продлить домены" in text
