@@ -171,7 +171,7 @@ document.querySelectorAll(".btn-buy[data-product]").forEach((btn) => {
   });
 });
 
-// Тарифные планы (ТЗ tarify v2): оплата выбранного плана
+// Тарифные планы (ТЗ tarify v2): оплата выбранного плана — продукт текущей страницы
 document.querySelectorAll("[data-plan]").forEach((btn) => {
   btn.addEventListener("click", () => {
     const plan = btn.dataset.plan;
@@ -180,7 +180,7 @@ document.querySelectorAll("[data-plan]").forEach((btn) => {
     document.getElementById("modal-desc").textContent = "Тарифный план. " + (document.querySelector(".pd__desc")?.textContent || "").slice(0, 140);
     document.getElementById("modal-amount").textContent = price + " ₽";
     window.__currentPlan = plan;
-    document.getElementById("modal-pay-btn").onclick = () => startPayment("vezhpom", price, plan);
+    document.getElementById("modal-pay-btn").onclick = () => startPayment("{{ p.id }}", price, plan);
     document.getElementById("payment-modal").style.display = "flex";
   });
 });
