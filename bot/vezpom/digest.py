@@ -62,8 +62,13 @@ def build_traffic_light(chat_id):
                 label += " — SSL истекает через %d дн." % days if days is not None else " — SSL: срок неизвестен"
             elif w["kind"] == "backup":
                 label = "Резервная копия не создалась (" + label + ")"
-            elif w["kind"] == "domain" and days is not None:
-                label += " — домен продлевается через %d дн." % days
+            elif w["kind"] == "domain":
+                if days is None:
+                    label += " — срок домена не удалось определить"
+                elif days <= 0:
+                    label += " — срок регистрации истёк, продлите срочно"
+                else:
+                    label += " — домен продлевается через %d дн." % days
             lines.append(" • " + label[:140])
         if len(warnings) > WARN_LINES_LIMIT:
             lines.append(" • …и ещё %d" % (len(warnings) - WARN_LINES_LIMIT))
@@ -112,6 +117,8 @@ def build_weekly_report(chat_id):
     recs = []
     if any(w["kind"] == "ssl" for w in warns):
         recs.append("продлить SSL-сертификаты")
+    if any(w["kind"] == "domain" for w in warns):
+        recs.append("продлить домены (без них сайт и почта встанут)")
     if any(w["kind"] == "backup" for w in warns):
         recs.append("проверить скрипт резервного копирования")
     if max((v[1] for v in per_target.values()), default=0) > 3600:

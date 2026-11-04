@@ -7,7 +7,7 @@ New in v3.1 (по ТЗ Шефа):
   * команда /check — живая проверка текущего состояния всех мониторов
     пользователя через Kuma API (статус, отклик, сообщение).
 
-Commands in MAX chat: /monitor /check /pay /status /cancel /возврат_средств /rules
+Commands in MAX chat: /monitor /backup /domain /domains /domain_off /check /digest /settings /pay /status /cancel /возврат_средств /rules
 """
 import ipaddress
 import json
@@ -23,6 +23,7 @@ from http.server import ThreadingHTTPServer, BaseHTTPRequestHandler
 import db
 import kuma
 import digest
+import domain_watch
 import vezlogic
 import vitrina_client as vitrina
 
@@ -41,6 +42,8 @@ if not BOT_TOKEN or not CHAT_ID:
 
 # chat_id -> True: bot is waiting for the user to type a target URL/IP
 awaiting_target = {}
+# chat_id -> True: bot is waiting for the user to type a domain (PR-5)
+awaiting_domain = {}
 AWAIT_LOCK = threading.Lock()
 
 CHAT_RE = re.compile(r"chat(\d+)")
@@ -81,7 +84,10 @@ def main_menu_keyboard():
                     {"type": "callback", "text": "💾 Бэкапы", "payload": "menu:backup"},
                 ],
                 [
+                    {"type": "callback", "text": "🌐 Домены", "payload": "menu:domains"},
                     {"type": "callback", "text": "❌ Отмена", "payload": "menu:cancel"},
+                ],
+                [
                     {"type": "callback", "text": "📖 Правила", "payload": "menu:rules"},
                     {"type": "callback", "text": "🆘 Помощь", "payload": "menu:help"},
                 ],
@@ -443,6 +449,75 @@ def _add_backup_flow(chat_id):
     _send_backup_instructions(chat_id, token)
 
 
+def _add_domain_flow(chat_id, raw):
+    """Команда /domain: взять домен под контроль срока регистрации (PR-5)."""
+    domain = domain_watch.normalize_domain(raw)
+    if domain is None:
+        send(chat_id, "Не похоже на домен. Примеры: company.ru, example.com, магазин.рф\nФормат: /domain <домен>")
+        return
+    existing = db.list_domains(chat_id)
+    if any(d["domain"] == domain for d in existing):
+        send(chat_id, "Домен %s уже под контролем. Список: /domains" % domain)
+        return
+    # ❓РАЗВИЛКА: лимит 5 доменов — временный дефолт, подтвердить у Шефа
+    # (тарифы §8 дорожной карты ещё не утверждены, гейтинг отложен)
+    if len(existing) >= domain_watch.MAX_DOMAINS_PER_USER:
+        send(chat_id, "Пока держу не больше %d доменов. Уберите лишний: /domain_off <домен>"
+             % domain_watch.MAX_DOMAINS_PER_USER)
+        return
+    db.add_domain(chat_id, domain)
+    try:
+        expiry = domain_watch.fetch_expiry(domain)
+    except Exception as exc:
+        print("[VeZhPom] /domain fetch %s: %s" % (domain, exc), flush=True)
+        expiry = None
+    if expiry is None:
+        send(chat_id, "✅ Домен %s под контролем. Срок регистрации пока не удалось узнать"
+             " (реестр не ответил или зона без RDAP/WHOIS) — проверю в ежедневном обходе (около 09:30 МСК)." % domain)
+        return
+    days = domain_watch.sync_warning(chat_id, domain, expiry)
+    send(chat_id, "✅ Домен %s под контролем.\n%s\nСообщу заранее: за 30, 14, 7 и 1 день до окончания."
+         % (domain, domain_watch.format_domain_status(domain, expiry, days)))
+
+
+def _remove_domain_flow(chat_id, raw):
+    """Команда /domain_off: снять домен с контроля."""
+    domain = domain_watch.normalize_domain(raw)
+    if domain is None:
+        send(chat_id, "Формат: /domain_off <домен>, например: /domain_off company.ru. Список: /domains")
+        return
+    if db.remove_domain(chat_id, domain):
+        db.resolve_warning(chat_id, "domain", domain)
+        send(chat_id, "Домен %s снят с контроля. Вернуть: /domain %s" % (domain, domain))
+    else:
+        send(chat_id, "Домена %s нет в вашем списке. Список: /domains" % domain)
+
+
+def _domains_text(chat_id):
+    """Команда /domains: список доменов и последние известные сроки."""
+    rows = db.list_domains(chat_id)
+    if not rows:
+        return ("Домены под контролем: нет.\nДобавить: /domain <домен>, например: /domain company.ru")
+    open_warnings = {w["target"]: w for w in db.list_open_warnings(chat_id)
+                     if w["kind"] == vezlogic.KIND_DOMAIN}
+    lines = ["Домены под контролем (%d из %d):" % (len(rows), domain_watch.MAX_DOMAINS_PER_USER)]
+    for row in rows:
+        domain = row["domain"]
+        warning = open_warnings.get(domain)
+        if warning is not None and warning.get("due_ts") is None:
+            lines.append("🟡 " + domain + " — срок определить не удалось, проверю в обходе")
+            continue
+        due_iso = row.get("due_date")
+        if due_iso:
+            expiry = domain_watch._parse_date(due_iso)
+            days = domain_watch.days_left(expiry)
+            lines.append(domain_watch.format_domain_status(domain, expiry, days))
+        else:
+            lines.append("🟡 " + domain + " — срок ещё не проверялся (обход около 09:30 МСК)")
+    lines.append("Убрать домен: /domain_off <домен>")
+    return "\n".join(lines)
+
+
 def _check_monitors(chat_id):
     """Команда /check: живая проверка текущего состояния мониторов из Kuma."""
     monitors = db.list_monitors(chat_id)
@@ -535,6 +610,14 @@ def handle_command(text, chat_id):
             awaiting_target[chat_id] = False
         _add_monitor_flow(chat_id, cmd)
         return
+    # Режим ожидания домена (PR-5): не-командное сообщение — это домен
+    with AWAIT_LOCK:
+        waiting_domain = awaiting_domain.get(chat_id, False)
+    if waiting_domain and not cmd.startswith("/"):
+        with AWAIT_LOCK:
+            awaiting_domain[chat_id] = False
+        _add_domain_flow(chat_id, cmd)
+        return
     low = cmd.lower()
     if low == "/refund" or low.startswith("/refund "):
         _handle_refund(chat_id, cmd.split()[1:])
@@ -546,6 +629,25 @@ def handle_command(text, chat_id):
         return
     if low == "/backup":
         _add_backup_flow(chat_id)
+        return
+    if low in ("/domain", "/домен"):
+        parts = cmd.split()
+        if len(parts) > 1:
+            _add_domain_flow(chat_id, " ".join(parts[1:]))
+        else:
+            with AWAIT_LOCK:
+                awaiting_domain[chat_id] = True
+            send(chat_id, "Введите домен, чтобы я следил за сроком его регистрации. Примеры: company.ru, магазин.рф\n\nПредупрежу заранее: за 30, 14, 7 и 1 день. Список: /domains")
+        return
+    if low in ("/domains", "/домены"):
+        send(chat_id, _domains_text(chat_id))
+        return
+    if low in ("/domain_off", "/домен_выкл"):
+        parts = cmd.split()
+        if len(parts) > 1:
+            _remove_domain_flow(chat_id, " ".join(parts[1:]))
+        else:
+            send(chat_id, "Формат: /domain_off <домен>. Список: /domains")
         return
     if low == "/digest":
         text = digest.build_traffic_light(chat_id)
@@ -599,7 +701,7 @@ def handle_command(text, chat_id):
         _user_refund(chat_id)
         return
     if low in ("/start", "/help"):
-        send_menu(chat_id, "ВежПом — мониторинг и охрана ваших сайтов и серверов.\n\nВыберите действие кнопками ниже или введите команду:\n/monitor — настроить мониторинг (URL или IP, https → и SSL-сроки)\n/backup — контроль резервных копий (пульс из скрипта бэкапа)\n/check — текущее состояние\n/digest — светофор прямо сейчас\n/settings — светофор и еженедельный отчёт: вкл/выкл\n/pay — оплатить подписку\n/status — статус и мониторы\n/cancel — отписка\n/возврат_средств — возврат\n/rules — правила")
+        send_menu(chat_id, "ВежПом — мониторинг и охрана ваших сайтов и серверов.\n\nВыберите действие кнопками ниже или введите команду:\n/monitor — настроить мониторинг (URL или IP, https → и SSL-сроки)\n/backup — контроль резервных копий (пульс из скрипта бэкапа)\n/domain — следить за сроком домена (30/14/7/1 день)\n/domains — список доменов\n/domain_off <домен> — убрать домен из контроля\n/check — текущее состояние\n/digest — светофор прямо сейчас\n/settings — светофор и еженедельный отчёт: вкл/выкл\n/pay — оплатить подписку\n/status — статус и мониторы\n/cancel — отписка\n/возврат_средств — возврат\n/rules — правила")
         return
     if low in ("/menu", "/меню"):
         send_menu(chat_id, "Меню ВежПом — выберите действие:")
@@ -611,7 +713,7 @@ def handle_command(text, chat_id):
     # Важно: событие bot_started приходит только при ПЕРВОМ запуске бота, у существующих
     # пользователей (начали раньше) его не будет — поэтому меню показываем на любой текст.
     if not cmd.startswith("/"):
-        send_menu(chat_id, "👋 Я **ВежПом** — мониторинг работоспособности серверов и сайтов.\n\n💡 Просто напишите любое сообщение — меню появится снова.\nВыберите действие кнопками ниже или введите команду:\n/monitor — настроить мониторинг (URL или IP)\n/backup — контроль резервных копий\n/check — текущее состояние\n/pay — оплатить подписку\n/status — статус и мониторы\n/cancel — отписка\n/возврат_средств — возврат\n/rules — правила")
+        send_menu(chat_id, "👋 Я **ВежПом** — мониторинг работоспособности серверов и сайтов.\n\n💡 Просто напишите любое сообщение — меню появится снова.\nВыберите действие кнопками ниже или введите команду:\n/monitor — настроить мониторинг (URL или IP)\n/backup — контроль резервных копий\n/domain — следить за сроком домена\n/domains — список доменов\n/check — текущее состояние\n/pay — оплатить подписку\n/status — статус и мониторы\n/cancel — отписка\n/возврат_средств — возврат\n/rules — правила")
         return
     # Неизвестная команда
     send(chat_id, "Неизвестная команда. /menu — меню с кнопками, /help — список команд")
@@ -634,6 +736,13 @@ def handle_callback(chat_id, callback_id, payload):
     elif action == "menu:backup":
         answer_callback(callback_id, notification="Бэкапы")
         _add_backup_flow(chat_id)
+    elif action == "menu:domains":
+        answer_callback(callback_id, notification="Домены")
+        send(chat_id,
+             "🌐 Контроль доменов — напомню о продлении заранее (за 30, 14, 7 и 1 день):\n"
+             "/domain <домен> — взять под контроль\n"
+             "/domains — список доменов и сроки\n"
+             "/domain_off <домен> — убрать из контроля")
     elif action == "menu:pay":
         answer_callback(callback_id, notification="Оплата")
         handle_command("/pay", chat_id)
@@ -763,6 +872,7 @@ if __name__ == "__main__":
     db.connect()
     threading.Thread(target=poll_commands, daemon=True).start()
     digest.start(send)  # светофор 09:00 МСК и еженедельный отчёт Пн 10:00 (PR-3)
+    domain_watch.start(send)  # суточный обход доменов 09:30 МСК (PR-5)
     server = ThreadingHTTPServer(("0.0.0.0", PORT), Handler)
-    print("[VeZhPom v3.2] listening on port", PORT, flush=True)
+    print("[VeZhPom v3.3] listening on port", PORT, flush=True)
     server.serve_forever()
