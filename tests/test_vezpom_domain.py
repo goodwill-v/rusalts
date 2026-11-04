@@ -346,7 +346,8 @@ def test_check_all_sweep_end_to_end(tmp_path, monkeypatch):
     vezdb.add_domain(5, "soon.ru")
     vezdb.add_domain(5, "far.ru")
     expiries = {"soon.ru": _e(7), "far.ru": _e(200)}
-    monkeypatch.setattr(dw, "fetch_expiry", lambda d, timeout=20: expiries.get(d))
+    monkeypatch.setattr(dw, "fetch_expiry",
+                        lambda d, timeout=20: (dw.EXPIRY_FOUND, expiries.get(d)))
     out = Collector()
     stats = dw.check_all(out, pause=0, today=TODAY, msk_hour=12)
     assert stats == {"checked": 2, "notified": 1, "failed": 0}
