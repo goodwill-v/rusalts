@@ -47,6 +47,16 @@ KUPEC_PLAN = "kupec"  # платный план без кода (легаси д
 FREE_SEARCHES_PER_DAY = 3
 PAID_SEARCHES_PER_DAY = 6
 KUPEC_SEARCHES_PER_DAY = PAID_SEARCHES_PER_DAY  # алиас для совместимости (тесты/скрипты)
+
+# Поиски в день по планам (решение Шефа 05.11, ТЗ v2 §2 №2).
+# Ключи — коды планов витрины; до засева планов kupec витриной действует
+# легаси-значение PAID_SEARCHES_PER_DAY (6) для любого платного плана.
+# TODO(Админ): если в tariff_plans появится поле поисков/день — читать из API.
+PLAN_SEARCHES_PER_DAY = {
+    "base": 6,        # Базовый 150₽
+    "advanced": 15,   # Продвинутый 500₽
+    "marketing": 40,  # Маркетинг 1500₽ (для продавцов)
+}
 FREE_WATCH_LIMIT = 0
 LEGACY_PAID_WATCH_LIMIT = 5
 KUPEC_WATCH_LIMIT = LEGACY_PAID_WATCH_LIMIT  # алиас для совместимости
@@ -103,8 +113,9 @@ def _plan_entry_limits(p: dict, fallback_code: str = "") -> dict[str, Any]:
         watches = int(p.get("resource_limit") or 0)
     except (TypeError, ValueError):
         watches = 0
+    code = (p.get("plan") or "").strip()
     return {
-        "searches": PAID_SEARCHES_PER_DAY,
+        "searches": PLAN_SEARCHES_PER_DAY.get(code, PAID_SEARCHES_PER_DAY),
         "watches": watches or LEGACY_PAID_WATCH_LIMIT,
         "name": p.get("name") or p.get("plan") or fallback_code or "Покупатель",
     }

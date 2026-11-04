@@ -205,6 +205,9 @@ def format_results(response: SearchResponse) -> str:
             f"🔸 Почти подошло: {len(response.near_miss)}"
         )
 
+    spread = _price_spread_block(response)
+    if spread:
+        lines.append(spread)
     lines.append(
         "\n⭐ _SCORE — рейтинг по 4 показателям, "
         "включая цену и надёжность продавца._"
@@ -234,6 +237,49 @@ def format_results(response: SearchResponse) -> str:
     if len(text) > 4000:
         text = text[:3990] + "…"
     return text
+
+
+MP_LABELS = {"ozon": "Ozon", "wb": "Wildberries", "yam": "Я.Маркет"}
+
+
+def _price_spread_block(response: SearchResponse) -> str:
+    """«Разброс цен» (ТЗ v2 §3.2): мин/средняя/макс по площадкам и где дешевле.
+
+    Учитываются только известные цены (price>0); товары «цена по ссылке»
+    считаются отдельно. Меньше двух цен — блок не показываем.
+    """
+    priced = [
+        sp.product
+        for sp in (list(response.scored) + list(response.near_miss))
+        if sp.product.price > 0
+    ]
+    no_price = sum(
+        1
+        for sp in (list(response.scored) + list(response.near_miss))
+        if sp.product.price <= 0
+    )
+    if len(priced) < 2:
+        if no_price:
+            return (
+                f"\n💰 Цены в сниппетах не видны — смотрите по ссылкам "
+                f"({no_price} тов. без цены в выдаче)."
+            )
+        return ""
+    prices = sorted(p.price for p in priced)
+    lo, avg, hi = prices[0], sum(prices) / len(prices), prices[-1]
+    lo_p = min(priced, key=lambda p: p.price)
+    lo_mp = MP_LABELS.get(getattr(lo_p, "marketplace", "ozon"), "Ozon")
+    lines = [
+        f"\n💰 *Разброс цен:* от {format_price(lo)} ({lo_mp}) · "
+        f"средняя ~{format_price(avg)} · до {format_price(hi)}"
+    ]
+    if hi != lo:
+        lines.append(f"Дешевле всего — {lo_mp}.")
+    if no_price:
+        lines.append(
+            f"Ещё у {no_price} тов. цена по ссылке (в сниппетах не видна)."
+        )
+    return "\n".join(lines)
 
 
 def format_reject_details(response: SearchResponse, limit: int = 12) -> str:
