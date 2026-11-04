@@ -65,11 +65,13 @@ def watch_not_available_message() -> str:
 
 
 def watch_limit_message(info: dict) -> str:
+    plan = info.get("plan_name") or "Покупатель"
     return (
-        f"⚠️ Активных слежек уже максимум — {info.get('count', 5)} "
-        f"из {info.get('limit', 5)}.\n\n"
+        f"⚠️ Лимит слежек тарифа «{_md(plan)}» исчерпан — "
+        f"{info.get('count', 5)} из {info.get('limit', 5)}.\n\n"
         "Отключите одну: /unwatch <номер> (список: /watches), "
-        "потом добавьте новую."
+        "потом добавьте новую.\n"
+        "Нужно больше — посмотрите тарифы: rusalts.ru"
     )
 
 
@@ -80,7 +82,8 @@ def watch_added_message(query: str, info: dict) -> str:
         "Раз в сутки утром (07:00–09:00 МСК) проверю минимальную цену "
         "по Ozon, Wildberries и Яндекс.Маркету. Напишу только когда цена "
         "изменится — без лишнего шума.\n"
-        f"Занято слежек: {info.get('count', 0) + 1} из {info.get('limit', 5)}.\n\n"
+        f"Занято слежек: {info.get('count', 0) + 1} из {info.get('limit', 5)} "
+        f"(тариф «{_md(info.get('plan_name') or 'Покупатель')}»).\n\n"
         "Список: /watches · Отключить: /unwatch <номер>"
     )
 
