@@ -30,3 +30,6 @@ ssh-keyscan.err
 # ВежПом: рантайм бота (не в git)
 bot/vezpom/*.db
 bot/vezpom/*.log
+
+# Критические бэкапы (секреты/БД) — в git запрещены (AGENTS.md §7)
+backups/
