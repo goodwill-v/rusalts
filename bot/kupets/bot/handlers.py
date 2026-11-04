@@ -25,6 +25,8 @@ from bot.messages import (
     feature_limit_message,
     gift_message,
     gift_usage_message,
+    report_message,
+    report_usage_message,
     quota_exhausted_message,
     start_message,
     watch_added_message,
@@ -40,7 +42,7 @@ from bot.messages import (
 from bot.states import SearchStates
 from engine.query_guard import is_smalltalk
 from models.result import SearchFilters, SearchResponse
-from services import anticlone, compare, gift, quotas, sqlite_store
+from services import anticlone, compare, gift, quotas, report as report_svc, sqlite_store
 from services.mailer import ErrorReport, send_error_report, smtp_configured
 from services.search_pipeline import SearchPipeline
 from config import Config
@@ -69,6 +71,7 @@ FEATURE_LABELS = {
     "xvsy": "Сравнение",
     "check": "Проверка на подделку",
     "podarok": "Подарочный подбор",
+    "report": "Сводка для продавцов",
 }
 
 
@@ -178,6 +181,48 @@ async def _run_check(message: Message, name: str) -> None:
         logger.exception("check_failed", extra={"error": str(exc)})
         await progress.edit_text(
             "⚠️ Не удалось проверить — попробуйте чуть позже."
+        )
+
+
+@router.message(Command("report"))
+async def cmd_report(message: Message, state: FSMContext) -> None:
+    await state.clear()
+    niche = _command_arg(message.text or "").strip()
+    if not niche or is_smalltalk(niche):
+        await message.answer(report_usage_message())
+        return
+    user = message.from_user
+    plan = await quotas.user_plan(user.id)
+    allowed, info = quotas.check_feature_quota(user.id, plan, "report")
+    if not allowed:
+        await message.answer(
+            feature_limit_message(FEATURE_LABELS["report"], info)
+        )
+        return
+    pool_ok, pool_info = quotas.check_search_quota(user.id, plan)
+    if not pool_ok:
+        await message.answer(quota_exhausted_message(pool_info))
+        return
+    quotas.consume_feature(user.id, "report", plan)
+    quotas.consume_search(user.id, plan)
+    progress = await message.answer(f"📊 Собираю сводку по нише «{niche}»…")
+    try:
+        from parser.firecrawl_search import FirecrawlClient
+
+        fc = FirecrawlClient()
+        try:
+            items = await fc.search_marketplaces(niche, limit=10)
+        finally:
+            await fc.aclose()
+        stats = report_svc.build_report(niche, items)
+        await progress.edit_text(
+            report_message(stats), parse_mode="Markdown",
+            disable_web_page_preview=True,
+        )
+    except Exception as exc:
+        logger.exception("report_failed", extra={"error": str(exc)})
+        await progress.edit_text(
+            "⚠️ Не удалось собрать сводку — попробуйте чуть позже."
         )
 
 
