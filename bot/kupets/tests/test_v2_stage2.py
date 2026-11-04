@@ -179,3 +179,43 @@ def test_gift_message_format():
     assert "не нашёл" in text
     empty = gift_message("маме", 2000, [("плед", None)])
     assert "Ничего не нашёл" in empty
+
+
+# ─── Этап 4: сводки для продавцов ────────────────────────────────────
+
+
+def test_report_build_stats():
+    from services.report import build_report
+
+    items = [
+        _item("Термос A", 1000, 4.7, 500, "ozon"),
+        _item("Термос B", 1300, 4.5, 300, "wb"),
+        _item("Термос C", 1200, 4.4, 200, "yam"),
+        _item("Термос демпинг", 200, None, 5, "wb"),
+        _item("I15 Pro Max клон", 0, None, 0, "ozon"),
+    ]
+    stats = build_report("термос для школы", items)
+    assert stats["total"] == 5
+    assert stats["per_marketplace"]["ozon"] == 2
+    assert stats["dump_count"] == 1          # 200 < 30% медианы (1200)
+    assert stats["clone_count"] == 1         # паттерн клона
+    assert len(stats["top"]) == 5
+    assert stats["top"][0].name == "Термос A"  # лучший рейтинг×отзывы
+    assert stats["median"] == 1100  # (1000+1200)/2 при чётном количестве
+
+
+def test_report_message_format():
+    from services.report import build_report
+    from bot.messages import report_message
+
+    items = [
+        _item("Термос A", 1000, 4.7, 500, "ozon"),
+        _item("Термос B", 1300, 4.5, 300, "wb"),
+        _item("Термос C", 1200, 4.4, 200, "yam"),
+    ]
+    text = report_message(build_report("термос для школы", items))
+    assert "Сводка для продавца" in text
+    assert "Ценовой коридор" in text and "медиана" in text
+    assert "Топ карточек" in text
+    empty = report_message(build_report("нонсенс xyz", []))
+    assert "не нашлось" in empty

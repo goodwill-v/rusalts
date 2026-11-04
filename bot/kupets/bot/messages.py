@@ -172,6 +172,54 @@ def gift_usage_message() -> str:
     )
 
 
+def report_message(stats: dict) -> str:
+    """Сводка для продавцов (ТЗ v2 §3.6). stats — services.report.build_report."""
+    mp_labels = {"ozon": "Ozon", "wb": "Wildberries", "yam": "Я.Маркет"}
+    niche = stats["niche"]
+    if stats["total"] == 0:
+        return (
+            f"📊 Ниша «{_md(niche)}»: по запросу ничего не нашлось — "
+            "попробуйте другую формулировку."
+        )
+    mp_line = " · ".join(
+        f"{mp_labels.get(k, k)}: {v}" for k, v in stats["per_marketplace"].items()
+    ) or "—"
+    corr = (
+        f"{format_price(stats['min'])} – {format_price(stats['max'])}, "
+        f"медиана ~{format_price(stats['median'])}"
+        if stats["median"]
+        else "цены в сниппетах не видны"
+    )
+    lines = [
+        f"📊 *Сводка для продавца: {_md(niche)}*",
+        "",
+        f"📦 Карточек в выдаче: {stats['total']} ({mp_line})",
+        f"💰 Ценовой коридор: {corr}",
+        f"📉 Демпинг (<30% медианы): {stats['dump_count']}",
+        f"⚠️ Клоны/мусорные названия: {stats['clone_count']}",
+        "",
+        "*Топ карточек по рейтингу и отзывам:*",
+    ]
+    for i, it in enumerate(stats["top"], 1):
+        price = format_price(it.price) if it.price > 0 else "цена по ссылке"
+        rating = f"{it.rating}★" if it.rating else "—"
+        mp = mp_labels.get(getattr(it, "marketplace", "ozon"), "Ozon")
+        lines.append(
+            f"{i}. {_md(it.name[:40])} — {price} · {rating} · {mp}\n"
+            f"   [ссылка]({it.url})"
+        )
+    lines.append("")
+    lines.append("_💡 Сводка потратила 1 поиск из пакета. Счётчик сводок: 10/мес._")
+    return "\n".join(lines)
+
+
+def report_usage_message() -> str:
+    return (
+        "Укажите нишу: /report термос для школы\n"
+        "Сводка доступна на тарифе «Маркетинг» (10 в месяц). rusalts.ru"
+    )
+
+
 def watch_usage_message() -> str:
     return (
         "Укажите, за чем следить: /watch <запрос>\n"
@@ -569,3 +617,4 @@ def _md(text: str) -> str:
         .replace("[", "(")
         .replace("]", ")")
     )
+
