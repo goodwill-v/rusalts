@@ -340,6 +340,64 @@ def activate_subscription(
         return cur.lastrowid
 
 
+def latest_subscription_row(customer_id: str, product_id: str) -> dict[str, Any] | None:
+    """Последняя запись подписки клиента (платная или триальная)."""
+    with closing(_connect()) as db:
+        cols = {r[1] for r in db.execute("PRAGMA table_info(subscriptions)").fetchall()}
+        if "plan" not in cols:
+            return None
+        row = db.execute(
+            """SELECT * FROM subscriptions
+               WHERE customer_id = ? AND product_id = ?
+               ORDER BY id DESC LIMIT 1""",
+            (customer_id, product_id),
+        ).fetchone()
+    return dict(row) if row else None
+
+
+def start_trial_subscription(
+    product_id: str,
+    customer_id: str,
+    plan: str,
+    trial_days: int,
+    customer_email: str = "",
+) -> dict[str, Any]:
+    """Зарегистрировать пробный период (ТЗ Купец v2 §7.3).
+
+    Один триал на пару (customer_id, product_id) — навсегда: повторный старт
+    отклоняется, даже если прошлый триал истёк.
+    Возвращает {started: bool, reason: str, row: dict | None}.
+    """
+    with closing(_connect()) as db:
+        cols = {r[1] for r in db.execute("PRAGMA table_info(subscriptions)").fetchall()}
+        if "plan" not in cols:
+            db.execute("ALTER TABLE subscriptions ADD COLUMN plan TEXT NOT NULL DEFAULT ''")
+        row = db.execute(
+            """SELECT * FROM subscriptions
+               WHERE customer_id = ? AND product_id = ?
+               ORDER BY id DESC LIMIT 1""",
+            (customer_id, product_id),
+        ).fetchone()
+        if row:
+            return {
+                "started": False,
+                "reason": "already_subscribed" if row["status"] == "active" else "trial_used",
+                "row": dict(row),
+            }
+        days = max(1, min(int(trial_days or 0), 60))
+        expires = (datetime.now(timezone.utc) + timedelta(days=days)).isoformat()
+        cur = db.execute(
+            """INSERT INTO subscriptions (payment_id, product_id, customer_email, payment_method_id, status, expires_at, plan)
+               VALUES (0, ?, ?, '', 'trial', ?, ?)""",
+            (product_id, customer_email or "", expires, plan),
+        )
+        db.commit()
+        created = db.execute(
+            "SELECT * FROM subscriptions WHERE id = ?", (cur.lastrowid,)
+        ).fetchone()
+    return {"started": True, "reason": "", "row": dict(created) if created else None}
+
+
 # ---------------------------------------------------------------------------
 # ЮKassa API wrapper
 # ---------------------------------------------------------------------------
