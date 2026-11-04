@@ -20,6 +20,9 @@ from bot.messages import (
     format_product_detail,
     format_reject_details,
     format_results,
+    check_result_message,
+    compare_result_message,
+    feature_limit_message,
     quota_exhausted_message,
     start_message,
     watch_added_message,
@@ -35,7 +38,7 @@ from bot.messages import (
 from bot.states import SearchStates
 from engine.query_guard import is_smalltalk
 from models.result import SearchFilters, SearchResponse
-from services import quotas, sqlite_store
+from services import anticlone, compare, quotas, sqlite_store
 from services.mailer import ErrorReport, send_error_report, smtp_configured
 from services.search_pipeline import SearchPipeline
 from config import Config
@@ -58,6 +61,151 @@ async def cmd_start(message: Message, state: FSMContext) -> None:
 
 # ─── «Жду скидку»: слежка за ценой (Ф1) ──────────────────────────────
 # Команды зарегистрированы ДО catch-all F.text-хендлера поиска.
+
+
+FEATURE_LABELS = {
+    "xvsy": "Сравнение",
+    "check": "Проверка на подделку",
+}
+
+
+async def _feature_gate(message: Message, feature: str, pool: int) -> bool:
+    """Квота фичи + место в поисковом пуле. False — отказ уже отправлен."""
+    user = message.from_user
+    if not user:
+        return False
+    plan = await quotas.user_plan(user.id)
+    allowed, info = quotas.check_feature_quota(user.id, plan, feature)
+    if not allowed:
+        await message.answer(
+            feature_limit_message(FEATURE_LABELS.get(feature, feature), info)
+        )
+        return False
+    # пул поисков: фича расходует pool поисков (X vs Y=2, check=1)
+    pool_ok, pool_info = quotas.check_search_quota(user.id, plan)
+    if not pool_ok or pool_info["limit"] - pool_info["used"] < pool:
+        await message.answer(quota_exhausted_message({**pool_info, "period": pool_info.get("period")}))
+        return False
+    quotas.consume_feature(user.id, feature, plan)
+    for _ in range(pool):
+        quotas.consume_search(user.id, plan)
+    return True
+
+
+async def _run_compare(message: Message, qa: str, qb: str) -> None:
+    progress = await message.answer(
+        f"⚖️ Сравниваю: {qa} ↔ {qb} (два поиска из вашего пакета)…"
+    )
+    try:
+        from parser.firecrawl_search import FirecrawlClient
+
+        fc = FirecrawlClient()
+        try:
+            items_a = await fc.search_marketplaces(qa, limit=10)
+            items_b = await fc.search_marketplaces(qb, limit=10)
+        finally:
+            await fc.aclose()
+        best_a, best_b = compare.pick_best(items_a), compare.pick_best(items_b)
+        a = {
+            "name": best_a.name, "price": best_a.price, "rating": best_a.rating,
+            "reviews_count": best_a.reviews_count,
+            "marketplace": best_a.marketplace, "url": best_a.url,
+        } if best_a else None
+        b = {
+            "name": best_b.name, "price": best_b.price, "rating": best_b.rating,
+            "reviews_count": best_b.reviews_count,
+            "marketplace": best_b.marketplace, "url": best_b.url,
+        } if best_b else None
+        computed = compare.compare_verdict(best_a, best_b)
+        ai_verdict = computed
+        try:
+            from ai.explainer import AIExplainer
+
+            ex = AIExplainer()
+            if best_a and best_b:
+                ai_verdict = await ex.explain_compare(
+                    {
+                        "name": best_a.name, "price": best_a.price,
+                        "rating": best_a.rating,
+                        "reviews": best_a.reviews_count,
+                        "marketplace": best_a.marketplace,
+                    },
+                    {
+                        "name": best_b.name, "price": best_b.price,
+                        "rating": best_b.rating,
+                        "reviews": best_b.reviews_count,
+                        "marketplace": best_b.marketplace,
+                    },
+                )
+                if not ai_verdict:
+                    ai_verdict = computed
+        except Exception as exc:
+            logger.warning("compare_ai_fail", extra={"error": str(exc)})
+            ai_verdict = computed
+        text = compare_result_message(
+            qa, qb, a, b, ai_verdict,
+            "Сравнение потратило 2 поиска из вашего месячного пакета.",
+        )
+        await progress.edit_text(text, parse_mode="Markdown",
+                                 disable_web_page_preview=True)
+    except Exception as exc:
+        logger.exception("compare_failed", extra={"error": str(exc)})
+        await progress.edit_text(
+            "⚠️ Не удалось сравнить — попробуйте чуть позже."
+        )
+
+
+async def _run_check(message: Message, name: str) -> None:
+    progress = await message.answer(
+        f"🛡 Проверяю «{name[:50]}» (один поиск из вашего пакета)…"
+    )
+    try:
+        from parser.firecrawl_search import FirecrawlClient
+
+        fc = FirecrawlClient()
+        try:
+            items = await fc.search_marketplaces(name, limit=10)
+        finally:
+            await fc.aclose()
+        verdict = anticlone.verdict_for(name, items)
+        await progress.edit_text(
+            check_result_message(name, verdict), parse_mode="Markdown"
+        )
+    except Exception as exc:
+        logger.exception("check_failed", extra={"error": str(exc)})
+        await progress.edit_text(
+            "⚠️ Не удалось проверить — попробуйте чуть позже."
+        )
+
+
+@router.message(Command("compare"))
+async def cmd_compare(message: Message, state: FSMContext) -> None:
+    await state.clear()
+    parsed = compare.parse_compare_query("сравни " + _command_arg(message.text or ""))
+    if not parsed:
+        await message.answer(
+            "Укажите два товара через «vs» или «и»:\n"
+            "/compare Redmi Note 14 vs Realme C75"
+        )
+        return
+    if not await _feature_gate(message, "xvsy", pool=2):
+        return
+    await _run_compare(message, parsed[0], parsed[1])
+
+
+@router.message(Command("check"))
+async def cmd_check(message: Message, state: FSMContext) -> None:
+    await state.clear()
+    name = _command_arg(message.text or "").strip()
+    if not name or is_smalltalk(name):
+        await message.answer(
+            "Укажите товар:\n/check I15 Pro Max 256гб\n"
+            "/check чехол iPhone 15 оригинал"
+        )
+        return
+    if not await _feature_gate(message, "check", pool=1):
+        return
+    await _run_check(message, name)
 
 
 @router.message(Command("watch"))
@@ -84,6 +232,19 @@ async def _handle_watch_request(message: Message, query: str) -> None:
     if not query:
         await message.answer(watch_usage_message())
         return
+    parsed_compare = compare.parse_compare_query(query)
+    if parsed_compare:
+        if not await _feature_gate(message, "xvsy", pool=2):
+            return
+        await _run_compare(message, parsed_compare[0], parsed_compare[1])
+        return
+    if query.lower().lstrip().startswith("проверь "):
+        name = query.split(" ", 1)[1].strip()
+        if name and not is_smalltalk(name):
+            if not await _feature_gate(message, "check", pool=1):
+                return
+            await _run_check(message, name)
+            return
     if is_smalltalk(query):
         await message.answer(
             "Это не похоже на товарный запрос. "

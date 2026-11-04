@@ -97,6 +97,46 @@ class AIExplainer:
                 parsed.append(self._fallback_verdict(products[len(parsed)]))
         return parsed
 
+    async def explain_compare(self, a: dict, b: dict) -> str:
+        """Итог сравнения двух товаров (фича X vs Y, ТЗ v2): 2–3 короткие строки.
+
+        a/b: {name, price, rating, reviews, marketplace}. При сбое — вычисляемый
+        вердикт из services.compare (вызывающий передаёт fallback вторым вызовом).
+        """
+        if self._client is None:
+            raise RuntimeError("routerai_unavailable")
+
+        def fmt(d: dict) -> str:
+            price = f"{int(d['price'])}₽" if d.get("price") else "цена не видна"
+            rating = f"{d['rating']}/5" if d.get("rating") else "без рейтинга"
+            reviews = f"{d.get('reviews') or 0} отзывов"
+            return (
+                f"- {d.get('name', '')[:70]} ({d.get('marketplace', '')}): "
+                f"{price}, {rating}, {reviews}"
+            )
+
+        prompt = (
+            "Сравни два товара для покупателя (сравниваем объективно: цена, "
+            "рейтинг, отзывы). Ответ — 2–3 короткие строки по-русски без "
+            "маркдауна, последняя строка — кому какой лучше подходит:\n"
+            f"Товар А: {fmt(a)}\nТовар Б: {fmt(b)}"
+        )
+        resp = await self._client.chat.completions.create(
+            model=Config.ROUTERAI_MODEL,
+            messages=[
+                {
+                    "role": "system",
+                    "content": "Ты — консультант по выбору товаров. Кратко, по-русски.",
+                },
+                {"role": "user", "content": prompt},
+            ],
+            max_tokens=250,
+            temperature=0.3,
+        )
+        msg = resp.choices[0].message
+        text = (msg.content or "").strip()
+        return text or (getattr(msg, "reasoning", None) or "").strip()
+
     def _parse_numbered(self, text: str, n: int) -> list[str]:
         import re
 
