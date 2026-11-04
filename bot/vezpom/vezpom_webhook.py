@@ -73,6 +73,50 @@ def _tariff_price_text():
     return "%s ₽/мес" % price if period == 30 else "%s ₽/%d дн." % (price, period)
 
 
+def _plan_info(chat_id):
+    """Тарифный план пользователя: (название, цена-текст, лимит ресурсов).
+
+    Активная подписка → её план (/api/subscription возвращает plan+limit);
+    нет подписки/триал/сбой витрины → базовый «Мониторинг». Если витрина
+    не отдаёт планы вовсе — прежний лимит 5 (как до гейтинга).
+    """
+    plans = vitrina.get_plans("vezhpom")
+    by_code = {p.get("plan"): p for p in plans}
+    sub = vitrina.get_subscription_info(chat_id) or {}
+    p = by_code.get((sub.get("plan") or "").strip())
+    if p is None:
+        p = by_code.get("monitoring") or (plans[0] if plans else None)
+    if not p:
+        return "Мониторинг", _tariff_price_text(), 5
+    price = "%s ₽/мес" % p.get("price_rub") if (p.get("period_days") or 30) == 30 \
+        else "%s ₽/%s дн." % (p.get("price_rub"), p.get("period_days"))
+    try:
+        limit = int(p.get("resource_limit") or 0) or 5
+    except (TypeError, ValueError):
+        limit = 5
+    return p.get("name") or p.get("plan"), price, limit
+
+
+def _resources_used(chat_id):
+    """Ресурсы под контролем: (сайты/серверы, домены, всего). Бэкап не считается."""
+    monitors = [m for m in db.list_monitors(chat_id) if m["target"] != "backup"]
+    domains = db.list_domains(chat_id)
+    return len(monitors), len(domains), len(monitors) + len(domains)
+
+
+def _plan_limit_reached(chat_id):
+    """Лимит ресурсов тарифа исчерпан? Возвращает текст-отказ или None."""
+    _, _, total = _resources_used(chat_id)
+    plan_name, price_text, limit = _plan_info(chat_id)
+    if total < limit:
+        return None
+    return ("Лимит тарифа «%s» (%s): %d ресурсов — под контролем уже %d"
+            " (сайты/серверы + домены).\nВарианты: убрать лишнее"
+            " (/monitor_off, /domain_off) или сменить тариф:"
+            " https://rusalts.ru/techologis/subscription/"
+            % (plan_name, price_text, limit, total))
+
+
 def send(chat_id, text):
     url = API_URL + "/messages?chat_id=" + str(chat_id)
     payload = json.dumps({"text": text}).encode("utf-8")
@@ -431,6 +475,11 @@ def _add_monitor_flow(chat_id, target):
         if urllib.parse.urlparse(m["target"]).hostname == parsed_norm.hostname:
             send(chat_id, "Мониторинг %s уже настроен. Проверить состояние: /check" % m["target"])
             return
+    # Гейтинг: лимит ресурсов тарифа (сайты + домены, общий пул)
+    denied = _plan_limit_reached(chat_id)
+    if denied:
+        send(chat_id, denied)
+        return
     name = "VeZhPom chat%d: %s" % (chat_id, norm)
     try:
         kuma_id = kuma.add_http_monitor(name, norm)
@@ -504,9 +553,10 @@ def _add_domain_flow(chat_id, raw):
         return
     # Лимит 5 доменов — утверждён Шефом 04.11 (решения по PR-5); гейтинг
     # по тарифам «Страж»/«Бизнес» отложен до утверждения тарифов §8 карты
-    if len(existing) >= domain_watch.MAX_DOMAINS_PER_USER:
-        send(chat_id, "Пока держу не больше %d доменов. Уберите лишний: /domain_off <домен>"
-             % domain_watch.MAX_DOMAINS_PER_USER)
+    # Гейтинг: общий пул ресурсов тарифа (сайты + домены); fallback — 5
+    denied = _plan_limit_reached(chat_id)
+    if denied:
+        send(chat_id, denied)
         return
     db.add_domain(chat_id, domain)
     try:
@@ -549,7 +599,9 @@ def _domains_text(chat_id):
         return ("Домены под контролем: нет.\nДобавить: /domain <домен>, например: /domain company.ru")
     open_warnings = {w["target"]: w for w in db.list_open_warnings(chat_id)
                      if w["kind"] == vezlogic.KIND_DOMAIN}
-    lines = ["Домены под контролем (%d из %d):" % (len(rows), domain_watch.MAX_DOMAINS_PER_USER)]
+    plan_name, price_text, limit = _plan_info(chat_id)
+    lines = ["Домены под контролем (%d; тариф «%s» %s — лимит %d ресурсов на сайты+домены):"
+             % (len(rows), plan_name, price_text, limit)]
     for row in rows:
         domain = row["domain"]
         warning = open_warnings.get(domain)
@@ -697,6 +749,12 @@ def _check_monitors(chat_id):
 
 def _status_text(chat_id):
     """Статус подписки (источник правды — витрина) + мониторы пользователя."""
+    plan_name, price_text, limit = _plan_info(chat_id)
+    sites, domains, total = _resources_used(chat_id)
+    plan_line = ("Тариф: «%s» (%s) — ресурсов %d из %d (сайты %d + домены %d)."
+                 % (plan_name, price_text, total, limit, sites, domains))
+    if total >= limit:
+        plan_line += "\nПредел тарифа — новые сайты/домены не добавить, смените тариф: https://rusalts.ru/techologis/subscription/"
     sub = vitrina.get_subscription_info(chat_id)
     if sub and sub.get("status") == "active":
         expires = (sub.get("expires_at") or "")[:10]
@@ -718,7 +776,7 @@ def _status_text(chat_id):
             status_line = "Автоплатежи отключены. Подписка действует до конца оплаченного периода."
         else:
             status_line += " Оплатить: /pay или кнопка «Подписка» в меню."
-    lines = [status_line]
+    lines = [plan_line, status_line]
     monitors = db.list_monitors(chat_id)
     if monitors:
         lines.append("Мониторы (%d):" % len(monitors))
