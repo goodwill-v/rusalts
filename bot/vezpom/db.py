@@ -100,6 +100,11 @@ def connect():
         conn.execute("ALTER TABLE monitors ADD COLUMN push_kuma_id INTEGER")
     if "push_token" not in cols:
         conn.execute("ALTER TABLE monitors ADD COLUMN push_token TEXT")
+    # warnings.note (решение №3 по PR-5): вердикт источника для сроков
+    # ('not_found' = домена нет в реестре; '' = срок получен; NULL = нет метки)
+    wcols = {row[1] for row in conn.execute("PRAGMA table_info(warnings)")}
+    if wcols and "note" not in wcols:
+        conn.execute("ALTER TABLE warnings ADD COLUMN note TEXT")
     # Журнал событий и открытые предупреждения (PR-2, анти-шум)
     # events: kind = incident | ssl | backup | domain; status = down | up | info
     conn.execute(
@@ -114,7 +119,8 @@ def connect():
         " started_at INTEGER,"
         " resolved_at INTEGER)"
     )
-    # warnings: kind = ssl | domain | backup; last_level = отправленный порог (дней)
+    # warnings: kind = ssl | domain | backup; last_level = отправленный порог (дней);
+    # note = вердикт источника ('not_found' / '' / NULL)
     conn.execute(
         "CREATE TABLE IF NOT EXISTS warnings ("
         " id INTEGER PRIMARY KEY AUTOINCREMENT,"
@@ -125,6 +131,7 @@ def connect():
         " last_level INTEGER DEFAULT 99,"
         " last_notified_at INTEGER,"
         " open INTEGER DEFAULT 1,"
+        " note TEXT,"
         " UNIQUE(chat_id, kind, target))"
     )
     # Настройки оповещений (PR-3): светофор и еженедельный отчёт
@@ -469,7 +476,7 @@ def list_events(chat_id, since_ts, limit=500):
 # ---- Открытые предупреждения (анти-шум: дедуп порогов) ----
 
 WARNING_KEYS = ["id", "chat_id", "kind", "target", "due_ts", "last_level",
-                "last_notified_at", "open"]
+                "last_notified_at", "open", "note"]
 
 
 def _row_to_warning(row):
@@ -478,13 +485,15 @@ def _row_to_warning(row):
     return dict(zip(WARNING_KEYS, row))
 
 
-def upsert_warning(chat_id, kind, target, days=None):
+def upsert_warning(chat_id, kind, target, days=None, note=None):
     """Открыть/обновить предупреждение о сроке.
 
     days — дней до истечения (известно для ssl/domain); last_level НЕ понижаем
     здесь: его выставляет mark_warning_notified при фактической отправке.
     Если срок «отскочил» вперёд более чем на 60 суток — это продление,
     сбрасываем last_level в 99 (новый цикл, пороги снова активны).
+    note — вердикт источника: 'not_found' (домена нет в реестре), ''
+    (срок получен, метку снять) или None (не менять прежнее значение).
     Возвращает текущее предупреждение.
     """
     now = int(time.time())
@@ -492,8 +501,8 @@ def upsert_warning(chat_id, kind, target, days=None):
     try:
         conn.execute(
             "INSERT INTO warnings (chat_id, kind, target, due_ts, last_level,"
-            " last_notified_at, open)"
-            " VALUES (?, ?, ?, ?, ?, ?, 1)"
+            " last_notified_at, open, note)"
+            " VALUES (?, ?, ?, ?, ?, ?, 1, ?)"
             " ON CONFLICT(chat_id, kind, target) DO UPDATE SET"
             "  due_ts=COALESCE(excluded.due_ts, warnings.due_ts),"
             "  last_level=CASE"
@@ -501,10 +510,12 @@ def upsert_warning(chat_id, kind, target, days=None):
             "        AND excluded.due_ts - warnings.due_ts > 5184000"
             "    THEN 99"                              # продление: новый цикл
             "   ELSE warnings.last_level END,"
+            "  note=CASE WHEN excluded.note IS NULL"
+            "       THEN warnings.note ELSE excluded.note END,"
             "  open=1",
             (chat_id, kind, target,
              now + days * 86400 if days is not None else None,
-             days, now),
+             days, now, note),
         )
         conn.commit()
         row = conn.execute(

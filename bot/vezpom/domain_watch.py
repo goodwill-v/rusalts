@@ -14,6 +14,14 @@ Uptime Kuma 1.23.17 домены не умеет (появились в 2.x), п
     без новых зависимостей.
   * Остальным зонам без RDAP — попытка через whois.iana.org (refer →
     сервер зоны, поля Registry Expiry Date / paid-till / …).
+  * Три вердикта (решение Шефа по PR-5, 04.11):
+      - срок получен;
+      - «домен не найден в реестре» — реестр ОДНОЗНАЧНО не знает домена
+        (RDAP-сервер зоны вернул 404 после редиректа; WHOIS: «No entries
+        found» / «No match») — похоже на опечатку;
+      - «срок не удалось узнать» — сеть не ответила / зона без RDAP/WHOIS.
+    Оба случая — 🟡-предупреждение, не краш; различие видно в /domain,
+    /domains и светофоре (warnings.note = 'not_found').
   * Не удалось определить срок — 🟡-предупреждение «срок неизвестен»,
     не краш: увидит пользователь в светофоре и одним сообщением.
 
@@ -31,6 +39,7 @@ import re
 import socket
 import threading
 import time
+import urllib.error
 import urllib.request
 from datetime import date, datetime
 
@@ -45,6 +54,22 @@ WHOIS_RU_ZONES = ("ru", "su", "рф", "xn--p1ai")
 REQUEST_TIMEOUT = 20
 USER_AGENT = "VeZhPom domain-watch (+https://rusalts.ru)"
 
+# Вердикты источника (fetch_expiry): (статус, дата)
+EXPIRY_FOUND = "found"            # срок получен
+EXPIRY_NOT_FOUND = "not_found"    # реестр однозначно не знает домена (опечатка?)
+EXPIRY_UNKNOWN = "unknown"        # сеть не ответила / зона без RDAP/WHOIS
+
+# Ответы реестров «такого домена нет» (сопоставление в нижнем регистре)
+NOT_FOUND_PATTERNS = (
+    "no entries found",   # .ru/.su/.рф (tcinet)
+    "no match",           # ICANN-реестры
+    "no such domain",
+    "not found",
+    "status: free",
+    "домен свободен",
+    "не зарегистрирован",
+)
+
 # Суточный обход: 09:30 МСК (после светофора 09:00 — предупреждения
 # появляются сразу после него и попадут в завтрашний светофор всегда)
 SWEEP_NAME = "domains"
@@ -52,8 +77,8 @@ SWEEP_AT = (9, 30)   # МСК
 SWEEP_PAUSE = 1.0    # сек между запросами к реестрам (вежливые лимиты)
 MSK_OFFSET = 3 * 3600
 
-# Временный лимит доменов на пользователя (❓РАЗВИЛКА: подтвердить у Шефа;
-# тарифы §8 дорожной карты ещё не утверждены — гейтинг отложен)
+# Лимит доменов на пользователя — 5 (утверждено Шефом 04.11, решения по PR-5;
+# гейтинг по тарифам «Страж»/«Бизнес» отложен до утверждения тарифов §8)
 MAX_DOMAINS_PER_USER = 5
 
 DOMAIN_LABEL_RE = re.compile(r"^[a-z0-9а-яё-]+$", re.IGNORECASE)
@@ -219,10 +244,21 @@ def to_ascii_domain(domain):
         return ".".join(parts).lower()
 
 
-# ---- Сеть: RDAP / WHOIS (None/"" = не удалось — это 🟡-событие, не крах) ----
+# ---- Сеть: RDAP / WHOIS (не удалось — это 🟡-событие, не крах) ----
+
+def _looks_not_found(text):
+    """Ответ реестра говорит «такого домена нет»? (нижний регистр, частично)"""
+    t = (text or "").lower()
+    return any(pattern in t for pattern in NOT_FOUND_PATTERNS)
+
 
 def _fetch_rdap(ascii_domain, timeout=REQUEST_TIMEOUT):
-    """JSON RDAP-ответа через rdap.org (следует редиректу на сервер зоны)."""
+    """RDAP: (json_или_None, not_found).
+
+    not_found=True — сервер ЗОНЫ (после редиректа rdap.org) ответил 404:
+    реестр однозначно не знает домена. 404 от самого rdap.org — зона вне
+    бутстрапа (это НЕ «не найден», пробуем WHOIS-фолбэк).
+    """
     req = urllib.request.Request(
         RDAP_BASE + ascii_domain,
         headers={"Accept": "application/rdap+json, application/json",
@@ -230,10 +266,17 @@ def _fetch_rdap(ascii_domain, timeout=REQUEST_TIMEOUT):
     )
     try:
         with urllib.request.urlopen(req, timeout=timeout) as resp:
-            return json.loads(resp.read().decode("utf-8", "replace"))
+            return json.loads(resp.read().decode("utf-8", "replace")), False
+    except urllib.error.HTTPError as exc:
+        final_url = str(getattr(exc, "url", "") or "")
+        redirected = bool(final_url) and final_url != RDAP_BASE + ascii_domain
+        if exc.code == 404 and redirected:
+            return None, True
+        print("[VeZhPom] RDAP %s: HTTP %s" % (ascii_domain, exc.code), flush=True)
+        return None, False
     except Exception as exc:
         print("[VeZhPom] RDAP %s: %s" % (ascii_domain, exc), flush=True)
-        return None
+        return None, False
 
 
 def _fetch_whois(server, query, timeout=REQUEST_TIMEOUT):
@@ -266,7 +309,13 @@ def _iana_whois_server(tld, timeout=REQUEST_TIMEOUT):
 
 
 def fetch_expiry(domain, timeout=REQUEST_TIMEOUT):
-    """Дата окончания регистрации домена или None (🟡 «срок неизвестен»).
+    """Вердикт по домену: (статус, дата_окончания).
+
+    Возвращает:
+      (EXPIRY_FOUND, date)       — срок получен;
+      (EXPIRY_NOT_FOUND, None)   — реестр однозначно не знает домена
+                                   (опечатка или домен освобождён);
+      (EXPIRY_UNKNOWN, None)     — сеть не ответила / зона без RDAP/WHOIS.
 
     .ru/.su/.рф → WHOIS whois.tcinet.ru (paid-till); остальные — RDAP
     rdap.org, при неудаче — WHOIS через refer от whois.iana.org.
@@ -275,17 +324,30 @@ def fetch_expiry(domain, timeout=REQUEST_TIMEOUT):
     tld = ascii_d.rsplit(".", 1)[-1]
     if tld in WHOIS_RU_ZONES:
         text = _fetch_whois(WHOIS_RU_SERVER, ascii_d, timeout)
-        return parse_whois_expiry(text) if text else None
-    data = _fetch_rdap(ascii_d, timeout)
+        if not text:
+            return EXPIRY_UNKNOWN, None
+        if _looks_not_found(text):
+            return EXPIRY_NOT_FOUND, None
+        expiry = parse_whois_expiry(text)
+        return (EXPIRY_FOUND, expiry) if expiry else (EXPIRY_UNKNOWN, None)
+    data, not_found = _fetch_rdap(ascii_d, timeout)
     expiry = parse_rdap_expiry(data) if data else None
     if expiry:
-        return expiry
+        return EXPIRY_FOUND, expiry
+    if not_found:
+        return EXPIRY_NOT_FOUND, None
     # RDAP не поддерживает зону или реестр не ответил — последний шанс WHOIS
     server = _iana_whois_server(tld, timeout)
     if server:
         text = _fetch_whois(server, ascii_d, timeout)
-        return parse_whois_expiry(text) if text else None
-    return None
+        if not text:
+            return EXPIRY_UNKNOWN, None
+        if _looks_not_found(text):
+            return EXPIRY_NOT_FOUND, None
+        expiry = parse_whois_expiry(text)
+        if expiry:
+            return EXPIRY_FOUND, expiry
+    return EXPIRY_UNKNOWN, None
 
 
 # ---- Сообщения (стиль ВежПома: простой язык) ----
@@ -312,8 +374,10 @@ def format_domain_warning(domain, days, expiry=None):
     return msg
 
 
-def format_domain_status(domain, expiry, days):
+def format_domain_status(domain, expiry, days, not_found=False):
     """Короткий статус для /domain и /domains."""
+    if not_found:
+        return "🟡 " + domain + " — не найден в реестре: проверьте написание (опечатка?) или домен освобождён"
     if expiry is None:
         return "🟡 " + domain + " — срок определить не удалось (реестр не ответил или зона без RDAP/WHOIS)"
     if days <= 0:
@@ -334,21 +398,26 @@ def sync_warning(chat_id, domain, expiry):
     сбрасывает last_level в 99 — пороги нового цикла снова активны.
     Если срок далеко (> 30 дн.) — предупреждение закрываем (в светофоре шума
     не будет), но из-за актуального due_ts продление всё равно распознается.
+    note="" — метка «не найден/неизвестно» снята: срок получен.
     """
     days = days_left(expiry)
-    db.upsert_warning(chat_id, "domain", domain, days=days)
+    db.upsert_warning(chat_id, "domain", domain, days=days, note="")
     if classify_domain(days) is None:
         db.resolve_warning(chat_id, "domain", domain)
     return days
 
 
-def process_expiry(chat_id, domain, expiry, send_fn, msk_hour, today=None):
+def process_expiry(chat_id, domain, expiry, send_fn, msk_hour, today=None,
+                   status=None):
     """Один результат проверки → журнал, предупреждение, возможно сообщение.
+
+    status — вердикт fetch_expiry (EXPIRY_FOUND/EXPIRY_NOT_FOUND/
+    EXPIRY_UNKNOWN); None = прежнее поведение (expiry None = неизвестно).
 
     Возвращает действие: ok (срок далеко) | silent (порог уже отправляли или
     между порогами) | deferred (тихие часы — порог отложен до утра, ничего
     не пишем, чтобы утренний обход смог отправить) | notified (отправлено) |
-    failed (срок неизвестен).
+    failed (срок неизвестен) | not_found (домена нет в реестре).
 
     Дедуп порогов: warnings.last_level хранит ОТПРАВЛЕННЫЙ порог (99 = ещё
     не шликали). В db.upsert_warning при первой вставке last_level=days —
@@ -356,6 +425,17 @@ def process_expiry(chat_id, domain, expiry, send_fn, msk_hour, today=None):
     значение ДО upsert и сами решаем по уровню порога.
     """
     now = int(time.time())
+    if expiry is None and status == EXPIRY_NOT_FOUND:
+        # явный вердикт реестра: домена нет — вероятно опечатка (решение №3)
+        prev = db.get_warning(chat_id, "domain", domain)
+        db.upsert_warning(chat_id, "domain", domain, note="not_found")
+        db.add_event(chat_id, None, domain, vezlogic.KIND_DOMAIN, "info",
+                     "домен не найден в реестре", started_at=now)
+        if prev is None or not prev["open"]:
+            send_fn(chat_id, "🟡 Домен " + domain
+                    + " не найден в реестре — проверьте написание (возможно опечатка)"
+                      " или домен уже освобождён. Проверю снова в ежедневном обходе.")
+        return "not_found"
     if expiry is None:
         prev = db.get_warning(chat_id, "domain", domain)
         db.upsert_warning(chat_id, "domain", domain)  # due_ts=None → 🟡 «срок неизвестен»
@@ -376,13 +456,13 @@ def process_expiry(chat_id, domain, expiry, send_fn, msk_hour, today=None):
     last = prev["last_level"] if prev and prev["last_level"] is not None else 99
     if level >= last:
         # этот (или более ранний) порог уже отправляли — держим due_ts актуальным
-        db.upsert_warning(chat_id, "domain", domain, days=days)
+        db.upsert_warning(chat_id, "domain", domain, days=days, note="")
         return "silent"
     if vezlogic.is_quiet_hour(msk_hour):
         # тихие часы 23:00–08:00 МСК (§4 карты): не создаём и не помечаем —
         # утренний обход (09:30) увидит порог и отправит сообщение
         return "deferred"
-    db.upsert_warning(chat_id, "domain", domain, days=days)
+    db.upsert_warning(chat_id, "domain", domain, days=days, note="")
     send_fn(chat_id, format_domain_warning(domain, days, expiry))
     db.mark_warning_notified(chat_id, "domain", domain, level)
     db.add_event(chat_id, None, domain, vezlogic.KIND_DOMAIN, "info",
@@ -397,11 +477,12 @@ def check_domain(chat_id, domain, send_fn, today=None, msk_hour=None):
     if msk_hour is None:
         msk_hour = time.gmtime(time.time() + MSK_OFFSET).tm_hour
     try:
-        expiry = fetch_expiry(domain)
+        status, expiry = fetch_expiry(domain)
     except Exception as exc:
         print("[VeZhPom] domain check %s: %s" % (domain, exc), flush=True)
-        expiry = None
-    return process_expiry(chat_id, domain, expiry, send_fn, msk_hour, today=today)
+        status, expiry = EXPIRY_UNKNOWN, None
+    return process_expiry(chat_id, domain, expiry, send_fn, msk_hour,
+                          today=today, status=status)
 
 
 def check_all(send_fn, pause=SWEEP_PAUSE, today=None, msk_hour=None):
