@@ -16,6 +16,7 @@ Config (env): KUMA_URL, KUMA_USER, KUMA_PASS, KUMA_NOTIFY_ID
 """
 import json
 import os
+import time
 
 KUMA_URL = os.environ.get("KUMA_URL", "http://127.0.0.1:3001")
 KUMA_USER = os.environ.get("KUMA_USER", "")
@@ -93,24 +94,50 @@ def _notify_sparse():
     return notify_sparse
 
 
+def find_monitor_id_by_name(name):
+    """Найти монитор по точному имени. None — нет (или Kuma недоступен)."""
+    try:
+        for m in get_monitors():
+            if m.get("name") == name and m.get("id"):
+                return int(m["id"])
+    except Exception as exc:
+        print("[VeZhPom] find monitor by name: %s" % exc, flush=True)
+    return None
+
+
 def add_monitor(payload):
     """Create any monitor in Uptime Kuma. Returns kuma monitor id.
 
     payload должен содержать type/name/interval и др.; notificationIDList
     (вебхук VeZhPom - MAX) привязывается автоматически.
+
+    Гонка Socket.IO (prod 04.11): «add» доходит до Kuma, монитор создаётся,
+    но ответ не успевает за таймаутом — клиент видит «no response for add».
+    Лечится самопроверкой: ищем созданный монитор по имени и возвращаем его id
+    (иначе бот теряет монитор из вида, а повторная попытка плодит дубли).
     """
     payload = dict(payload)
+    name = payload.get("name", "")
     # привязываем вебхук-уведомление VeZhPom, чтобы события доходили до бота
     payload["notificationIDList"] = _notify_sparse()
     sio = _connect()
     try:
         _login(sio)
-        resp = _emit(sio, "add", payload)
+        resp = _emit(sio, "add", payload, timeout=8)
         # Uptime Kuma отвечает: {"ok": true, "msg": "Added Successfully.", "monitorID": 20}
         monitor_id = resp.get("monitorID")
         if not resp.get("ok") or not monitor_id:
             raise KumaError("add monitor failed: %s" % json.dumps(resp, ensure_ascii=False)[:200])
         return int(monitor_id)
+    except KumaError as exc:
+        if "no response" in str(exc) and name:
+            time.sleep(1.5)
+            monitor_id = find_monitor_id_by_name(name)
+            if monitor_id:
+                print("[VeZhPom] add race: no response, but monitor exists (id %s): %s"
+                      % (monitor_id, name[:60]), flush=True)
+                return monitor_id
+        raise
     finally:
         try:
             sio.disconnect()

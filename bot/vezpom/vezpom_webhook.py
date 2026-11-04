@@ -49,6 +49,30 @@ AWAIT_LOCK = threading.Lock()
 CHAT_RE = re.compile(r"chat(\d+)")
 
 
+def _tariff():
+    """Цена/триал/период из Админки витрины (источник правды), кэш TTL 60 с.
+
+    Фолбэк при недоступности витрины: 150 ₽ / 14 дн / 30 дн.
+    """
+    try:
+        t = vitrina.get_tariff() or {}
+    except Exception:
+        t = {}
+    price = t.get("price_rub") or 150
+    trial = t.get("trial_days") or db.trial_days()
+    period = t.get("period_days") or db.subscription_days()
+    try:
+        return int(price), int(trial), int(period)
+    except (TypeError, ValueError):
+        return 150, 14, 30
+
+
+def _tariff_price_text():
+    """«150 ₽/мес» для сообщений — цена всегда из Админки витрины."""
+    price, _, period = _tariff()
+    return "%s ₽/мес" % price if period == 30 else "%s ₽/%d дн." % (price, period)
+
+
 def send(chat_id, text):
     url = API_URL + "/messages?chat_id=" + str(chat_id)
     payload = json.dumps({"text": text}).encode("utf-8")
@@ -153,19 +177,25 @@ def heartbeat_detail(heartbeat):
 
 def build_message(data):
     """Build notification text from Kuma webhook (v2 format with monitor+heartbeat
-    or legacy flat format). Returns (status, name, text)."""
-    if "monitor" in data:
-        name = data.get("monitor", {}).get("name", "?")
-        heartbeat = data.get("heartbeat", {}) or {}
+    or legacy flat format). Returns (status, name, text).
+
+    ВАЖНО: в сроковых уведомлениях Kuma (certificate expiry) и monitor, и
+    heartbeat приходят как null — обращение .get() без guard'а роняло обработчик
+    (prod 04.11: SSL-предупреждения пользователей терялись молча).
+    """
+    monitor = data.get("monitor") or {}
+    if "monitor" in data and monitor:
+        name = monitor.get("name", "?")
+        heartbeat = data.get("heartbeat") or {}
         status = heartbeat.get("status", 1)
         detail = heartbeat_detail(heartbeat)
         if status == 0:
             return "down", name, chr(0x1F534) + " " + name + " — нет ответа" + detail
         return "up", name, chr(0x1F7E2) + " " + name + " — работает" + detail
-    status = data.get("status", "")
-    previous = data.get("previous_status", "")
-    name = data.get("name", "?")
-    heartbeat = data.get("heartbeat", {}) or {}
+    status = data.get("status") or ""
+    previous = data.get("previous_status") or ""
+    name = data.get("name") or "?"
+    heartbeat = data.get("heartbeat") or {}
     detail = heartbeat_detail(heartbeat)
     if status == "down":
         return "down", name, chr(0x1F534) + " " + name + " — нет ответа" + detail
@@ -174,14 +204,19 @@ def build_message(data):
     return status, name, chr(0x1F7E1) + " " + name + " — " + str(status) + detail
 
 
-def owner_chat_id(name):
-    """Extract chat id from monitor name 'VeZhPom chat<id>: ...'."""
-    m = CHAT_RE.search(name or "")
-    if m:
-        try:
-            return int(m.group(1))
-        except (TypeError, ValueError):
-            return CHAT_ID
+def owner_chat_id(name, fallback_text=""):
+    """Extract chat id from monitor name 'VeZhPom chat<id>: ...'.
+
+    У cert-уведомлений Kuma monitor=null — владелец ищем по тексту msg
+    ('[VeZhPom chat<id>: …][url] … will be expired in N days').
+    """
+    for source in (name, fallback_text):
+        m = CHAT_RE.search(source or "")
+        if m:
+            try:
+                return int(m.group(1))
+            except (TypeError, ValueError):
+                continue
     return CHAT_ID
 
 
@@ -240,13 +275,17 @@ def handle_monitor(data):
               json.dumps(data, ensure_ascii=False)[:600], flush=True)
     except Exception:
         pass
-    if "monitor" in data:
-        name = data.get("monitor", {}).get("name", "")
-        chat_id = owner_chat_id(name)
+    monitor = data.get("monitor") or {}
+    msg_text = data.get("msg") or ""
+    if monitor:
+        name = monitor.get("name", "")
+        chat_id = owner_chat_id(name, fallback_text=msg_text)
         status, _, legacy_message = build_message(data)
-        db.update_monitor_status(name, status)
+        if name:
+            db.update_monitor_status(name, status)
     else:
-        chat_id = CHAT_ID
+        # сроковые уведомления Kuma (SSL/домены): monitor=null, владелец — из msg
+        chat_id = owner_chat_id(msg_text) if msg_text else CHAT_ID
         status, _, legacy_message = build_message(data)
     # PR-2: классификация → журнал/предупреждения → человекочитаемый формат
     result = vezlogic.classify_event(data)
@@ -255,7 +294,7 @@ def handle_monitor(data):
     if not _is_active(chat_id):
         user = db.get_user(chat_id)
         if user and not user["notify_sent"]:
-            send(chat_id, "ВежПом: бесплатный период закончился. Оплатите подписку 150 руб/мес — команда /pay")
+            send(chat_id, "ВежПом: бесплатный период закончился. Оплатите подписку %s — команда /pay" % _tariff_price_text())
             db.mark_notify_sent(chat_id)
         return
     # Тихие часы по МСК (фиксированный UTC+3, чтобы не зависеть от TZ сервера)
@@ -581,7 +620,7 @@ def _status_text(chat_id):
         status_line = "Подписка не активна."
         if user and user["status"] == "trial" and user["paid_until"] > int(time.time()):
             days_left = max(0, (user["paid_until"] - int(time.time())) // 86400)
-            status_line = "Пробный период: ещё %d дн. После — 150 руб/мес (/pay)." % days_left
+            status_line = "Пробный период: ещё %d дн. После — %s (/pay)." % (days_left, _tariff_price_text())
         elif user and user["status"] == "canceled":
             status_line = "Автоплатежи отключены. Подписка действует до конца оплаченного периода."
         else:
@@ -640,7 +679,7 @@ def handle_command(text, chat_id):
     if low == "/backup":
         _add_backup_flow(chat_id)
         return
-    if low in ("/domain", "/домен"):
+    if low in ("/domain", "/домен") or low.startswith("/domain ") or low.startswith("/домен "):
         parts = cmd.split()
         if len(parts) > 1:
             _add_domain_flow(chat_id, " ".join(parts[1:]))
@@ -652,7 +691,7 @@ def handle_command(text, chat_id):
     if low in ("/domains", "/домены"):
         send(chat_id, _domains_text(chat_id))
         return
-    if low in ("/domain_off", "/домен_выкл"):
+    if low in ("/domain_off", "/домен_выкл") or low.startswith("/domain_off ") or low.startswith("/домен_выкл "):
         parts = cmd.split()
         if len(parts) > 1:
             _remove_domain_flow(chat_id, " ".join(parts[1:]))
@@ -692,7 +731,7 @@ def handle_command(text, chat_id):
     if low == "/pay":
         payment_url = _create_manual_payment(chat_id)
         if payment_url:
-            send(chat_id, "Ссылка на оплату 150 руб/мес: " + payment_url)
+            send(chat_id, "Ссылка на оплату %s: " % _tariff_price_text() + payment_url)
             send(chat_id, "После оплаты нажмите «Статус» — подписка активируется автоматически.")
         return
     if low == "/status":
@@ -717,7 +756,8 @@ def handle_command(text, chat_id):
         send_menu(chat_id, "Меню ВежПом — выберите действие:")
         return
     if low in ("/rules", "/offer", "/oferta"):
-        send(chat_id, "ВежПом: подписка 150 руб/мес, пробный период 14 дней. Возврат в течение 14 дней с оплаты (полный или пропорциональный), если услуга не оказывалась. Отключить автоплатежи и отвязать карту: /cancel. Полный текст оферты и политики возвратов: https://rusalts.ru/oferta")
+        price, trial, _period = _tariff()
+        send(chat_id, "ВежПом: подписка %s, пробный период %d дн. Возврат в течение 14 дней с оплаты (полный или пропорциональный), если услуга не оказывалась. Отключить автоплатежи и отвязать карту: /cancel. Полный текст оферты и политики возвратов: https://rusalts.ru/oferta" % (_tariff_price_text(), trial))
         return
     # Любой другой не-командный текст (приветствие, вопрос и т.п.) — показать меню с кнопками.
     # Важно: событие bot_started приходит только при ПЕРВОМ запуске бота, у существующих
@@ -774,14 +814,16 @@ def handle_callback(chat_id, callback_id, payload):
 
 def handle_bot_started(chat_id):
     """Новый пользователь открыл/запустил бота — приветствие с меню."""
+    price_text = _tariff_price_text()
+    trial_days = _tariff()[1]
     send_menu(
         chat_id,
         "👋 Здравствуйте! Я **ВежПом** — мониторинг работоспособности серверов и сайтов.\n\n"
         "💡 Просто напишите любое сообщение — меню с кнопками появится снова.\n\n"
         "📡 Мониторинг — настроить наблюдение за сайтом или сервером\n"
         "✅ Проверить — текущее состояние\n"
-        "💳 Подписка — 150 ₽/мес (пробный период 14 дней)\n"
-        "🛍 Витрина — все продукты АЛТ (rusalts.ru/techologis/)\n"
+        "💳 Подписка — %s (пробный период %d дн.)\n" % (price_text, trial_days)
+        + "🛍 Витрина — все продукты АЛТ (rusalts.ru/techologis/)\n"
         "📊 Статус — подписка и мониторы\n"
         "📖 Правила — оферта и возвраты",
     )
