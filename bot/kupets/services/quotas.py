@@ -48,14 +48,23 @@ FREE_SEARCHES_PER_DAY = 3
 PAID_SEARCHES_PER_DAY = 6
 KUPEC_SEARCHES_PER_DAY = PAID_SEARCHES_PER_DAY  # алиас для совместимости (тесты/скрипты)
 
-# Поиски в день по планам (решение Шефа 05.11, ТЗ v2 §2 №2).
-# Ключи — коды планов витрины; до засева планов kupec витриной действует
-# легаси-значение PAID_SEARCHES_PER_DAY (6) для любого платного плана.
-# TODO(Админ): если в tariff_plans появится поле поисков/день — читать из API.
-PLAN_SEARCHES_PER_DAY = {
-    "base": 6,        # Базовый 150₽
-    "advanced": 15,   # Продвинутый 500₽
-    "marketing": 40,  # Маркетинг 1500₽ (для продавцов)
+# Пакеты поисков — МЕСЯЧНЫЕ (корректировка Шефа 05.11, ТЗ v2 §3.0).
+# Расчёт «маржа 50% при максимальном использовании»: худший случай
+# ~0,9₽/поиск (2 кредита Firecrawl по PAYG $5/1000) →
+# Базовый 150₽×0,5=75₽ → 80 · Продвинутый 500₽×0,5=250₽ → 270 ·
+# Маркетинг 1500₽×0,5=750₽ → 800. На платном тире Firecrawl (Hobby)
+# реальная себестоимость ~0,7₽/поиск — маржа выше 50%.
+# Ключи — коды планов витрины; код вне словаря и легаси «kupec» (планы не
+# заданы) → прежнее дневное поведение (6/день), пока Админ не засеет планы.
+PLAN_SEARCHES_PER_MONTH = {
+    "base": 80,       # Базовый 150₽
+    "advanced": 270,  # Продвинутый 500₽
+    "marketing": 800, # Маркетинг 1500₽ (для продавцов)
+}
+PLAN_SEARCHES_PER_DAY = {  # устаревший дневной маппинг — оставлен до пересмотра ТЗ
+    "base": 6,
+    "advanced": 15,
+    "marketing": 40,
 }
 FREE_WATCH_LIMIT = 0
 LEGACY_PAID_WATCH_LIMIT = 5
@@ -78,14 +87,26 @@ def quota_day(now: datetime | None = None) -> str:
     return dt.astimezone(MOSCOW).strftime("%Y-%m-%d")
 
 
-def plan_limits(plan: str) -> dict[str, Any]:
-    """Лимиты тарифа по коду плана: {searches, watches, name}.
+def quota_period(plan: str, now: datetime | None = None) -> str:
+    """Ключ периода счётчика поисков: «2026-11» для месячных пакетов,
+    «2026-11-05» для дневных (free/легаси). Оба — календарные по МСК."""
+    dt = now or datetime.now(MOSCOW)
+    if dt.tzinfo is None:
+        dt = dt.replace(tzinfo=MOSCOW)
+    dt = dt.astimezone(MOSCOW)
+    limits = plan_limits(plan)
+    return dt.strftime("%Y-%m") if limits.get("period") == "month" else quota_day(dt)
 
-    free → константы; «kupec»-легаси (планы витрины не заданы) → прежние
-    константы (6 поисков / 5 слежек); код из планов витрины → searches
-    константой 6, watches = resource_limit плана. Неизвестный код —
-    консервативно как free (user_plan не возвращает неизвестных кодов:
-    активная подписка маппится в её план или первый план продукта).
+
+def plan_limits(plan: str) -> dict[str, Any]:
+    """Лимиты тарифа по коду плана: {searches, watches, name, period}.
+
+    period — «month» для пакетов планов витрины (решение Шефа 05.11:
+    поиски на месяц из маржи 50%) и «day» для free/легаси.
+    free → 3/день; «kupec»-легаси (планы не заданы) → 6/день и 5 слежек;
+    код из планов витрины → месячный пакет из PLAN_SEARCHES_PER_MONTH,
+    слежки = resource_limit плана. Неизвестный код — консервативно как free
+    (user_plan не возвращает неизвестных кодов).
     """
     if plan != FREE_PLAN:
         plans = _plans_state["plans"]
@@ -98,6 +119,7 @@ def plan_limits(plan: str) -> dict[str, Any]:
                     "searches": PAID_SEARCHES_PER_DAY,
                     "watches": LEGACY_PAID_WATCH_LIMIT,
                     "name": "Покупатель",
+                    "period": "day",
                 }
             # fail-open при засеянных планах → базовый (первый) план продукта
             return _plan_entry_limits(plans[0])
@@ -105,6 +127,7 @@ def plan_limits(plan: str) -> dict[str, Any]:
         "searches": FREE_SEARCHES_PER_DAY,
         "watches": FREE_WATCH_LIMIT,
         "name": "Бесплатный",
+        "period": "day",
     }
 
 
@@ -114,8 +137,10 @@ def _plan_entry_limits(p: dict, fallback_code: str = "") -> dict[str, Any]:
     except (TypeError, ValueError):
         watches = 0
     code = (p.get("plan") or "").strip()
+    monthly = PLAN_SEARCHES_PER_MONTH.get(code)
     return {
-        "searches": PLAN_SEARCHES_PER_DAY.get(code, PAID_SEARCHES_PER_DAY),
+        "searches": monthly if monthly else PAID_SEARCHES_PER_DAY,
+        "period": "month" if monthly else "day",
         "watches": watches or LEGACY_PAID_WATCH_LIMIT,
         "name": p.get("name") or p.get("plan") or fallback_code or "Покупатель",
     }
@@ -203,14 +228,15 @@ def check_search_quota(
     path: str | None = None,
 ) -> tuple[bool, dict]:
     """Можно ли запустить поиск: (разрешено, info). Счётчик не трогает."""
-    day = quota_day(now)
-    used = sqlite_store.quota_searches(str(user_id), day, path=path)
+    period = quota_period(plan, now)
+    used = sqlite_store.quota_searches(str(user_id), period, path=path)
     limits = plan_limits(plan)
     limit = limits["searches"]
     return used < limit, {
         "plan": plan,
         "plan_name": limits["name"],
-        "day": day,
+        "period": limits.get("period", "day"),
+        "period_key": period,
         "used": used,
         "limit": limit,
     }
@@ -223,8 +249,8 @@ def consume_search(
     now: datetime | None = None,
     path: str | None = None,
 ) -> int:
-    """Списать один поиск из дневной квоты. Возвращает новое значение."""
-    return sqlite_store.quota_increment(str(user_id), quota_day(now), path=path)
+    """Списать один поиск из квоты (дневной/месячной по тарифу)."""
+    return sqlite_store.quota_increment(str(user_id), quota_period(plan, now), path=path)
 
 
 def check_watch_quota(

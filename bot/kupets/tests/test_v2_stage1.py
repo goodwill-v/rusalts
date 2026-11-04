@@ -34,7 +34,8 @@ class _Sub:
 
 
 def test_decision_mapping_constants():
-    assert quotas.PLAN_SEARCHES_PER_DAY == {"base": 6, "advanced": 15, "marketing": 40}
+    # Пакеты МЕСЯЧНЫЕ (корректировка Шефа 05.11): маржа 50% при максимальном использовании
+    assert quotas.PLAN_SEARCHES_PER_MONTH == {"base": 80, "advanced": 270, "marketing": 800}
 
 
 def test_plan_searches_base_advanced_marketing(monkeypatch):
@@ -42,13 +43,14 @@ def test_plan_searches_base_advanced_marketing(monkeypatch):
         quotas, "_plans_state", {"at": 1.0, "plans": REAL_PLANS}, raising=False
     )
     for code, searches, watches, name in (
-        ("base", 6, 3, "Базовый"),
-        ("advanced", 15, 10, "Продвинутый"),
-        ("marketing", 40, 30, "Маркетинг"),
+        ("base", 80, 3, "Базовый"),
+        ("advanced", 270, 10, "Продвинутый"),
+        ("marketing", 800, 30, "Маркетинг"),
     ):
         limits = quotas.plan_limits(code)
         assert limits["searches"] == searches, code
         assert limits["watches"] == watches, code
+        assert limits["period"] == "month", code
         assert limits["name"] == name, code
 
 
@@ -56,7 +58,7 @@ def test_user_plan_resolves_real_codes(monkeypatch):
     monkeypatch.setattr(quotas, "_plans_state", {"at": 0.0, "plans": []})
     code = asyncio.run(quotas.user_plan(1, client=_Sub(plan="advanced")))
     assert code == "advanced"
-    assert quotas.plan_limits(code)["searches"] == 15
+    assert quotas.plan_limits(code)["searches"] == 270
 
 
 # ─── Разброс цен ─────────────────────────────────────────────────────
@@ -106,3 +108,32 @@ def test_no_spread_for_single_priced_item():
     resp = _resp([_sp("Термос A", 2000, "ozon")])
     text = format_results(resp)
     assert "Разброс цен" not in text
+
+
+def test_monthly_bucket_allows_burst_in_one_day(monkeypatch, tmp_path):
+    """Пакет месячный: 270 поисков можно сделать и за один день (advanced)."""
+    from datetime import datetime
+    from zoneinfo import ZoneInfo
+
+    import services.sqlite_store as store
+
+    db = str(tmp_path / "state.db")
+    monkeypatch.setattr(store.Config, "STATE_DB_PATH", db, raising=False)
+    monkeypatch.setattr(
+        quotas, "_plans_state",
+        {"at": 1.0, "plans": [
+            {"plan": "advanced", "name": "Продвинутый", "resource_limit": 10}
+        ]},
+        raising=False,
+    )
+    day = datetime(2026, 11, 5, 12, 0, tzinfo=ZoneInfo("Europe/Moscow"))
+    ok, info = quotas.check_search_quota(555, "advanced", now=day)
+    assert info["limit"] == 270 and info["period"] == "month"
+    for _ in range(270):
+        quotas.consume_search(555, "advanced", now=day)
+    ok, info = quotas.check_search_quota(555, "advanced", now=day)
+    assert not ok and info["used"] == 270 and info["limit"] == 270
+    # на следующий день месячный лимит НЕ сбрасывается
+    next_day = datetime(2026, 11, 6, 12, 0, tzinfo=ZoneInfo("Europe/Moscow"))
+    ok, info = quotas.check_search_quota(555, "advanced", now=next_day)
+    assert not ok and info["used"] == 270

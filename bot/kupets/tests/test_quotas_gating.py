@@ -55,6 +55,7 @@ def test_active_plan_maps_to_its_resource_limit(monkeypatch, tmp_path):
     code = _plan_of(monkeypatch, FakeClient(plan="pro", present=True))
     assert code == "pro"
     assert quotas.plan_limits("pro")["watches"] == 10
+    # код «pro» не в месячном словаре Копа → дневной легаси 6 (консервативно)
     assert quotas.plan_limits("pro")["searches"] == 6
     assert quotas.plan_limits("pro")["name"] == "Продвинутый"
 
@@ -85,7 +86,8 @@ def test_network_fail_failopen_gives_base_paid_plan(monkeypatch, tmp_path):
     assert code == quotas.KUPEC_PLAN
     # при засеянных планах fail-open → базовый платный план, а не free
     assert quotas.plan_limits(code)["watches"] == 3
-    assert quotas.plan_limits(code)["searches"] == 6
+    assert quotas.plan_limits(code)["searches"] == 80      # месячный пакет base
+    assert quotas.plan_limits(code)["period"] == "month"
 
 
 def test_no_plans_seeded_legacy_constants(monkeypatch, tmp_path):

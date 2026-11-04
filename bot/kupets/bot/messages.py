@@ -28,23 +28,32 @@ def start_message() -> str:
 
 
 def quota_exhausted_message(info: dict) -> str:
-    """Вежливый отказ при исчерпании дневной квоты поисков (с тарифом)."""
+    """Вежливый отказ при исчерпании квоты поисков (дневной/месячной, с тарифом)."""
     plan = info.get("plan") or "free"
     used = info.get("used", 0)
     limit = info.get("limit", 0)
+    period = info.get("period") or "day"
+    plan_name = info.get("plan_name") or ("Покупатель" if plan == "kupec" else "")
     upsell = ""
-    if plan == "kupec":
-        tariff_line = "тарифе «Покупатель»"
+    if plan != "free":
+        tariff_line = f"тарифе «{plan_name or 'Покупатель'}»"
     else:
         tariff_line = "бесплатном тарифе"
         upsell = (
-            "\n\nНа тарифе «Покупатель» — 6 поисков в день и слежка за ценой "
-            "(до 5 товаров). Подробнее: rusalts.ru"
+            "\n\nНа платных тарифах — поиски на месяц, слежка за ценой и "
+            "сводки. Подробнее: rusalts.ru"
+        )
+    if period == "month":
+        return (
+            f"⏳ *Месячный лимит поисков исчерпан* — {used} из {limit} "
+            f"на {tariff_line}.\n\nКвота обнуляется 1-го числа.{upsell}"
         )
     return (
         f"⏳ *Дневной лимит поисков исчерпан* — {used} из {limit} "
         f"на {tariff_line}.\n\nКвота обнуляется в 00:00 по Москве.{upsell}"
     )
+
+
 
 
 def watch_usage_message() -> str:
