@@ -193,6 +193,12 @@ def _connect() -> sqlite3.Connection:
             FOREIGN KEY(payment_id) REFERENCES payments(id)
         )"""
     )
+    cols = {r[1] for r in db.execute("PRAGMA table_info(payments)").fetchall()}
+    if "plan" not in cols:
+        db.execute("ALTER TABLE payments ADD COLUMN plan TEXT NOT NULL DEFAULT ''")
+    scols = {r[1] for r in db.execute("PRAGMA table_info(subscriptions)").fetchall()}
+    if "plan" not in scols:
+        db.execute("ALTER TABLE subscriptions ADD COLUMN plan TEXT NOT NULL DEFAULT ''")
     return db
 
 
@@ -205,12 +211,16 @@ def record_payment(
     customer_phone: str = "",
     customer_id: str = "",
     payment_method_id: str = "",
+    plan: str = "",
 ) -> int:
     with closing(_connect()) as db:
+        cols = {r[1] for r in db.execute("PRAGMA table_info(payments)").fetchall()}
+        if "plan" not in cols:
+            db.execute("ALTER TABLE payments ADD COLUMN plan TEXT NOT NULL DEFAULT ''")
         cur = db.execute(
-            """INSERT INTO payments (yookassa_id, product_id, amount_rub, status, customer_email, customer_phone, customer_id, payment_method_id)
-               VALUES (?, ?, ?, ?, ?, ?, ?, ?)""",
-            (yookassa_id, product_id, amount_rub, status, customer_email, customer_phone, customer_id, payment_method_id),
+            """INSERT INTO payments (yookassa_id, product_id, amount_rub, status, customer_email, customer_phone, customer_id, payment_method_id, plan)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+            (yookassa_id, product_id, amount_rub, status, customer_email, customer_phone, customer_id, payment_method_id, plan),
         )
         db.commit()
         return cur.lastrowid
@@ -317,13 +327,14 @@ def activate_subscription(
     customer_email: str,
     payment_method_id: str,
     period_days: int = 30,
+    plan: str = "",
 ) -> int:
     with closing(_connect()) as db:
         expires = (datetime.now(timezone.utc) + timedelta(days=period_days)).isoformat()
         cur = db.execute(
-            """INSERT INTO subscriptions (payment_id, product_id, customer_email, payment_method_id, status, expires_at)
-               VALUES (?, ?, ?, ?, 'active', ?)""",
-            (payment_id, product_id, customer_email, payment_method_id, expires),
+            """INSERT INTO subscriptions (payment_id, product_id, customer_email, payment_method_id, status, expires_at, plan)
+               VALUES (?, ?, ?, ?, 'active', ?, ?)""",
+            (payment_id, product_id, customer_email, payment_method_id, expires, plan),
         )
         db.commit()
         return cur.lastrowid

@@ -286,6 +286,23 @@
       </div>
 
       <div class="admin-panel">
+        <h2>🎚 Тарифные планы (для любого продукта, покупаемые пакеты)</h2>
+        <p class="admin-note">product_id + план → цена/период/триал/лимит ресурсов. Витрина показывает карточки планов на странице продукта; боты читают /api/tariffs/{id}. Правки — ≤60 с без рестарта.</p>
+        <div class="admin-form-grid">
+          <div class="admin-field"><label>product_id</label><input id="tp-product" placeholder="vezhpom" /></div>
+        </div>
+        <div class="admin-actions">
+          <button class="admin-btn admin-btn--primary" id="tp-load">Загрузить планы</button>
+          <button class="admin-btn admin-btn--action" id="tp-add">＋ Добавить план</button>
+          <span class="admin-msg" id="tp-msg"></span>
+        </div>
+        <div id="tp-rows" style="margin-top:0.75rem"></div>
+        <div class="admin-actions">
+          <button class="admin-btn admin-btn--action" id="tp-save">💾 Сохранить планы</button>
+        </div>
+      </div>
+
+      <div class="admin-panel">
         <h2>📊 Сводка</h2>
         <div class="admin-grid" id="bl-stats"></div>
       </div>
@@ -543,7 +560,7 @@ document.querySelectorAll(".admin-tab-btn").forEach((btn) => {
       const loaders = { products: loadProducts, billing: loadBilling, content: loadContentTab, diagnostics: loadDiagnostics, pagecontent: loadContentBlocks };
       if (loaders[btn.dataset.tab]) loaders[btn.dataset.tab]();
       if (btn.dataset.tab === 'products') loadReviews();
-      if (btn.dataset.tab === 'billing') loadPromos();
+      if (btn.dataset.tab === 'billing') { loadPromos(); loadTariffPlans(); }
       if (btn.dataset.tab === 'expert') loadExpertDialogs();
       if (btn.dataset.tab === 'pdn') loadSubjectRequests();
     }
@@ -1083,5 +1100,61 @@ document.getElementById("pn-purge").addEventListener("click", async () => {
     } else msg.textContent = data.error || "Ошибка";
   } catch (e) { msg.textContent = "Ошибка: " + e.message; }
 });
+
+// ─── Тарифные планы (ТЗ tarify v2) ───────────────────────────────────────
+let tpRows = [];
+
+async function loadTariffPlans() {
+  const pid = $("#tp-product").value.trim();
+  if (!pid) { $("#tp-rows").innerHTML = '<p class="admin-note">Введите product_id.</p>'; return; }
+  const data = await api("/admin/api/plans/" + encodeURIComponent(pid));
+  tpRows = data.plans || [];
+  renderTariffPlans();
+}
+
+function renderTariffPlans() {
+  const cols = ["plan", "name", "price_rub", "period_days", "trial_days", "resource_limit", "position", "active"];
+  const labels = { plan: "план", name: "название", price_rub: "цена ₽", period_days: "дней",
+                   trial_days: "триал дн", resource_limit: "лимит ресурс", position: "поз", active: "акт(1/0)" };
+  $("#tp-rows").innerHTML = tpRows.length ? `
+    <div class="admin-table-wrap"><table class="admin-table">
+      <thead><tr>${cols.map((c) => `<th>${labels[c]}</th>`).join("")}<th></th></tr></thead>
+      <tbody>
+        ${tpRows.map((r, idx) => `
+          <tr data-plan="${esc(r.plan)}">
+            ${cols.map((c) => `<td><input data-k="${c}" value="${esc(r[c] ?? "")}" style="width:90px;font:inherit;font-size:0.85rem;border:1px solid var(--site-border);border-radius:6px;padding:0.25rem" /></td>`).join("")}
+            <td><button class="admin-btn admin-btn--small admin-btn--danger" onclick="delPlan('${esc(r.plan)}')">Удалить</button></td>
+          </tr>`).join("")}
+      </tbody>
+    </table></div>` : '<p class="admin-note">Планов нет — добавьте строку «＋ Добавить план».</p>';
+}
+
+$("#tp-add").addEventListener("click", () => {
+  const pid = $("#tp-product").value.trim();
+  if (!pid) return;
+  tpRows.push({ product_id: pid, plan: "", name: "", price_rub: 0, period_days: 30,
+                trial_days: 7, resource_limit: 0, position: 100, active: 1 });
+  renderTariffPlans();
+});
+
+$("#tp-save").addEventListener("click", async () => {
+  const pid = $("#tp-product").value.trim();
+  try {
+    for (const row of tpRows) {
+      const body = { product_id: pid, ...row };
+      await api("/admin/api/plans/" + encodeURIComponent(pid) + "/" + encodeURIComponent(row.plan), {
+        method: "PUT", body: JSON.stringify(body),
+      });
+    }
+    setMsg($("#tp-msg"), "Планы сохранены ✓ (≤60 с до ботов)", true);
+  } catch (e) { setMsg($("#tp-msg"), "Ошибка: " + e.message, false); }
+});
+
+window.delPlan = async (plan) => {
+  const pid = $("#tp-product").value.trim();
+  if (!confirm("Удалить план " + plan + "?")) return;
+  await api("/admin/api/plans/" + encodeURIComponent(pid) + "/" + encodeURIComponent(plan), { method: "DELETE" });
+  loadTariffPlans();
+};
 </script>
 {% endblock %}

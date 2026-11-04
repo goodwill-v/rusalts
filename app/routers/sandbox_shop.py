@@ -115,6 +115,10 @@ async def product_generated_page(request: Request, pid: str):
     features = [f.strip() for f in str(prod.get("features") or "").split("|") if f.strip()]
     buyable = [p for p in catalog() if p["status"] == "available" and p["price_rub"] > 0 and p["id"] != "italidia_test"]
 
+    # Тарифные планы продукта (ТЗ tarify v2): карточки на странице продукта
+    from app.tariffs_store import list_plans
+    plans = list_plans(pid)
+
     return templates.TemplateResponse(
         request,
         "product_detail.html",
@@ -125,6 +129,7 @@ async def product_generated_page(request: Request, pid: str):
             "page_title": f"{prod['name']} — АЛТ",
             "p": prod,
             "features": features,
+            "plans": plans,
             "category_label": "услуга" if prod.get("category") == "service" else "продукт",
             "buyable": buyable,
         },
@@ -158,10 +163,34 @@ async def api_create_payment(request: Request):
         )
 
     # Единый источник правды: тариф из БД (админки); клиентская цена игнорируется.
-    # C4: промокод — скидка считается только на сервере.
     from app.billing import get_tariff
+    from app.tariffs_store import list_plans
+
     tariff = get_tariff(product_id)
     amount_rub = tariff.price_rub if tariff and tariff.price_rub else prod.get("price_rub", 0)
+    period_days = tariff.period_days if tariff and tariff.period_days else 30
+
+    # C4: промокод — скидка считается только на сервере.
+    # Тарифные планы (ТЗ Vitrina tarify v2): план перекрывает базовый тариф.
+    plan_code = str(data.get("plan") or "").strip().lower()
+    plan_name = ""
+    plans = list_plans(product_id)
+    if plans:
+        if plan_code:
+            plan_row = next(
+                (pl for pl in plans if pl["plan"] == plan_code and pl["active"]), None
+            )
+            if not plan_row:
+                return JSONResponse(
+                    {"error": f"Тарифный план '{plan_code}' не найден или неактивен"},
+                    status_code=400,
+                )
+            amount_rub = plan_row["price_rub"]
+            plan_name = plan_row["name"]
+        else:
+            base_row = next((pl for pl in plans if pl["plan"] == "base"), None)
+            if base_row:
+                amount_rub = base_row["price_rub"]
     promo_code = str(data.get("promo_code") or "").strip()
     promo_use: dict = {}
     if promo_code:
@@ -174,7 +203,9 @@ async def api_create_payment(request: Request):
     # чтобы не зависеть от PUBLIC_BASE_URL (staging/IP/туннель).
     base = str(request.base_url).rstrip("/")
     return_url = data.get("return_url", "") or f"{base}/techologis/?payment=success"
-    description = data.get("description", "") or f"Оплата: {prod['name']}"
+    description = data.get("description", "") or (
+        f"Оплата: {prod['name']} — {plan_name}" if plan_name else f"Оплата: {prod['name']}"
+    )
     # save_payment_method=true — сохранить карту для автопродления (рекуррент),
     # используется ботами-подписками (ВежПом, НейроСотрудник).
     save_pm = bool(data.get("save_payment_method")) or prod.get("autorenew") is True
@@ -213,6 +244,7 @@ async def api_create_payment(request: Request):
         status=result.get("status", "pending"),
         customer_id=customer_id,
         payment_method_id=pm_id,
+        plan=plan_code,
     )
     if promo_use:
         promo_store.record_use(
@@ -331,13 +363,23 @@ async def payment_webhook(request: Request):
         # Get stored payment record and activate subscription
         rec = get_payment_record(payment_id)
         if rec and rec["customer_id"] and rec["product_id"]:
+            # План из платежа (ТЗ tarify v2): allowance/period бёрём из плана, если есть
+            plan = (rec.get("plan") or "").strip()
+            allowance = None
+            period_days = None
+            if plan:
+                from app.tariffs_store import list_plans
+                pl = next((x for x in list_plans(rec["product_id"]) if x["plan"] == plan), None)
+                if pl:
+                    allowance = pl["resource_limit"] * 100_000 if pl["resource_limit"] else None
+                    period_days = pl["period_days"]
             tariff = TARIFFS.get(rec["product_id"])
             if tariff:
                 get_or_create_balance(
                     customer_id=rec["customer_id"],
                     product_id=rec["product_id"],
-                    allowance_tokens=tariff.token_allowance,
-                    period_days=tariff.period_days,
+                    allowance_tokens=allowance if allowance else tariff.token_allowance,
+                    period_days=period_days or tariff.period_days,
                 )
 
     return JSONResponse({"ok": True})
@@ -396,6 +438,29 @@ async def api_activate_subscription(request: Request):
     })
 
 
+@router.get("/api/tariffs/{product_id}")
+async def api_list_tariff_plans(product_id: str):
+    """Активные тарифные планы продукта (для страницы продукта и ботов)."""
+    from app.tariffs_store import list_plans
+
+    return JSONResponse(
+        {
+            "product_id": product_id,
+            "plans": [
+                {
+                    "plan": p["plan"],
+                    "name": p["name"],
+                    "price_rub": p["price_rub"],
+                    "period_days": p["period_days"],
+                    "trial_days": p["trial_days"],
+                    "resource_limit": p["resource_limit"],
+                }
+                for p in list_plans(product_id)
+            ],
+        }
+    )
+
+
 @router.get("/api/subscription/{customer_id}/{product_id}")
 async def api_get_subscription(customer_id: str, product_id: str):
     """Получить статус подписки клиента."""
@@ -406,6 +471,30 @@ async def api_get_subscription(customer_id: str, product_id: str):
     remaining = get_remaining_tokens(customer_id, product_id)
     low = is_balance_low(customer_id, product_id)
     usage_stats = get_usage_summary(customer_id)
+
+    # Тарифный план подписки (ТЗ Vitrina tarify v2): из БД подписок, фолбэк — base
+    sub_plan = ""
+    plan_name = ""
+    resource_limit = 0
+    try:
+        from app.payments import _connect as _pc
+        with closing(_pc()) as db:
+            row = db.execute(
+                "SELECT plan FROM subscriptions WHERE customer_id = ? AND product_id = ?"
+                " ORDER BY id DESC LIMIT 1",
+                (customer_id, product_id),
+            ).fetchone()
+            if row and row["plan"]:
+                sub_plan = row["plan"]
+                from app.tariffs_store import list_plans
+                pl = next(
+                    (x for x in list_plans(product_id) if x["plan"] == sub_plan), None
+                )
+                if pl:
+                    plan_name = pl["name"]
+                    resource_limit = pl["resource_limit"]
+    except Exception:
+        pass
 
     return JSONResponse({
         "customer_id": customer_id,
@@ -418,6 +507,9 @@ async def api_get_subscription(customer_id: str, product_id: str):
         "balance_low": low,
         "expires_at": bal["expires_at"],
         "usage_summary": usage_stats,
+        "plan": sub_plan,
+        "plan_name": plan_name,
+        "resource_limit": resource_limit,
     })
 
 
