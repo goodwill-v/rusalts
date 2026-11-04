@@ -18,6 +18,16 @@ Table monitors:
   kuma_server   TEXT DEFAULT 'alt'   -- alt | rol
   last_status   TEXT                 -- up | down (last known)
   created_at    INTEGER
+
+Table domains (PR-5, контроль сроков доменов):
+  chat_id       INTEGER              -- owner (владелец цели — chat id)
+  domain        TEXT                 -- домен в нижнем регистре (UNIQUE с chat_id)
+  due_date      TEXT                 -- последняя известная дата окончания (ISO)
+  created_at    INTEGER
+
+Table sweep_state (идемпотентность суточных обходов):
+  name          TEXT PRIMARY KEY     -- 'domains' и т.п.
+  last_day      INTEGER              -- номер МСК-суток последнего обхода
 """
 import os
 import sqlite3
@@ -128,6 +138,22 @@ def connect():
         " weekly_time TEXT DEFAULT '10:00',"  # МСК
         " last_light_sent INTEGER DEFAULT 0," # идемпотентность: не слать дважды в день
         " last_weekly_sent INTEGER DEFAULT 0)"
+    )
+    # Домены под контролем (PR-5): владелец — chat_id, срок знает domain_watch
+    conn.execute(
+        "CREATE TABLE IF NOT EXISTS domains ("
+        " id INTEGER PRIMARY KEY AUTOINCREMENT,"
+        " chat_id INTEGER NOT NULL,"
+        " domain TEXT NOT NULL,"
+        " due_date TEXT,"
+        " created_at INTEGER,"
+        " UNIQUE(chat_id, domain))"
+    )
+    # Идемпотентность суточных обходов (домены — раз в МСК-сутки, как светофор в PR-3)
+    conn.execute(
+        "CREATE TABLE IF NOT EXISTS sweep_state ("
+        " name TEXT PRIMARY KEY,"
+        " last_day INTEGER)"
     )
     return conn
 
@@ -530,6 +556,19 @@ def list_open_warnings(chat_id):
     return [_row_to_warning(r) for r in rows]
 
 
+def get_warning(chat_id, kind, target):
+    """Одно предупреждение по цели (для решения «слать или молчать»)."""
+    conn = connect()
+    try:
+        row = conn.execute(
+            "SELECT * FROM warnings WHERE chat_id=? AND kind=? AND target=?",
+            (chat_id, kind, target),
+        ).fetchone()
+    finally:
+        conn.close()
+    return _row_to_warning(row)
+
+
 # ---- Настройки оповещений и планирование (PR-3) ----
 
 PREF_KEYS = ["chat_id", "traffic_light", "light_time", "weekly_report",
@@ -587,6 +626,118 @@ def mark_digest_sent(chat_id, field, ts):
     conn = connect()
     try:
         conn.execute("UPDATE prefs SET %s=? WHERE chat_id=?" % field, (ts, chat_id))
+        conn.commit()
+    finally:
+        conn.close()
+
+
+# ---- Домены под контролем (PR-5, domain_watch) ----
+
+DOMAIN_KEYS = ["id", "chat_id", "domain", "due_date", "created_at"]
+
+
+def _row_to_domain(row):
+    if row is None:
+        return None
+    return dict(zip(DOMAIN_KEYS, row))
+
+
+def add_domain(chat_id, domain, due_date=None):
+    """Взять домен под контроль. False — уже есть (UNIQUE chat_id+domain)."""
+    conn = connect()
+    try:
+        cur = conn.execute(
+            "INSERT OR IGNORE INTO domains (chat_id, domain, due_date, created_at)"
+            " VALUES (?, ?, ?, ?)",
+            (chat_id, domain, due_date, int(time.time())),
+        )
+        conn.commit()
+        return cur.rowcount > 0
+    finally:
+        conn.close()
+
+
+def remove_domain(chat_id, domain):
+    """Убрать домен из контроля. False — его и не было."""
+    conn = connect()
+    try:
+        cur = conn.execute(
+            "DELETE FROM domains WHERE chat_id=? AND domain=?", (chat_id, domain)
+        )
+        conn.commit()
+        return cur.rowcount > 0
+    finally:
+        conn.close()
+
+
+def list_domains(chat_id):
+    """Домены пользователя, свежие сверху."""
+    conn = connect()
+    try:
+        rows = conn.execute(
+            "SELECT * FROM domains WHERE chat_id=? ORDER BY id DESC", (chat_id,)
+        ).fetchall()
+    finally:
+        conn.close()
+    return [_row_to_domain(r) for r in rows]
+
+
+def list_active_domains():
+    """(chat_id, domain) всех доменов пользователей с действующей подпиской.
+
+    Для суточного обхода: неактивным не тратим запросы к реестрам.
+    """
+    conn = connect()
+    try:
+        rows = conn.execute(
+            "SELECT d.chat_id, d.domain FROM domains d"
+            " JOIN users u ON u.chat_id = d.chat_id"
+            " WHERE u.status!='canceled' AND u.paid_until > ?"
+            " ORDER BY d.id ASC",
+            (int(time.time()),),
+        ).fetchall()
+    finally:
+        conn.close()
+    return [(r[0], r[1]) for r in rows]
+
+
+def set_domain_due(chat_id, domain, due_date):
+    """Запомнить последнюю известную дату окончания регистрации (ISO)."""
+    conn = connect()
+    try:
+        conn.execute(
+            "UPDATE domains SET due_date=? WHERE chat_id=? AND domain=?",
+            (due_date, chat_id, domain),
+        )
+        conn.commit()
+    finally:
+        conn.close()
+
+
+# ---- Состояние суточных обходов (идемпотентность, как prefs в PR-3) ----
+
+
+def get_sweep_day(name):
+    """Номер МСК-суток последнего обхода (None — ещё не было)."""
+    conn = connect()
+    try:
+        row = conn.execute(
+            "SELECT last_day FROM sweep_state WHERE name=?", (name,)
+        ).fetchone()
+    finally:
+        conn.close()
+    return row[0] if row else None
+
+
+def mark_sweep_sent(name, day_id):
+    """Отметить, что обход name прошёл в сутки day_id (не повторять)."""
+    conn = connect()
+    try:
+        conn.execute(
+            "INSERT INTO sweep_state (name, last_day) VALUES (?, ?)"
+            " ON CONFLICT(name) DO UPDATE SET last_day=excluded.last_day",
+            (name, day_id),
+        )
         conn.commit()
     finally:
         conn.close()

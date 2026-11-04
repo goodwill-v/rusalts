@@ -26,8 +26,9 @@ SSL_PATTERN = re.compile(r"will be expired in\s+(\d+)\s+days?", re.IGNORECASE)
 QUIET_START = 23
 QUIET_END = 8
 
-# Пороги мгновенных сообщений о сроках домена (дней до истечения)
-DOMAIN_THRESHOLDS = (30, 14, 7)
+# Пороги мгновенных сообщений о сроках домена (дней до истечения):
+# одно сообщение на порог, дедуп в domain_watch через warnings.last_level
+DOMAIN_THRESHOLDS = (30, 14, 7, 1)
 
 
 def is_quiet_hour(msk_hour):
@@ -118,7 +119,9 @@ def should_forward(result, msk_hour, last_level=None):
 
     incident/backup — всегда сразу (это то, ради чего бот).
     ssl — вне тихих часов (Kuma сам шлёт один раз на порог 21/14/7).
-    domain — только на новом пороге из DOMAIN_THRESHOLDS и вне тихих часов.
+    domain — только на новом пороге из DOMAIN_THRESHOLDS (30/14/7/1) и вне
+    тихих часов; суточный обход доменов ведёт дедуп порогов сам
+    (domain_watch.process_expiry), вебхуков-доменов Kuma 1.23 не шлёт.
     other — да (странное лучше показать).
     """
     kind = result.get("kind")
