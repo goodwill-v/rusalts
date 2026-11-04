@@ -1113,9 +1113,10 @@ async function loadTariffPlans() {
 }
 
 function renderTariffPlans() {
-  const cols = ["plan", "name", "price_rub", "period_days", "trial_days", "resource_limit", "position", "active"];
+  const cols = ["plan", "name", "price_rub", "period_days", "trial_days", "resource_limit", "searches_per_month", "position", "active"];
   const labels = { plan: "план", name: "название", price_rub: "цена ₽", period_days: "дней",
-                   trial_days: "триал дн", resource_limit: "лимит ресурс", position: "поз", active: "акт(1/0)" };
+                   trial_days: "триал дн", resource_limit: "лимит ресурс", searches_per_month: "поиск/мес",
+                   position: "поз", active: "акт(1/0)" };
   $("#tp-rows").innerHTML = tpRows.length ? `
     <div class="admin-table-wrap"><table class="admin-table">
       <thead><tr>${cols.map((c) => `<th>${labels[c]}</th>`).join("")}<th></th></tr></thead>
@@ -1133,7 +1134,7 @@ $("#tp-add").addEventListener("click", () => {
   const pid = $("#tp-product").value.trim();
   if (!pid) return;
   tpRows.push({ product_id: pid, plan: "", name: "", price_rub: 0, period_days: 30,
-                trial_days: 7, resource_limit: 0, position: 100, active: 1 });
+                trial_days: 7, resource_limit: 0, searches_per_month: 0, position: 100, active: 1 });
   renderTariffPlans();
 });
 

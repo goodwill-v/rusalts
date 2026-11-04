@@ -58,6 +58,12 @@ async def _followup_loop() -> None:
 
 @app.on_event("startup")
 async def _start_followup_loop() -> None:
+    # Сидинг тарифных планов (ТЗ Купец v2 §7): idempotent, правки админки не трогает
+    try:
+        from app.tariffs_store import seed_defined_products
+        seed_defined_products()
+    except Exception:
+        pass
     app.state.followup_task = asyncio.create_task(_followup_loop())
 
 
