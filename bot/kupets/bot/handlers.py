@@ -20,11 +20,13 @@ from bot.messages import (
     format_product_detail,
     format_reject_details,
     format_results,
+    quota_exhausted_message,
     start_message,
 )
 from bot.states import SearchStates
 from engine.query_guard import is_smalltalk
 from models.result import SearchFilters, SearchResponse
+from services import quotas
 from services.mailer import ErrorReport, send_error_report, smtp_configured
 from services.search_pipeline import SearchPipeline
 from config import Config
@@ -99,7 +101,13 @@ async def on_photo(message: Message, state: FSMContext) -> None:
     except Exception:
         await progress.edit_text(f"🔎 По фото ищу: {query}")
 
-    await _run_and_reply(message, state, query=query, progress_message=progress)
+    await _run_and_reply(
+        message,
+        state,
+        query=query,
+        progress_message=progress,
+        user_id=message.from_user.id if message.from_user else None,
+    )
 
 
 @router.message(SearchStates.awaiting_error_report, F.text)
@@ -153,6 +161,7 @@ async def on_text_search(message: Message, state: FSMContext) -> None:
     query = (message.text or "").strip()
     if not query or query.startswith("/"):
         return
+
     if is_smalltalk(query):
         await message.answer(
             "👋 Привет! Я Купец — ищу и сравниваю товары на Ozon, "
@@ -164,7 +173,12 @@ async def on_text_search(message: Message, state: FSMContext) -> None:
             "Или пришлите фото товара — найду похожий."
         )
         return
-    await _run_and_reply(message, state, query=query)
+    await _run_and_reply(
+        message,
+        state,
+        query=query,
+        user_id=message.from_user.id if message.from_user else None,
+    )
 
 
 @router.callback_query(F.data == "new_search")
@@ -270,6 +284,7 @@ async def cb_refine(callback: CallbackQuery, state: FSMContext) -> None:
         query=last_query or filters.text,
         filters_override=filters,
         skip_cache=True,
+        user_id=callback.from_user.id if callback.from_user else None,
     )
 
 
@@ -301,11 +316,22 @@ async def _run_and_reply(
     filters_override: SearchFilters | None = None,
     skip_cache: bool = False,
     progress_message: Message | None = None,
+    user_id: int | None = None,
 ) -> None:
     # Старый circuit-gate снят: поиск не блокируется на «Ozon ограничивает
     # запросы» — живой канал Firecrawl работает всегда (лимиты ведёт
     # credit_monitor, у пользователя честное пояснение при исчерпании).
     progress = progress_message or await message.answer("🔍 Ищу по маркетплейсам...")
+
+    # Квота тарифа: free — 3 поиска/сутки, «Покупатель» (вкл. триал) — 6.
+    # Списываем за попытку (до пайплайна) — защита от параллельных запросов.
+    if user_id is not None:
+        plan = await quotas.user_plan(user_id)
+        allowed, info = quotas.check_search_quota(user_id, plan)
+        if not allowed:
+            await progress.edit_text(quota_exhausted_message(info))
+            return
+        quotas.consume_search(user_id, plan)
     if progress_message:
         try:
             await progress.edit_text(f"🔍 Ищу на Ozon: {query}")
