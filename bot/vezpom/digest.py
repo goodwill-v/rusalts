@@ -63,7 +63,9 @@ def build_traffic_light(chat_id):
             elif w["kind"] == "backup":
                 label = "Резервная копия не создалась (" + label + ")"
             elif w["kind"] == "domain":
-                if days is None:
+                if w.get("note") == "not_found":
+                    label += " — не найден в реестре (проверьте написание)"
+                elif days is None:
                     label += " — срок домена не удалось определить"
                 elif days <= 0:
                     label += " — срок регистрации истёк, продлите срочно"

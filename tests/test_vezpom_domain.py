@@ -346,7 +346,8 @@ def test_check_all_sweep_end_to_end(tmp_path, monkeypatch):
     vezdb.add_domain(5, "soon.ru")
     vezdb.add_domain(5, "far.ru")
     expiries = {"soon.ru": _e(7), "far.ru": _e(200)}
-    monkeypatch.setattr(dw, "fetch_expiry", lambda d, timeout=20: expiries.get(d))
+    monkeypatch.setattr(dw, "fetch_expiry",
+                        lambda d, timeout=20: (dw.EXPIRY_FOUND, expiries.get(d)))
     out = Collector()
     stats = dw.check_all(out, pause=0, today=TODAY, msk_hour=12)
     assert stats == {"checked": 2, "notified": 1, "failed": 0}
@@ -402,3 +403,69 @@ def test_weekly_report_domain_recommendation(tmp_path, monkeypatch):
     text = vzdigest.build_weekly_report(1)
     assert "Незакрытых предупреждений: 1" in text
     assert "продлить домены" in text
+
+
+# ---- вердикт «домен не найден в реестре» (решение Шефа №3 по PR-5) ----
+
+def test_looks_not_found_patterns():
+    assert dw._looks_not_found("No entries found in the Registry") is True
+    assert dw._looks_not_found("No match for COMPANY.RU") is True
+    assert dw._looks_not_found("Domain: company.ru\npaid-till: 01.04.2027") is False
+    assert dw._looks_not_found("") is False
+
+
+def test_process_expiry_not_found_once(tmp_path, monkeypatch):
+    _tmp_db(tmp_path, monkeypatch)
+    out = []
+    noon = 12
+    # первый раз: предупреждение + одно сообщение
+    action = dw.process_expiry(1, "copmany.ru", None, lambda cid, t: out.append(t), noon,
+                               today=TODAY, status=dw.EXPIRY_NOT_FOUND)
+    assert action == "not_found"
+    assert len(out) == 1 and "не найден в реестре" in out[0]
+    w = vezdb.get_warning(1, "domain", "copmany.ru")
+    assert w["open"] == 1 and w["due_ts"] is None and w["note"] == "not_found"
+    # повтор (обход на следующий день): сообщение НЕ дублируется
+    action = dw.process_expiry(1, "copmany.ru", None, lambda cid, t: out.append(t), noon,
+                               today=TODAY, status=dw.EXPIRY_NOT_FOUND)
+    assert action == "not_found" and len(out) == 1
+
+
+def test_process_expiry_recovers_after_not_found(tmp_path, monkeypatch):
+    _tmp_db(tmp_path, monkeypatch)
+    out = []
+    dw.process_expiry(1, "company.ru", None, lambda cid, t: out.append(t), 12,
+                      today=TODAY, status=dw.EXPIRY_NOT_FOUND)
+    # домен «нашёлся»/продлён: метка not_found снята, срок зафиксирован
+    action = dw.process_expiry(1, "company.ru", _e(40), out.append, 12, today=TODAY)
+    assert action == "ok"
+    w = vezdb.get_warning(1, "domain", "company.ru")
+    assert w["note"] == "" and w["open"] == 0  # срок далеко → предупреждение закрыто
+
+
+def test_format_domain_status_not_found():
+    text = dw.format_domain_status("copmany.ru", None, None, not_found=True)
+    assert "не найден в реестре" in text
+
+
+def test_upsert_warning_note_semantics(tmp_path, monkeypatch):
+    _tmp_db(tmp_path, monkeypatch)
+    w = vezdb.upsert_warning(1, "domain", "a.ru", note="not_found")
+    assert w["note"] == "not_found"
+    # note=None не стирает прежнюю метку
+    w = vezdb.upsert_warning(1, "domain", "a.ru")
+    assert w["note"] == "not_found"
+    # пустая строка снимает метку (срок получен)
+    w = vezdb.upsert_warning(1, "domain", "a.ru", days=40, note="")
+    assert w["note"] == "" and w["due_ts"] is not None
+
+
+def test_traffic_light_domain_not_found(tmp_path, monkeypatch):
+    _tmp_db(tmp_path, monkeypatch)
+    vezdb.add_monitor(1, "https://x.ru", "VeZhPom chat1: https://x.ru", 10)
+    vezdb.update_monitor_status("VeZhPom chat1: https://x.ru", "up")
+    vezdb.upsert_warning(1, "domain", "copmany.ru", note="not_found")
+    vezdb.upsert_warning(1, "domain", "unknown.ru")  # срок неизвестен
+    text = vzdigest.build_traffic_light(1)
+    assert "не найден в реестре" in text
+    assert "не удалось определить" in text

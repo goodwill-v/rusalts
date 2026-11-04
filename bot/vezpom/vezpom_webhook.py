@@ -459,18 +459,24 @@ def _add_domain_flow(chat_id, raw):
     if any(d["domain"] == domain for d in existing):
         send(chat_id, "Домен %s уже под контролем. Список: /domains" % domain)
         return
-    # ❓РАЗВИЛКА: лимит 5 доменов — временный дефолт, подтвердить у Шефа
-    # (тарифы §8 дорожной карты ещё не утверждены, гейтинг отложен)
+    # Лимит 5 доменов — утверждён Шефом 04.11 (решения по PR-5); гейтинг
+    # по тарифам «Страж»/«Бизнес» отложен до утверждения тарифов §8 карты
     if len(existing) >= domain_watch.MAX_DOMAINS_PER_USER:
         send(chat_id, "Пока держу не больше %d доменов. Уберите лишний: /domain_off <домен>"
              % domain_watch.MAX_DOMAINS_PER_USER)
         return
     db.add_domain(chat_id, domain)
     try:
-        expiry = domain_watch.fetch_expiry(domain)
+        status, expiry = domain_watch.fetch_expiry(domain)
     except Exception as exc:
         print("[VeZhPom] /domain fetch %s: %s" % (domain, exc), flush=True)
-        expiry = None
+        status, expiry = domain_watch.EXPIRY_UNKNOWN, None
+    if status == domain_watch.EXPIRY_NOT_FOUND:
+        db.upsert_warning(chat_id, "domain", domain, note="not_found")
+        send(chat_id, "✅ Домен %s под контролем, но 🟡 он не найден в реестре —"
+             " проверьте написание (возможно опечатка) или домен уже освобождён."
+             " Проверю снова в ежедневном обходе (около 09:30 МСК)." % domain)
+        return
     if expiry is None:
         send(chat_id, "✅ Домен %s под контролем. Срок регистрации пока не удалось узнать"
              " (реестр не ответил или зона без RDAP/WHOIS) — проверю в ежедневном обходе (около 09:30 МСК)." % domain)
@@ -505,7 +511,11 @@ def _domains_text(chat_id):
         domain = row["domain"]
         warning = open_warnings.get(domain)
         if warning is not None and warning.get("due_ts") is None:
-            lines.append("🟡 " + domain + " — срок определить не удалось, проверю в обходе")
+            if warning.get("note") == "not_found":
+                lines.append("🟡 " + domain + " — не найден в реестре"
+                             " (проверьте написание: /domain_off и /domain заново)")
+            else:
+                lines.append("🟡 " + domain + " — срок определить не удалось, проверю в обходе")
             continue
         due_iso = row.get("due_date")
         if due_iso:
