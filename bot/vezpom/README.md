@@ -35,7 +35,7 @@
 
 ## Команды МАКС
 
-`/monitor` сайт/IP (https → + SSL) · `/backup` бэкапы · `/domain`, `/domains`,
+`/monitor` сайт/IP (https → + SSL) · `/monitor_off` отключить · `/backup` бэкапы · `/backup_off` отключить · `/domain`, `/domains`,
 `/domain_off` домены · `/check` состояние · `/digest` светофор сейчас ·
 `/settings` оповещения · `/pay` `/status` `/cancel` `/возврат_средств` `/rules`.
 

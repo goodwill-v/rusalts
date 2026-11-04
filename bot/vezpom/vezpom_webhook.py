@@ -458,7 +458,8 @@ def _send_backup_instructions(chat_id, token):
          "💾 Контроль резервных копий настроен.\n\n"
          "Добавьте последней строкой в скрипт бэкапа (после успешного копирования):\n"
          'curl -fsS "' + url + '?status=up&msg=OK"\n\n'
-         "Если пульс не придёт за сутки, пришлю алерт: «Резервная копия не создалась».")
+         "Если пульс не придёт за сутки, пришлю алерт: «Резервная копия не создалась».\n"
+         "Отключить: /backup_off")
 
 
 def _add_backup_flow(chat_id):
@@ -567,6 +568,95 @@ def _domains_text(chat_id):
     return "\n".join(lines)
 
 
+def _delete_kuma_monitor(chat_id, name, kuma_id):
+    """Удалить монитор из Kuma с проверкой (гонка delete как у add).
+
+    True — монитор удалён (или его там уже не было); False — не удалось.
+    """
+    if kuma_id:
+        try:
+            kuma.delete_monitor(kuma_id)
+        except Exception as exc:
+            print("[VeZhPom] delete monitor %s: %s" % (name[:60], exc), flush=True)
+    # гонка ответа: проверяем фактически — монитор ещё в Kuma?
+    try:
+        if kuma.find_monitor_id_by_name(name):
+            time.sleep(1.5)
+            if kuma_id:
+                try:
+                    kuma.delete_monitor(kuma_id)
+                except Exception as exc:
+                    print("[VeZhPom] delete retry %s: %s" % (name[:60], exc), flush=True)
+            if kuma.find_monitor_id_by_name(name):
+                return False
+    except Exception as exc:
+        print("[VeZhPom] delete verify %s: %s" % (name[:60], exc), flush=True)
+    return True
+
+
+def _remove_monitor_flow(chat_id, raw):
+    """Команда /monitor_off: снять мониторинг сайта/сервера (вопрос Шефа 04.11).
+
+    Удаляем из Kuma сам монитор и его SSL-контроль, затем строку из БД.
+    """
+    monitors = [m for m in db.list_monitors(chat_id) if m["target"] != "backup"]
+    if not raw or not raw.strip():
+        if not monitors:
+            send(chat_id, "Мониторинг не настроен. Добавить: /monitor <URL или IP>")
+            return
+        lines = ["Формат: /monitor_off <URL или IP>. Под контролем:"]
+        for m in monitors:
+            lines.append(" • " + m["target"])
+        lines.append("Бэкапы отключаются отдельно: /backup_off")
+        send(chat_id, "\n".join(lines))
+        return
+    norm = normalize_target(raw)
+    if norm is None:
+        send(chat_id, "Не похоже на URL или IP. Пример: /monitor_off example.com")
+        return
+    parsed = urllib.parse.urlparse(norm)
+    matches = [m for m in monitors
+               if urllib.parse.urlparse(m["target"]).hostname == parsed.hostname]
+    if not matches:
+        send(chat_id, "Мониторинг %s не найден. Список: /monitor_off" % norm)
+        return
+    failed = []
+    for m in matches:
+        ok = True
+        for key in ("kuma_id", "cert_kuma_id"):
+            if not _delete_kuma_monitor(chat_id, m["monitor_name"] if key == "kuma_id"
+                                        else m["monitor_name"] + " · SSL", m.get(key)):
+                ok = False
+        if ok:
+            db.remove_monitor(m["id"])
+        else:
+            failed.append(m)
+    if failed:
+        send(chat_id, "⚠️ Не удалось удалить проверку из сервиса наблюдения (сайт %s). "
+             "Уведомления по нему могут продолжить приходить — напишите в поддержку"
+             " (v.devops@yandex.ru), подчистим вручную." % failed[0]["target"][:80])
+        return
+    send(chat_id, "✅ Мониторинг %s отключён: уведомления по нему больше не приходят."
+         " Вернуть: /monitor %s" % (norm, norm))
+
+
+def _backup_off_flow(chat_id):
+    """Команда /backup_off: отключить контроль резервных копий."""
+    rows = [m for m in db.list_monitors(chat_id) if m["target"] == "backup"]
+    if not rows:
+        send(chat_id, "Контроль бэкапов не настроен. Включить: /backup")
+        return
+    for m in rows:
+        if _delete_kuma_monitor(chat_id, m["monitor_name"], m.get("push_kuma_id")):
+            db.remove_monitor(m["id"])
+            db.resolve_warning(chat_id, "backup", m["monitor_name"])
+        else:
+            send(chat_id, "⚠️ Не удалось удалить монитор бэкапов из сервиса наблюдения."
+                " Напишите в поддержку (v.devops@yandex.ru), подчистим вручную.")
+            return
+    send(chat_id, "✅ Контроль резервных копий отключён. Вернуть: /backup")
+
+
 def _check_monitors(chat_id):
     """Команда /check: живая проверка текущего состояния мониторов из Kuma."""
     monitors = db.list_monitors(chat_id)
@@ -671,6 +761,12 @@ def handle_command(text, chat_id):
     if low == "/refund" or low.startswith("/refund "):
         _handle_refund(chat_id, cmd.split()[1:])
         return
+    if low == "/monitor_off" or low.startswith("/monitor_off ") or low in ("/отключить_мониторинг",) or low.startswith("/отключить_мониторинг "):
+        _remove_monitor_flow(chat_id, cmd.split(None, 1)[1] if len(cmd.split()) > 1 else "")
+        return
+    if low == "/backup_off" or low in ("/бэкап_выкл",):
+        _backup_off_flow(chat_id)
+        return
     if low in ("/monitor", "/monitor_on", "/настройка", "/настройка_мониторинга"):
         with AWAIT_LOCK:
             awaiting_target[chat_id] = True
@@ -750,7 +846,7 @@ def handle_command(text, chat_id):
         _user_refund(chat_id)
         return
     if low in ("/start", "/help"):
-        send_menu(chat_id, "ВежПом — мониторинг и охрана ваших сайтов и серверов.\n\nВыберите действие кнопками ниже или введите команду:\n/monitor — настроить мониторинг (URL или IP, https → и SSL-сроки)\n/backup — контроль резервных копий (пульс из скрипта бэкапа)\n/domain — следить за сроком домена (30/14/7/1 день)\n/domains — список доменов\n/domain_off <домен> — убрать домен из контроля\n/check — текущее состояние\n/digest — светофор прямо сейчас\n/settings — светофор и еженедельный отчёт: вкл/выкл\n/pay — оплатить подписку\n/status — статус и мониторы\n/cancel — отписка\n/возврат_средств — возврат\n/rules — правила")
+        send_menu(chat_id, "ВежПом — мониторинг и охрана ваших сайтов и серверов.\n\nВыберите действие кнопками ниже или введите команду:\n/monitor — настроить мониторинг (URL или IP, https → и SSL-сроки)\n/backup — контроль резервных копий (пульс из скрипта бэкапа)\n/domain — следить за сроком домена (30/14/7/1 день)\n/domains — список доменов\n/domain_off <домен> — убрать домен из контроля\n/check — текущее состояние\n/monitor_off — отключить мониторинг сайта\n/backup_off — отключить контроль бэкапов\n/digest — светофор прямо сейчас\n/settings — светофор и еженедельный отчёт: вкл/выкл\n/pay — оплатить подписку\n/status — статус и мониторы\n/cancel — отписка\n/возврат_средств — возврат\n/rules — правила")
         return
     if low in ("/menu", "/меню"):
         send_menu(chat_id, "Меню ВежПом — выберите действие:")
@@ -763,7 +859,7 @@ def handle_command(text, chat_id):
     # Важно: событие bot_started приходит только при ПЕРВОМ запуске бота, у существующих
     # пользователей (начали раньше) его не будет — поэтому меню показываем на любой текст.
     if not cmd.startswith("/"):
-        send_menu(chat_id, "👋 Я **ВежПом** — мониторинг работоспособности серверов и сайтов.\n\n💡 Просто напишите любое сообщение — меню появится снова.\nВыберите действие кнопками ниже или введите команду:\n/monitor — настроить мониторинг (URL или IP)\n/backup — контроль резервных копий\n/domain — следить за сроком домена\n/domains — список доменов\n/check — текущее состояние\n/pay — оплатить подписку\n/status — статус и мониторы\n/cancel — отписка\n/возврат_средств — возврат\n/rules — правила")
+        send_menu(chat_id, "👋 Я **ВежПом** — мониторинг работоспособности серверов и сайтов.\n\n💡 Просто напишите любое сообщение — меню появится снова.\nВыберите действие кнопками ниже или введите команду:\n/monitor — настроить мониторинг (URL или IP)\n/backup — контроль резервных копий\n/domain — следить за сроком домена\n/domains — список доменов\n/check — текущее состояние\n/monitor_off — отключить мониторинг\n/pay — оплатить подписку\n/status — статус и мониторы\n/cancel — отписка\n/возврат_средств — возврат\n/rules — правила")
         return
     # Неизвестная команда
     send(chat_id, "Неизвестная команда. /menu — меню с кнопками, /help — список команд")
