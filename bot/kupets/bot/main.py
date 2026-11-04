@@ -22,6 +22,23 @@ from parser.healthcheck import run_healthcheck
 from utils import get_logger, setup_logging
 
 
+async def _watch_scheduler_task(bot: Bot) -> None:
+    """Фоновый суточный обход слежек «Жду скидку» (07:00–09:00 МСК).
+
+    search_fn — тот же пайплайн, что у обычного запроса: кэш и кредиты
+    Firecrawl считаются как у поиска, алерты 80/95/100% ведёт
+    credit_monitor; сообщения пользователю — только при изменении цены.
+    """
+    from services.price_watch import watch_scheduler
+    from services.search_pipeline import SearchPipeline
+
+    async def search_fn(query: str):
+        pipeline = SearchPipeline()
+        return await pipeline.run(query)
+
+    await watch_scheduler(bot, search_fn=search_fn)
+
+
 async def main() -> None:
     setup_logging()
     log = get_logger("bot.main")
@@ -62,8 +79,12 @@ async def main() -> None:
     dp = Dispatcher(storage=MemoryStorage())
     dp.include_router(router)
 
-    log.info("polling")
-    await dp.start_polling(bot)
+    scheduler = asyncio.create_task(_watch_scheduler_task(bot))
+    try:
+        log.info("polling")
+        await dp.start_polling(bot)
+    finally:
+        scheduler.cancel()
 
 
 if __name__ == "__main__":
