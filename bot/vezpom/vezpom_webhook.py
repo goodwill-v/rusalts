@@ -7,7 +7,7 @@ New in v3.1 (по ТЗ Шефа):
   * команда /check — живая проверка текущего состояния всех мониторов
     пользователя через Kuma API (статус, отклик, сообщение).
 
-Commands in MAX chat: /monitor /backup /domain /domains /domain_off /check /digest /settings /pay /status /cancel /возврат_средств /rules
+Commands in MAX chat: /monitor /backup /link /domain /domains /domain_off /check /digest /settings /pay /status /cancel /возврат_средств /rules
 """
 import ipaddress
 import json
@@ -24,6 +24,7 @@ import db
 import kuma
 import digest
 import domain_watch
+import urlcheck
 import vezlogic
 import vitrina_client as vitrina
 
@@ -747,6 +748,23 @@ def _check_monitors(chat_id):
     send(chat_id, chr(10).join(lines))
 
 
+def _link_flow(chat_id, raw):
+    """Команда /link: проверить ссылку на фишинг/малварь (Этап 2).
+
+    Лимит 20 проверок в сутки на чат (журнал событий, без новых таблиц).
+    """
+    used = urlcheck.count_today(chat_id)
+    if used >= urlcheck.LINK_DAILY_LIMIT:
+        send(chat_id, "Дневной лимит проверок ссылок исчерпан (%d из %d)."
+             " Придёт в силу снова завтра утром." % (used, urlcheck.LINK_DAILY_LIMIT))
+        return
+    verdict, text = urlcheck.check_url(raw)
+    if verdict != "unknown" or raw.strip():
+        db.add_event(chat_id, None, (raw or "")[:180], "link", "info",
+                     verdict, started_at=int(time.time()))
+    send(chat_id, text)
+
+
 def _status_text(chat_id):
     """Статус подписки (источник правды — витрина) + мониторы пользователя."""
     plan_name, price_text, limit = _plan_info(chat_id)
@@ -821,6 +839,9 @@ def handle_command(text, chat_id):
     low = cmd.lower()
     if low == "/refund" or low.startswith("/refund "):
         _handle_refund(chat_id, cmd.split()[1:])
+        return
+    if low in ("/link", "/ссылка") or low.startswith("/link ") or low.startswith("/ссылка "):
+        _link_flow(chat_id, cmd.split(None, 1)[1] if len(cmd.split()) > 1 else "")
         return
     if low == "/monitor_off" or low.startswith("/monitor_off ") or low in ("/отключить_мониторинг",) or low.startswith("/отключить_мониторинг "):
         _remove_monitor_flow(chat_id, cmd.split(None, 1)[1] if len(cmd.split()) > 1 else "")
@@ -907,7 +928,7 @@ def handle_command(text, chat_id):
         _user_refund(chat_id)
         return
     if low in ("/start", "/help"):
-        send_menu(chat_id, "ВежПом — мониторинг и охрана ваших сайтов и серверов.\n\nВыберите действие кнопками ниже или введите команду:\n/monitor — настроить мониторинг (URL или IP, https → и SSL-сроки)\n/backup — контроль резервных копий (пульс из скрипта бэкапа)\n/domain — следить за сроком домена (30/14/7/1 день)\n/domains — список доменов\n/domain_off <домен> — убрать домен из контроля\n/check — текущее состояние\n/monitor_off — отключить мониторинг сайта\n/backup_off — отключить контроль бэкапов\n/digest — светофор прямо сейчас\n/settings — светофор и еженедельный отчёт: вкл/выкл\n/pay — оплатить подписку\n/status — статус и мониторы\n/cancel — отписка\n/возврат_средств — возврат\n/rules — правила")
+        send_menu(chat_id, "ВежПом — мониторинг и охрана ваших сайтов и серверов.\n\nВыберите действие кнопками ниже или введите команду:\n/monitor — настроить мониторинг (URL или IP, https → и SSL-сроки)\n/backup — контроль резервных копий (пульс из скрипта бэкапа)\n/domain — следить за сроком домена (30/14/7/1 день)\n/domains — список доменов\n/domain_off <домен> — убрать домен из контроля\n/check — текущее состояние\n/link <ссылка> — проверить на фишинг\n/monitor_off — отключить мониторинг сайта\n/backup_off — отключить контроль бэкапов\n/digest — светофор прямо сейчас\n/settings — светофор и еженедельный отчёт: вкл/выкл\n/pay — оплатить подписку\n/status — статус и мониторы\n/cancel — отписка\n/возврат_средств — возврат\n/rules — правила")
         return
     if low in ("/menu", "/меню"):
         send_menu(chat_id, "Меню ВежПом — выберите действие:")
@@ -920,7 +941,7 @@ def handle_command(text, chat_id):
     # Важно: событие bot_started приходит только при ПЕРВОМ запуске бота, у существующих
     # пользователей (начали раньше) его не будет — поэтому меню показываем на любой текст.
     if not cmd.startswith("/"):
-        send_menu(chat_id, "👋 Я **ВежПом** — мониторинг работоспособности серверов и сайтов.\n\n💡 Просто напишите любое сообщение — меню появится снова.\nВыберите действие кнопками ниже или введите команду:\n/monitor — настроить мониторинг (URL или IP)\n/backup — контроль резервных копий\n/domain — следить за сроком домена\n/domains — список доменов\n/check — текущее состояние\n/monitor_off — отключить мониторинг\n/pay — оплатить подписку\n/status — статус и мониторы\n/cancel — отписка\n/возврат_средств — возврат\n/rules — правила")
+        send_menu(chat_id, "👋 Я **ВежПом** — мониторинг работоспособности серверов и сайтов.\n\n💡 Просто напишите любое сообщение — меню появится снова.\nВыберите действие кнопками ниже или введите команду:\n/monitor — настроить мониторинг (URL или IP)\n/backup — контроль резервных копий\n/domain — следить за сроком домена\n/domains — список доменов\n/check — текущее состояние\n/link <ссылка> — проверить на фишинг\n/pay — оплатить подписку\n/status — статус и мониторы\n/cancel — отписка\n/возврат_средств — возврат\n/rules — правила")
         return
     # Неизвестная команда
     send(chat_id, "Неизвестная команда. /menu — меню с кнопками, /help — список команд")
