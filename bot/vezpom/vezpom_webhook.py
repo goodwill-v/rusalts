@@ -7,7 +7,7 @@ New in v3.1 (по ТЗ Шефа):
   * команда /check — живая проверка текущего состояния всех мониторов
     пользователя через Kuma API (статус, отклик, сообщение).
 
-Commands in MAX chat: /monitor /backup /link /domain /domains /domain_off /check /digest /settings /pay /status /cancel /возврат_средств /rules
+Commands in MAX chat: /monitor /backup /link /scan /domain /domains /domain_off /check /digest /settings /pay /status /cancel /возврат_средств /rules
 """
 import ipaddress
 import json
@@ -24,6 +24,7 @@ import db
 import kuma
 import digest
 import domain_watch
+import secscan
 import urlcheck
 import vezlogic
 import vitrina_client as vitrina
@@ -765,6 +766,38 @@ def _link_flow(chat_id, raw):
     send(chat_id, text)
 
 
+def _scan_flow(chat_id, raw):
+    """Команда /scan: базовая диагностика безопасности СВОЕГО сайта (Этап 2).
+
+    Лимит 3 проверки в сутки на чат. Не пентест: только то, что видит
+    любой посетитель (TLS, заголовки, порты) — по согласию владельца.
+    """
+    used = secscan.count_today(chat_id)
+    if used >= secscan.SCAN_DAILY_LIMIT:
+        send(chat_id, "Дневной лимит проверок исчерпан (%d из %d). Придёт в силу"
+             " снова завтра утром." % (used, secscan.SCAN_DAILY_LIMIT))
+        return
+    host = secscan.normalize_host(raw)
+    if not host:
+        send(chat_id, "Укажите свой сайт или IP. Пример: /scan example.com")
+        return
+    send(chat_id, "🔎 Проверяю %s (TLS, заголовки, порты — минута)…" % host)
+    try:
+        level, lines = secscan.scan_host(host)
+    except Exception as exc:
+        print("[VeZhPom] /scan %s: %s" % (host, exc), flush=True)
+        send(chat_id, "🟡 Проверка не удалась — часть сервисов не ответила. Попробуйте позже.")
+        return
+    db.add_event(chat_id, None, host[:180], "scan", "info", level,
+                 started_at=int(time.time()))
+    head = {"bad": "🔴 Нашлись серьёзные замечания:",
+            "warn": "🟡 Серьёзного нет, но есть что улучшить:",
+            "ok": "🟢 Проверка пройдена:"}[level]
+    send(chat_id, "Отчёт по %s:\n%s\n%s\nЭто диагностика по согласию владельца,"
+         " без вторжения — и не заменяет полноценный аудит."
+         % (host, head, "\n".join(" • " + ln for ln in lines)))
+
+
 def _status_text(chat_id):
     """Статус подписки (источник правды — витрина) + мониторы пользователя."""
     plan_name, price_text, limit = _plan_info(chat_id)
@@ -842,6 +875,9 @@ def handle_command(text, chat_id):
         return
     if low in ("/link", "/ссылка") or low.startswith("/link ") or low.startswith("/ссылка "):
         _link_flow(chat_id, cmd.split(None, 1)[1] if len(cmd.split()) > 1 else "")
+        return
+    if low in ("/scan", "/аудит") or low.startswith("/scan ") or low.startswith("/аудит "):
+        _scan_flow(chat_id, cmd.split(None, 1)[1] if len(cmd.split()) > 1 else "")
         return
     if low == "/monitor_off" or low.startswith("/monitor_off ") or low in ("/отключить_мониторинг",) or low.startswith("/отключить_мониторинг "):
         _remove_monitor_flow(chat_id, cmd.split(None, 1)[1] if len(cmd.split()) > 1 else "")
@@ -928,7 +964,7 @@ def handle_command(text, chat_id):
         _user_refund(chat_id)
         return
     if low in ("/start", "/help"):
-        send_menu(chat_id, "ВежПом — мониторинг и охрана ваших сайтов и серверов.\n\nВыберите действие кнопками ниже или введите команду:\n/monitor — настроить мониторинг (URL или IP, https → и SSL-сроки)\n/backup — контроль резервных копий (пульс из скрипта бэкапа)\n/domain — следить за сроком домена (30/14/7/1 день)\n/domains — список доменов\n/domain_off <домен> — убрать домен из контроля\n/check — текущее состояние\n/link <ссылка> — проверить на фишинг\n/monitor_off — отключить мониторинг сайта\n/backup_off — отключить контроль бэкапов\n/digest — светофор прямо сейчас\n/settings — светофор и еженедельный отчёт: вкл/выкл\n/pay — оплатить подписку\n/status — статус и мониторы\n/cancel — отписка\n/возврат_средств — возврат\n/rules — правила")
+        send_menu(chat_id, "ВежПом — мониторинг и охрана ваших сайтов и серверов.\n\nВыберите действие кнопками ниже или введите команду:\n/monitor — настроить мониторинг (URL или IP, https → и SSL-сроки)\n/backup — контроль резервных копий (пульс из скрипта бэкапа)\n/domain — следить за сроком домена (30/14/7/1 день)\n/domains — список доменов\n/domain_off <домен> — убрать домен из контроля\n/check — текущее состояние\n/link <ссылка> — проверить на фишинг\n/scan <сайт> — диагностика безопасности\n/scan <сайт> — диагностика безопасности\n/monitor_off — отключить мониторинг сайта\n/backup_off — отключить контроль бэкапов\n/digest — светофор прямо сейчас\n/settings — светофор и еженедельный отчёт: вкл/выкл\n/pay — оплатить подписку\n/status — статус и мониторы\n/cancel — отписка\n/возврат_средств — возврат\n/rules — правила")
         return
     if low in ("/menu", "/меню"):
         send_menu(chat_id, "Меню ВежПом — выберите действие:")
