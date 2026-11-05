@@ -65,6 +65,31 @@ async def _start_followup_loop() -> None:
     except Exception:
         pass
     app.state.followup_task = asyncio.create_task(_followup_loop())
+    app.state.consistency_task = asyncio.create_task(_consistency_loop())
+
+
+async def _consistency_loop() -> None:
+    """Ночной чек согласованности (E2): ежедневно 04:30 МСК, расхождения — алерт в MAX."""
+    from datetime import datetime, timedelta, timezone
+
+    MSK = timezone(timedelta(hours=3))
+    app.state.consistency_report = None
+    while True:
+        now = datetime.now(MSK)
+        run_at = now.replace(hour=4, minute=30, second=0, microsecond=0)
+        if run_at <= now:
+            run_at += timedelta(days=1)
+        await asyncio.sleep((run_at - now).total_seconds())
+        try:
+            from app.consistency_check import format_alert, run_consistency_check
+            from app.max_notify import notify_max
+
+            report = await run_consistency_check()
+            app.state.consistency_report = report
+            if not report["ok"]:
+                await notify_max(format_alert(report))
+        except Exception as e:  # цикл не должен умирать
+            _followup_logger.warning("consistency loop error: %s", e)
 
 
 app.include_router(pages.router)
