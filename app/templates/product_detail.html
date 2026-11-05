@@ -159,11 +159,13 @@
       <label for="modal-customer">Telegram/МАКС ID (для активации подписки):</label>
       <input id="modal-customer" type="text" placeholder="напишите боту /pay или введите ID вручную" />
       <div id="modal-id-hint" class="modal__id-hint">
-        Не знаете свой ID? Откройте бота и напишите <b>/status</b> — он покажет ID и тариф.
         {% if p.max_url or p.tg_url or p.bot_url %}
+        Не знаете свой ID? Откройте бота и напишите <b>/status</b> или <b>/id</b> — он покажет ID и тариф.
         <a id="modal-bot-link" class="link" target="_blank" rel="noopener">Открыть бота →</a>
-        {% endif %}
         Либо оформите подписку прямо в боте — счёт создастся сам, ID не нужен.
+        {% else %}
+        ID — номер из вашего мессенджера, где подключён продукт (подскажет менеджер или бот продукта).
+        {% endif %}
       </div>
     </div>
     <p class="modal__methods">💳 Карта · 📱 СБП · 🔒 ЮKassa</p>
