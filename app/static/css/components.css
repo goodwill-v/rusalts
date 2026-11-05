@@ -483,22 +483,34 @@ body.layout-app .template-list a {
 
 
 /* chat-actions: левая группа (прикрепить/файлы/ПДн-заметка) + «Отправить» в правом краю.
-   Заметка живёт внутри левой группы — на широких экранах одна строка между кнопками. */
+   Ряд с кнопкой НЕ переносится (nowrap) — «Отправить» не падает вниз даже на узких окнах;
+   внутри левой группы файлы/заметка переносятся свободно. */
 .chat-actions__left {
   display: flex;
   flex-wrap: wrap;
-  gap: 0.5rem;
+  gap: 0.4rem;
   align-items: center;
   flex: 1 1 auto;
   min-width: 0;
 }
-.chat-actions__left .file-names { flex: 0 1 auto; }
-.chat-actions__left .pdn-note {
+
+/* F3: «Отправить» всегда справа в одной строке с «Прикрепить» (только консультант) */
+.chat-actions--send-right {
+  flex-wrap: nowrap;
+  gap: 0.4rem;
+}
+/* пустой span «файлов нет» не отъедает 140px у строки */
+.chat-actions--send-right .chat-actions__left .file-names { flex: 0 1 auto; min-width: 0; }
+.chat-actions--send-right .chat-actions__left .file-names:empty { display: none; }
+.chat-actions--send-right .pdn-note {
   flex: 1 1 auto;
   max-width: none;
+  min-width: 0;
   white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
-/* Узкий экран: заметке разрешаем переносить строки, как раньше */
+/* Узкий экран: заметке разрешаем перенос строк (кнопка всё равно остаётся справа) */
 @media (max-width: 760px) {
-  .chat-actions__left .pdn-note { white-space: normal; }
+  .chat-actions--send-right .pdn-note { white-space: normal; }
 }
