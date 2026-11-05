@@ -116,11 +116,34 @@ class AIExplainer:
                 {"role": "system", "content": "Ты — аналитик маркетплейсов. Кратко, по-русски, только по данным."},
                 {"role": "user", "content": prompt},
             ],
-            max_tokens=300,
+            max_tokens=700,  # ризонер-модель тратит токены на размышления
             temperature=0.3,
         )
         msg = resp.choices[0].message
-        return (msg.content or "").strip() or (getattr(msg, "reasoning", None) or "").strip()
+        raw = (msg.content or "").strip() or (getattr(msg, "reasoning", None) or "").strip()
+        return _strip_reasoning_echo(raw)
+
+
+def _strip_reasoning_echo(text: str) -> str:
+    """Ризонер-модели выводят цепочку размышлений («Сейчас нужно…»,
+    «Пользователь просит…», «Анализирую…») перед рекомендациями —
+    оставляем финальный блок (от «Рекомендации/Итог/…» или последние 5 строк)."""
+    if not text:
+        return text
+    meta_starts = (
+        "Сейчас нужно", "Пользователь просит", "Анализирую", "Данные:",
+        "Нужно ответить", "Нужно дать", "Хорошо", "Итак",
+    )
+    lines = [
+        l for l in text.splitlines()
+        if l.strip() and not any(l.lstrip().startswith(m) for m in meta_starts)
+    ]
+    for i, l in enumerate(lines):
+        low = l.lstrip().lower()
+        if low.startswith(("рекомендации", "итог", "вывод", "резюме")):
+            lines = lines[i:]
+            break
+    return "\n".join(lines[-5:]).strip()
 
     async def expand_gift(self, description: str, budget: int, n: int = 4) -> list[str]:
         """Подарочный подбор (фича г): «маме до 2000₽» → 3–4 конкретных
