@@ -172,8 +172,11 @@ def gift_usage_message() -> str:
     )
 
 
-def report_message(stats: dict) -> str:
-    """Сводка для продавцов (ТЗ v2 §3.6). stats — services.report.build_report."""
+def report_message(stats: dict, ai_summary: str = "") -> str:
+    """Сводка для продавцов v2 (ТЗ v2 §3.6): цифры, распределение, резюме.
+
+    stats — services.report.build_report (многозапросная сборка).
+    """
     mp_labels = {"ozon": "Ozon", "wb": "Wildberries", "yam": "Я.Маркет"}
     niche = stats["niche"]
     if stats["total"] == 0:
@@ -181,35 +184,70 @@ def report_message(stats: dict) -> str:
             f"📊 Ниша «{_md(niche)}»: по запросу ничего не нашлось — "
             "попробуйте другую формулировку."
         )
-    mp_line = " · ".join(
-        f"{mp_labels.get(k, k)}: {v}" for k, v in stats["per_marketplace"].items()
-    ) or "—"
-    corr = (
-        f"{format_price(stats['min'])} – {format_price(stats['max'])}, "
-        f"медиана ~{format_price(stats['median'])}"
-        if stats["median"]
-        else "цены в сниппетах не видны"
-    )
+    n, priced_count = stats["total"], stats["priced_count"]
     lines = [
         f"📊 *Сводка для продавца: {_md(niche)}*",
         "",
-        f"📦 Карточек в выдаче: {stats['total']} ({mp_line})",
-        f"💰 Ценовой коридор: {corr}",
-        f"📉 Демпинг (<30% медианы): {stats['dump_count']}",
-        f"⚠️ Клоны/мусорные названия: {stats['clone_count']}",
-        "",
-        "*Топ карточек по рейтингу и отзывам:*",
+        f"📦 Карточек собрано: {n} — "
+        + " · ".join(
+            f"{mp_labels.get(k, k)}: {v}" for k, v in stats["per_marketplace"].items()
+        ),
     ]
+
+    # Цены: коридор + медиана + разбивка по площадкам
+    if stats["median"]:
+        lines.append(
+            f"💰 Цены (известны для {priced_count} из {n}): "
+            f"от {format_price(stats['min'])} · медиана "
+            f"*{format_price(stats['median'])}* · до {format_price(stats['max'])}"
+        )
+        mp_med = [
+            f"{mp_labels.get(mp, mp)} ~{format_price(d['median'])} ({d['count']})"
+            for mp, d in (stats.get("mp_medians") or {}).items()
+        ]
+        if mp_med:
+            lines.append("   По площадкам: " + " · ".join(mp_med))
+        if stats.get("recommended_price"):
+            lines.append(
+                f"🎯 Рекомендуемая цена входа: ~{format_price(stats['recommended_price'])} "
+                "(чуть ниже медианы)"
+            )
+        buckets = stats.get("price_buckets") or {}
+        if buckets:
+            lines.append("   Распределение: " + " · ".join(f"{k}: {v}" for k, v in buckets.items()))
+    else:
+        lines.append(f"💰 Цены в сниппетах не видны ({n} карточек — смотрите по ссылкам)")
+
+    # Рейтинги и конкуренция
+    if stats.get("rated_count"):
+        lines.append(
+            f"⭐ Рейтинги: у {stats['rated_count']} из {n}, средний {stats['avg_rating']}"
+        )
+    lines.append(f"📈 Конкуренция: {_md(stats.get('competition', '—'))}")
+    if stats.get("rooted_count"):
+        lines.append(f"   Укоренившиеся (>100 отзывов): {stats['rooted_count']}")
+    lines.append(f"📉 Демпинг (<30% медианы): {stats['dump_count']}")
+    lines.append(f"⚠️ Клоны/мусорные названия: {stats['clone_count']}")
+
+    # ИИ-резюме (или вычисляемый итог)
+    summary = ai_summary or (
+        f"Рекомендуемая цена входа ~{format_price(stats['recommended_price'])}."
+        if stats.get("recommended_price") else ""
+    )
+    if summary:
+        lines += ["", f"🤖 *Резюме для продавца:* {_md(summary)}"]
+
+    lines += ["", "*Топ карточек по рейтингу и отзывам:*"]
     for i, it in enumerate(stats["top"], 1):
         price = format_price(it.price) if it.price > 0 else "цена по ссылке"
         rating = f"{it.rating}★" if it.rating else "—"
+        reviews = f"{it.reviews_count} отз." if it.reviews_count else "—"
         mp = mp_labels.get(getattr(it, "marketplace", "ozon"), "Ozon")
         lines.append(
-            f"{i}. {_md(it.name[:40])} — {price} · {rating} · {mp}\n"
+            f"{i}. {_md(it.name[:40])} — {price} · {rating} · {reviews} · {mp}\n"
             f"   [ссылка]({it.url})"
         )
-    lines.append("")
-    lines.append("_💡 Сводка потратила 1 поиск из пакета. Лимит: 30 сводок/мес._")
+    lines += ["", "_💡 Лимит: 100 сводок/мес. Поиски пакета сводка не расходует._"]
     return "\n".join(lines)
 
 
