@@ -623,51 +623,63 @@ async def api_subscription_trial_start(request: Request):
 
 @router.get("/techologis/subscription/")
 async def subscription_page(request: Request, customer_id: str = "", product_id: str = ""):
-    """Страница статуса подписки для клиента."""
-    sub_info = None
-    tariff_info = None
+    """Страница статуса подписки + ссылка на смену тарифа.
+
+    Своя упрощённая страница (раньше рендерился витринный techologis_v2.html
+    без нужного контекста → 500, баг от 06.11). План берём из subscriptions
+    (webhook/«Выдать доступ»), статус — из баланса либо триальной записи.
+    """
+    from app.payments import latest_subscription_row
+    from app.products_store import catalog
+
+    info = None
     error = None
 
     if customer_id and product_id:
         bal = get_balance(customer_id, product_id)
-        if bal is None:
+        row = latest_subscription_row(customer_id, product_id)
+        if bal is None and row is None:
             error = "Подписка не найдена. Возможно, срок истёк."
         else:
-            remaining = get_remaining_tokens(customer_id, product_id)
-            tariff = TARIFFS.get(product_id)
-            if tariff:
-                tariff_info = {
-                    "name": tariff.name,
-                    "allowance": format_token_allowance(tariff.token_allowance),
-                    "price": tariff.price_rub,
-                }
-            sub_info = {
-                "customer_id": customer_id,
+            plan_code = (row or {}).get("plan") or ""
+            plan_name = ""
+            resource_limit = 0
+            searches_per_month = 0
+            try:
+                from app.tariffs_store import list_plans
+                pl = next(
+                    (x for x in list_plans(product_id) if x["plan"] == plan_code), None
+                )
+                if pl:
+                    plan_name = pl["name"]
+                    resource_limit = pl["resource_limit"]
+                    searches_per_month = pl.get("searches_per_month") or 0
+            except Exception:
+                pass
+            status = (bal or row or {}).get("status") or ""
+            expires = (bal or {}).get("expires_at") or (row or {}).get("expires_at") or ""
+            prod = next((p for p in catalog() if p["id"] == product_id), {})
+            info = {
                 "product_id": product_id,
-                "status": bal["status"],
-                "allowance_tokens": bal["allowance_tokens"],
-                "used_tokens": bal["used_tokens"],
-                "remaining_tokens": remaining,
-                "expires_at": bal["expires_at"][:10],
-                "balance_low": is_balance_low(customer_id, product_id),
+                "product_name": prod.get("name") or product_id,
+                "status": status,
+                "plan_name": plan_name or ("Пробный период" if status == "trial" else ""),
+                "expires_at": str(expires)[:10],
+                "resource_limit": resource_limit,
+                "searches_per_month": searches_per_month,
+                "limit_label": "Слежек" if product_id == "kupec" else "Ресурсов",
             }
 
     return templates.TemplateResponse(
         request,
-        "techologis_v2.html",
+        "subscription_status.html",
         {
             "vk_app_id": config.VK_APP_ID or None,
             "is_widget": False,
             "layout_class": "layout-site",
             "page_title": "Подписка — АЛТ",
-            "products": [],
-            "services": [],
-            "payment_status": "",
-            "is_sandbox": config.IS_YOOKASSA_SANDBOX,
-            "subscription": sub_info,
-            "subscription_error": error,
-            "tariff_info": tariff_info,
-            "billing_enabled": True,
+            "info": info,
+            "error": error,
         },
     )
 

@@ -114,3 +114,25 @@ def test_admin_funnel_endpoint(client) -> None:
               "revenue_total", "active_subscriptions", "lead_rate_30d", "conversion_30d"):
         assert k in f, f"нет поля {k}"
     assert f["payments_30d"] == 0  # чистая БД — нули, но структура полная
+
+
+def test_subscription_status_page(client) -> None:
+    """Страница подписки: 200 во всех вариантах, статус+план, без 500
+    (баг 06.11: старый роут рендерил витринный шаблон без контекста)."""
+    # без параметров — подсказка, 200
+    r = client.get("/techologis/subscription/")
+    assert r.status_code == 200
+    # несуществующий клиент — сообщение об ошибке, не 500
+    r2 = client.get("/techologis/subscription/?customer_id=1&product_id=vezhpom")
+    assert r2.status_code == 200
+    assert "не найдена" in r2.text
+    # существующий: грант доступа → страница показывает план «Бизнес» и ссылку на планы
+    from base64 import b64encode
+    auth = {"Authorization": "Basic " + b64encode(b"admin:20rusalt13").decode()}
+    client.post("/api/billing/grant-access",
+                json={"customer_id": "62141768", "product_id": "vezhpom", "reason": "тест"},
+                headers=auth)
+    r3 = client.get("/techologis/subscription/?customer_id=62141768&product_id=vezhpom")
+    assert r3.status_code == 200
+    assert "Бизнес" in r3.text
+    assert "/techologis/p/vezhpom/" in r3.text
