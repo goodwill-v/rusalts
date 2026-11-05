@@ -21,6 +21,7 @@ from config import Config
 from models.product import SearchItem
 from parser.firecrawl_search import (
     MARKETPLACES,
+    _SITE_BY_MP,
     FirecrawlClient,
     ProviderQuotaError,
     _parse_results,
@@ -36,6 +37,12 @@ Marketplaces = tuple[str, ...]
 
 def _mp_tuple(marketplaces) -> Marketplaces:
     return tuple(marketplaces) if marketplaces else MARKETPLACES
+
+
+def _serper_query(query: str, mp: Marketplaces) -> str:
+    """Serper — это Google: те же site:-операторы, что строит Firecrawl."""
+    sites = " OR ".join(_SITE_BY_MP[m] for m in mp if m in _SITE_BY_MP)
+    return f"{query.strip()} {sites}".strip()
 
 
 async def _firecrawl(query: str, *, limit: int, mp: Marketplaces) -> list[SearchItem]:
@@ -68,11 +75,11 @@ async def _firecrawl_raw(query: str, *, limit: int, mp: Marketplaces) -> list[di
         await fc.aclose()
 
 
-async def _serper_items(query: str, *, limit: int) -> list[SearchItem]:
+async def _serper_items(query: str, *, limit: int, mp: Marketplaces) -> list[SearchItem]:
     """Serper → те же SearchItem (общий парсер сниппетов)."""
     sc = SerperClient()
     try:
-        organic = await sc.search_organic(query, num=limit)
+        organic = await sc.search_organic(_serper_query(query, mp), num=limit)
     finally:
         await sc.aclose()
     mapped = [
@@ -88,10 +95,10 @@ async def _serper_items(query: str, *, limit: int) -> list[SearchItem]:
     return items
 
 
-async def _serper_raw(query: str, *, limit: int) -> list[dict]:
+async def _serper_raw(query: str, *, limit: int, mp: Marketplaces) -> list[dict]:
     sc = SerperClient()
     try:
-        organic = await sc.search_organic(query, num=limit)
+        organic = await sc.search_organic(_serper_query(query, mp), num=limit)
     finally:
         await sc.aclose()
     return [
@@ -124,7 +131,7 @@ async def search_marketplaces(
                 logger.warning("firecrawl_fail_switch_serper", extra={"error": str(exc)})
     if Config.SERPER_API_KEY:
         try:
-            return await _serper_items(query, limit=limit)
+            return await _serper_items(query, limit=limit, mp=mp)
         except SerperQuotaError as exc:
             credit_monitor.mark_provider_exhausted("serper")
             raise ProviderQuotaError(str(exc)) from exc
@@ -152,7 +159,7 @@ async def search_web_raw(
                 logger.warning("firecrawl_raw_fail_switch_serper", extra={"error": str(exc)})
     if Config.SERPER_API_KEY:
         try:
-            return await _serper_raw(query, limit=limit)
+            return await _serper_raw(query, limit=limit, mp=mp)
         except SerperQuotaError as exc:
             credit_monitor.mark_provider_exhausted("serper")
             raise ProviderQuotaError(str(exc)) from exc
