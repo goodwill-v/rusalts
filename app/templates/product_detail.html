@@ -70,6 +70,16 @@
 
         {% if p.trial_days %}
         <h2 style="margin-top:1.25rem">Пробный период — {{ p.trial_days }} дней</h2>
+        {% if has_plans %}
+        <p class="muted-site" style="margin:0 0 0.5rem">Введите ваш ID из мессенджера с ботом — пробный период {{ p.trial_days }} дней
+          включится сразу, без оплаты (все опции старшего тарифа).</p>
+        <div class="pd__trial-btns">
+          <input id="trial-id" placeholder="ID из MAX или Telegram (число)" inputmode="numeric"
+                 style="flex:1 1 160px;font:inherit;padding:0.5rem 0.7rem;border:1px solid var(--site-border);border-radius:8px" />
+          <button id="trial-start" class="pd__trial-btn" type="button">🎁 Активировать пробный период</button>
+        </div>
+        <p id="trial-msg" class="muted-site" style="margin:0.5rem 0 0;font-size:0.88rem" hidden></p>
+        {% else %}
         <p class="muted-site" style="margin:0 0 0.5rem">Запустите бота в привычном мессенджере — доступ включится при первом сообщении.
           В чат придёт подтверждение: «Пробный период {{ p.trial_days }} дней. Желаем успехов!»</p>
         <div class="pd__trial-btns">
@@ -77,6 +87,7 @@
           {% if p.tg_url %}<a class="pd__trial-btn" href="{{ p.tg_url }}" rel="noopener">🔵 В Telegram</a>{% endif %}
           {% if p.vk_url %}<a class="pd__trial-btn" href="{{ p.vk_url }}" rel="noopener">🔷 Во ВКонтакте</a>{% endif %}
         </div>
+        {% endif %}
         {% endif %}
       </div>
 
@@ -153,6 +164,39 @@
 
 <script>
 const ALL_BUYABLE = {{ buyable | tojson }};
+// C5: пробный период в 1 клик (ТЗ Развитие) — без оплаты, по ID из мессенджера
+const trialBtn = document.getElementById("trial-start");
+if (trialBtn) {
+  trialBtn.addEventListener("click", async () => {
+    const msg = document.getElementById("trial-msg");
+    const id = document.getElementById("trial-id").value.trim();
+    msg.hidden = false;
+    if (!id || !/^\d{3,20}$/.test(id)) {
+      msg.textContent = "Введите числовой ID из мессенджера (узнать: напишите боту /status).";
+      return;
+    }
+    trialBtn.disabled = true;
+    try {
+      const r = await fetch("/api/subscription/trial/start", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ customer_id: id, product_id: "{{ p.id }}" }),
+      });
+      const d = await r.json();
+      if (d.trial) {
+        msg.textContent = `✅ Пробный период ${d.trial_days} дн. активирован (план «${d.plan_name}», до ${d.expires_at.slice(0, 10)}). Напишите боту — лимиты уже подключены.`;
+      } else if (d.reason === "trial_used") {
+        msg.textContent = "Пробный период для этого ID уже использован. Оформите подписку — она сразу даст больше возможностей.";
+      } else if (d.reason === "already_subscribed") {
+        msg.textContent = "У этого ID уже есть активная подписка — пробный период не требуется.";
+      } else {
+        msg.textContent = d.error || "Не удалось активировать пробный период.";
+      }
+    } catch (e) {
+      msg.textContent = "Ошибка соединения: " + e.message;
+    }
+    trialBtn.disabled = false;
+  });
+}
 const urlParams = new URLSearchParams(window.location.search);
 const urlCid = urlParams.get("customer_id");
 const cidInput = document.getElementById("modal-customer");
