@@ -198,13 +198,18 @@ def _resolve_code(sub: dict, plans: list[dict]) -> str:
     present = sub.get("present")
     if present is None:
         return KUPEC_PLAN
-    if not present or (sub.get("status") or "").lower() != "active":
+    if not present:
+        return FREE_PLAN
+    status = (sub.get("status") or "").lower()
+    # Багфикс 06.11: триальная подписка на витрине имеет status='trial',
+    # а не 'active' — раньше триал считался free («Лимит 0 из 0»).
+    if status not in {"active", "trial"}:
         return FREE_PLAN
     # Триал = все опции «Маркетинг» (решение Шефа 05.11); признак — от витрины
     if (
-        sub.get("trial") in (True, 1, "1", "true")
+        status == "trial"
+        or sub.get("trial") in (True, 1, "1", "true")
         or sub.get("is_trial") in (True, 1, "1", "true")
-        or (sub.get("status") or "").lower() == "trial"
     ):
         return "marketing"
     code = (sub.get("plan") or "").strip()
@@ -309,7 +314,7 @@ FEATURE_LIMITS: dict[str, dict[str, tuple[int | None, str]]] = {
         "free": (0, "month"),
         "base": (0, "month"),
         "advanced": (0, "month"),
-        "marketing": (10, "month"),
+        "marketing": (30, "month"),  # решение Шефа 06.11: было 10 (≈27₽ worst-case)
     },
 }
 

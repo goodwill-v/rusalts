@@ -264,3 +264,30 @@ def test_report_caption_detector():
     assert not should_report_caption("термос")
     assert not should_report_caption(None)
     assert not should_report_caption("")
+
+
+def test_trial_status_from_vitrina_is_marketing():
+    """Баг «Лимит 0 из 0»: триальная подписка на витрине имеет status='trial',
+    а не 'active' — должна давать тариф «Маркетинг» (решение Шефа 05.11)."""
+    client = type("C", (), {})()
+    client.get_plans = lambda: [
+        {"plan": "marketing", "name": "Маркетинг", "resource_limit": 30,
+         "searches_per_month": 800},
+    ]
+    client.get_subscription_state = lambda uid: {
+        "present": True, "status": "trial", "plan": "marketing",
+    }
+    code = asyncio.run(quotas.user_plan(11, client=client))
+    assert code == "marketing"
+    assert quotas.plan_limits("marketing")["searches"] == 800
+    ok, info = quotas.check_feature_quota(11, "marketing", "report", now=DAY)
+    assert ok and info["limit"] == 30
+
+
+def test_report_limit_is_30(monkeypatch, tmp_path):
+    _tmp(monkeypatch, tmp_path)
+    assert quotas.feature_limit("marketing", "report") == (30, "month")
+    for _ in range(30):
+        quotas.consume_feature(12, "report", "marketing", now=DAY)
+    ok, info = quotas.check_feature_quota(12, "marketing", "report", now=DAY)
+    assert not ok and info["used"] == 30

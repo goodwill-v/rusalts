@@ -209,7 +209,7 @@ def report_message(stats: dict) -> str:
             f"   [ссылка]({it.url})"
         )
     lines.append("")
-    lines.append("_💡 Сводка потратила 1 поиск из пакета. Счётчик сводок: 10/мес._")
+    lines.append("_💡 Сводка потратила 1 поиск из пакета. Лимит: 30 сводок/мес._")
     return "\n".join(lines)
 
 
