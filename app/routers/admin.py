@@ -624,3 +624,16 @@ async def api_diagnostics(_user: str = Depends(_require_admin_auth)) -> JSONResp
 
     items = list_diagnostics()
     return JSONResponse({"ok": True, "items": items})
+
+
+@router.get("/admin/api/consistency")
+async def api_consistency_run(_user: str = Depends(_require_admin_auth)) -> JSONResponse:
+    """E2 ТЗ Развития: чек согласованности (страницы/цены/планы) по требованию.
+
+    Ночной прогон — в main._consistency_loop (04:30 МСК, алерт в MAX);
+    здесь тот же чек запускается вручную из админки.
+    """
+    from app.consistency_check import run_consistency_check
+
+    report = await run_consistency_check()
+    return JSONResponse({"ok": True, "report": report})

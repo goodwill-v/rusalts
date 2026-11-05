@@ -305,6 +305,11 @@
       <div class="admin-panel">
         <h2>📊 Сводка</h2>
         <div class="admin-grid" id="bl-stats"></div>
+        <div class="admin-actions" style="margin-top:0.75rem">
+          <button class="admin-btn admin-btn--small" id="bl-consistency">🔎 Проверка согласованности (E2)</button>
+          <span class="admin-msg" id="bl-consistency-msg"></span>
+        </div>
+        <pre id="bl-consistency-out" class="admin-note" style="white-space:pre-wrap;display:none;margin-top:0.5rem"></pre>
       </div>
 
       <div class="admin-panel">
@@ -724,6 +729,24 @@ window.activateTrial = async (o) => {
 };
 
 // ─── Таб 4: Биллинг ──────────────────────────────────────────────────────
+// E2: чек согласованности по требованию
+$("#bl-consistency").addEventListener("click", async () => {
+  const out = $("#bl-consistency-out");
+  const btn = $("#bl-consistency");
+  btn.disabled = true;
+  setMsg($("#bl-consistency-msg"), "Проверяю страницы и цены…", true);
+  try {
+    const data = await api("/admin/api/consistency");
+    const r = data.report;
+    out.style.display = "block";
+    out.textContent = (r.ok ? "🟢 Всё сходится" : "🔴 Расхождения") +
+      ` · проверок: ${r.checked} · ${r.checked_at.replace("T", " ").slice(0, 16)} UTC\n` +
+      (r.issues.length ? r.issues.map((i) => "• " + i).join("\n") : "расхождений нет");
+    setMsg($("#bl-consistency-msg"), r.ok ? "ОК" : `Найдено: ${r.issues.length}`, r.ok);
+  } catch (e) { setMsg($("#bl-consistency-msg"), "Ошибка: " + e.message, false); }
+  btn.disabled = false;
+});
+
 async function loadBilling() {
   const [ov, hist] = await Promise.all([
     api("/api/billing/overview"),
