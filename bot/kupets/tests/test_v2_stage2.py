@@ -251,3 +251,16 @@ def test_trial_subscription_gets_marketing():
     code = asyncio.run(quotas.user_plan(9, client=client))
     assert code == "marketing"  # триал = все опции «Маркетинг» (решение Шефа)
     assert quotas.plan_limits("marketing")["searches"] == 800
+
+
+def test_report_caption_detector():
+    from services.report import should_report_caption
+
+    assert should_report_caption("сводка")
+    assert should_report_caption("Сводка по нише")
+    assert should_report_caption("отчёт")
+    assert should_report_caption("нужен анализ ниши")
+    assert should_report_caption("report")
+    assert not should_report_caption("термос")
+    assert not should_report_caption(None)
+    assert not should_report_caption("")
