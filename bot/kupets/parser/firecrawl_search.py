@@ -39,7 +39,7 @@ _SITE_BY_MP = {
 # не должны попадать в выдачу
 _PRODUCT_URL_PATTERNS = {
     "ozon": re.compile(r"ozon\.ru/product/", re.IGNORECASE),
-    "wb": re.compile(r"wildberries\.ru/catalog/\d+/detail\.aspx", re.IGNORECASE),
+    "wb": re.compile(r"(?<!global\.)wildberries\.ru/catalog/\d+/detail\.aspx", re.IGNORECASE),
     "yam": re.compile(r"market\.yandex\.ru/product--", re.IGNORECASE),
 }
 
@@ -108,6 +108,47 @@ class FirecrawlClient:
             if credits and not Config.DRY_RUN:
                 _record_credits(credits)
 
+    async def search_web(
+        self, query, limit=10, marketplaces=MARKETPLACES
+    ) -> list[dict]:
+        """Сырые сниппеты (title/description/url) — для сводки продавца,
+        где нужны и карточки, и ценовые сигнатуры каталогов. Учёт кредитов
+        как в search_marketplaces."""
+        sites = " OR ".join(_SITE_BY_MP[mp] for mp in marketplaces if mp in _SITE_BY_MP)
+        search_query = f"{query.strip()} {sites}"
+        http = await self._ensure()
+        logger.info("firecrawl_search_web", extra={"query": search_query[:100]})
+        credits = 0
+        try:
+            resp = await http.post(
+                FIRECRAWL_BASE + "/search",
+                json={
+                    "query": search_query,
+                    "limit": max(1, min(int(limit), 10)),
+                    "sources": ["web"],
+                },
+            )
+            if resp.status_code == 402:
+                logger.error("firecrawl_quota_exhausted")
+                raise ProviderQuotaError("Firecrawl: месячный лимит кредитов исчерпан")
+            if resp.status_code != 200:
+                logger.error("firecrawl_fail", extra={"status": resp.status_code})
+                return []
+            data = resp.json()
+            credits = 2 * -(-min(int(limit), 10) // 10)
+            return data.get("data", {}).get("web", []) or []
+        except httpx.TimeoutException:
+            logger.error("firecrawl_timeout")
+            return []
+        except ProviderQuotaError:
+            raise
+        except Exception as exc:
+            logger.error("firecrawl_exc", extra={"error": str(exc)})
+            return []
+        finally:
+            if credits and not Config.DRY_RUN:
+                _record_credits(credits)
+
     # Совместимость со старым именем (использовалось в пайплайне/тестах)
     async def search_ozon(self, query, price_min=None, price_max=None, limit=20):
         return await self.search_marketplaces(
@@ -152,6 +193,14 @@ def _parse_results(data) -> list[SearchItem]:
         title = r.get("title", "").strip()
         desc = r.get("description", "")
         price = _extract_price(desc) or _extract_price(title) or 0.0
+        if not price and mp == "wb":
+            # WB генерирует заголовки вида «… {артикул} купить за 823» — цена без ₽
+            m = re.search(r"купить за\s*(\d[\d\s]{1,9})", title, re.IGNORECASE)
+            if m:
+                try:
+                    price = float(m.group(1).replace(" ", "").replace("\u202f", ""))
+                except ValueError:
+                    price = 0.0
         rating, reviews = _extract_rating(desc) or _extract_rating(title) or (None, None)
         items.append(
             SearchItem(
@@ -223,7 +272,8 @@ def _extract_rating(text):
     if not text:
         return None
     rv = chr(1086) + chr(1090) + chr(1079) + chr(1099) + chr(1074)
-    PAT = re.compile(r"(\d+[.,]\d+)\s*[\d\s]*\s*" + rv)
+    ocen = "оцен"  # «оценки/оценок» — формат Wildberries
+    PAT = re.compile(r"(\d+[.,]\d+)\s*(\d[\d\s]*)?\s*(?:" + rv + "|" + ocen + ")")
     m = PAT.search(text)
     if not m:
         return None
@@ -232,7 +282,7 @@ def _extract_rating(text):
     except ValueError:
         return None
     reviews = None
-    m2 = re.search(r"(\d[\d\s]*)\s*" + rv, text)
+    m2 = re.search(r"(\d[\d\s]*)\s*(?:" + rv + "|" + ocen + ")", text)
     if m2:
         try:
             reviews = int(m2.group(1).replace(" ", "").replace("\u202f", ""))

@@ -196,8 +196,13 @@ def report_message(stats: dict, ai_summary: str = "") -> str:
 
     # Цены: коридор + медиана + разбивка по площадкам
     if stats["median"]:
+        samples_note = (
+            f" + {stats['sample_count']} из сниппетов каталогов"
+            if stats.get("sample_count")
+            else ""
+        )
         lines.append(
-            f"💰 Цены (известны для {priced_count} из {n}): "
+            f"💰 Цены ({priced_count} карточек{samples_note}): "
             f"от {format_price(stats['min'])} · медиана "
             f"*{format_price(stats['median'])}* · до {format_price(stats['max'])}"
         )
