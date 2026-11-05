@@ -273,7 +273,12 @@ def _extract_rating(text):
         return None
     rv = chr(1086) + chr(1090) + chr(1079) + chr(1099) + chr(1074)
     ocen = "оцен"  # «оценки/оценок» — формат Wildberries
-    PAT = re.compile(r"(\d+[.,]\d+)\s*(\d[\d\s]*)?\s*(?:" + rv + "|" + ocen + ")")
+    # Единая пара «4,7 722 оценки» / «4.7 (1 245 отзывов)»: рейтинг и число
+    # вместе, иначе жадный класс цифр склеивает «8 431» из «4,8 431».
+    PAT = re.compile(
+        r"(\d+[.,]\d+)[\s\u202f,·]+(?:\((?:(\d[\d\s\u202f]*))\s*"
+        + rv + r"|((\d[\d\s\u202f]*))\s*(?:" + rv + "|" + ocen + "))"
+    )
     m = PAT.search(text)
     if not m:
         return None
@@ -281,11 +286,11 @@ def _extract_rating(text):
         rating = float(m.group(1).replace(",", "."))
     except ValueError:
         return None
+    reviews_raw = m.group(2) or m.group(3)
     reviews = None
-    m2 = re.search(r"(\d[\d\s]*)\s*(?:" + rv + "|" + ocen + ")", text)
-    if m2:
+    if reviews_raw:
         try:
-            reviews = int(m2.group(1).replace(" ", "").replace("\u202f", ""))
+            reviews = int(reviews_raw.replace(" ", "").replace("\u202f", ""))
         except ValueError:
             reviews = None
     return rating, reviews

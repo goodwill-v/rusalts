@@ -49,43 +49,38 @@ async def collect_niche(
     не привязаны к конкретной карточке, но честно показывают рынок.
     """
     from parser.firecrawl_search import (
-        _marketplace_of,
         _extract_price,
         _parse_results,
-        FirecrawlClient,
     )
+    from parser.search_channel import search_web_raw as channel_raw
 
-    fc = FirecrawlClient()
     items: list[SearchItem] = []
     samples: list[float] = []
     seen: set[str] = set()
-    try:
-        for suffix, marketplaces in REPORT_QUERIES:
-            query = f"{niche.strip()}{suffix}"
-            try:
-                raw = await fc.search_web(
-                    query, limit=per_query_limit, marketplaces=marketplaces
-                )
-            except Exception as exc:
-                logger.warning("report_query_fail", extra={"error": str(exc), "query": query[:60]})
+    for suffix, marketplaces in REPORT_QUERIES:
+        query = f"{niche.strip()}{suffix}"
+        try:
+            raw = await channel_raw(
+                query, limit=per_query_limit, marketplaces=marketplaces
+            )
+        except Exception as exc:
+            logger.warning("report_query_fail", extra={"error": str(exc), "query": query[:60]})
+            continue
+        for it in _parse_results({"web": raw}):
+            key = it.product_id or it.url
+            if key in seen:
                 continue
-            for it in _parse_results({"web": raw}):
-                key = it.product_id or it.url
-                if key in seen:
-                    continue
-                seen.add(key)
-                items.append(it)
-            for r in raw:
-                url = r.get("url", "")
-                if "global.wildberries" in url:  # казахстанский WB — цены в ₸
-                    continue
-                price = _extract_price(r.get("description", "")) or _extract_price(
-                    r.get("title", "")
-                )
-                if price and 100 <= price <= 500000:
-                    samples.append(price)
-    finally:
-        await fc.aclose()
+            seen.add(key)
+            items.append(it)
+        for r in raw:
+            url = r.get("url", "")
+            if "global.wildberries" in url:  # казахстанский WB — цены в ₸
+                continue
+            price = _extract_price(r.get("description", "")) or _extract_price(
+                r.get("title", "")
+            )
+            if price and 100 <= price <= 500000:
+                samples.append(price)
     logger.info(
         "report_collected",
         extra={"niche": niche[:40], "cards": len(items), "samples": len(samples)},

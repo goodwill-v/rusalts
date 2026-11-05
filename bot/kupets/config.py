@@ -46,6 +46,9 @@ class Config:
     # Firecrawl — внешний поиск (основной канал; Composer отключён)
     FIRECRAWL_API_KEY: str = os.getenv("FIRECRAWL_API_KEY", "")
     TAVILY_API_KEY: str = os.getenv("TAVILY_API_KEY", "")  # резерв: с сервера АЛТ пока 403 (WAF)
+    # Serper.dev — второй канал (ключ от Шефа 06.11; Google-SERP, 2500 запросов старт)
+    SERPER_API_KEY: str = os.getenv("SERPER_API_KEY", "")
+    SERPER_MONTHLY_QUERIES: int = int(os.getenv("SERPER_MONTHLY_QUERIES", "2500"))
     ENABLE_FIRECRAWL: bool = _bool("ENABLE_FIRECRAWL", "true")
     # Composer API Ozon — мёртв с 09.2026 (403 fab_chlg); включать только по решению Шефа
     ENABLE_COMPOSER: bool = _bool("ENABLE_COMPOSER", "false")

@@ -24,7 +24,8 @@ from engine.scorer import ProductScorer
 from models.product import ProductData, SearchItem
 from models.result import SearchContext, SearchFilters, SearchResponse
 from parser.composer import ComposerClient
-from parser.firecrawl_search import FirecrawlClient, ProviderQuotaError
+from parser.firecrawl_search import ProviderQuotaError
+from parser.search_channel import search_marketplaces as channel_search
 from parser.product import parse_product
 from parser.search import parse_search
 from parser.seller import attach_sellers
@@ -207,18 +208,12 @@ class SearchPipeline:
         если Firecrawl пуст, а Composer включён — пробуем его как прежде.
         """
         if Config.ENABLE_FIRECRAWL and not Config.DRY_RUN:
-            if credit_monitor.usage_snapshot()["level"] == "exhausted":
-                credit_monitor.check_and_alert()
-                return None
             await progress(
                 f"🔍 Ищу на Ozon, Wildberries и Яндекс.Маркете: {search_text}..."
             )
-            fc = FirecrawlClient()
             try:
-                items = await fc.search_marketplaces(
+                items = await channel_search(
                     search_text,
-                    price_min=filters.price_min,
-                    price_max=filters.price_max,
                     limit=Config.SEARCH_ITEMS_LIMIT,
                 )
                 if items:
@@ -226,12 +221,11 @@ class SearchPipeline:
                     credit_monitor.check_and_alert()
                     return items
             except ProviderQuotaError:
-                credit_monitor.mark_provider_exhausted()
+                # оба канала исчерпаны — канал уже разослал алерты
+                credit_monitor.check_and_alert()
                 return None
-            finally:
-                await fc.aclose()
-            # Firecrawl пуст — при включённом Composer пробуем его до того,
-            # как честно сказать «не нашлось»
+            # Firecrawl/Serper пуст — при включённом Composer пробуем его до
+            # того, как честно сказать «не нашлось»
         elif Config.DRY_RUN:
             return await parse_search(search_text, client=None)
 
