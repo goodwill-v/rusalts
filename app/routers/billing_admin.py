@@ -194,6 +194,10 @@ async def api_grant_access(request: Request):
       tokens       — количество токенов (0 = без лимита / по тарифу)
       period_days  — срок в днях (0 = 30 по умолчанию)
       reason       — причина (бесплатно / учитель / админ / тест)
+
+    Решение Шефа 06.11: вместе с доступом автоматически подключается
+    СТАРШИЙ план продукта (максимальный набор функций) — тестировщик
+    получает всё сразу (Купец → «Маркетинг», ВежПом → «Бизнес»).
     """
     try:
         body = await request.json()
@@ -220,6 +224,24 @@ async def api_grant_access(request: Request):
         period_days=days,
     )
 
+    # Старший план продукта — записью в subscriptions, чтобы боты видели
+    # план через /api/subscription (гейтинг максимальных лимитов)
+    plan_code = ""
+    plan_name = ""
+    try:
+        from app.tariffs_store import list_plans
+        plans = list_plans(pid)
+        if plans:
+            top = max(plans, key=lambda p: (p["price_rub"], p["period_days"]))
+            plan_code = top["plan"]
+            plan_name = top["name"]
+            from app.payments import activate_subscription
+            activate_subscription(
+                0, pid, "", "", period_days=days, plan=plan_code, customer_id=cid,
+            )
+    except Exception:
+        pass
+
     return JSONResponse({
         "ok": True,
         "balance": bal,
@@ -229,6 +251,8 @@ async def api_grant_access(request: Request):
             "tokens": tokens,
             "period_days": days,
             "reason": body.get("reason", ""),
+            "plan": plan_code,
+            "plan_name": plan_name,
         },
     })
 
