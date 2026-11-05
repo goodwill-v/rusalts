@@ -307,7 +307,7 @@ def test_report_message_v2_numbers():
         _item("Термос C", 1200, 4.4, 200, "yam"),
     ]
     text = report_message(build_report("термос", items), ai_summary="Заходить, цена 1150₽.")
-    assert "известны для 3 из 3" in text
+    assert "Цены (3 карточек)" in text
     assert "медиана *1\u202f200 ₽*" in text
     assert "Рекомендуемая цена входа: ~1\u202f140 ₽" in text
     assert "Резюме для продавца" in text and "Заходить" in text
@@ -346,3 +346,34 @@ def test_stats_for_ai_contains_numbers():
     items = [_item("Термос A", 1000, 4.7, 500, "ozon"), _item("Термос B", 1300, 4.5, 300, "wb")]
     text = stats_for_ai(build_report("термос", items))
     assert "медиана 1150₽" in text and "Карточек собрано: 2" in text
+
+
+def test_wb_price_and_rating_formats():
+    """WB: цена в заголовке «купить за 823», рейтинг «4,7 722 оценки»."""
+    from parser.firecrawl_search import _parse_results
+
+    data = {"web": [
+        {"url": "https://www.wildberries.ru/catalog/907321076/detail.aspx",
+         "title": "Термос детский для школы и прогулок 907321076 купить за 823",
+         "description": "Артикул, 907321076. Цвет, зеленый."},
+        {"url": "https://www.wildberries.ru/catalog/tags/termos-dlja-shkola",
+         "title": "Термос для школа - Купить в интернет магазине",
+         "description": "4.524 IntermoS / Термос детский 4,7 722 оценки. Послезавтра."},
+        {"url": "https://global.wildberries.ru/catalog/tags/termos",
+         "title": "Термос", "description": "3 750 ₸ 8 970 ₸"},
+    ]}
+    items = _parse_results(data)
+    assert len(items) == 1 and items[0].price == 823.0
+    assert items[0].reviews_count is None  # у detail-карточки рейтинга не было
+
+
+def test_catalog_price_samples():
+    """Сигнатуры цен из сниппетов каталогов попадают в коридор."""
+    from services.report import build_report
+
+    cards = [_item("Термос A", 1200, 4.5, 100, "ozon")]
+    samples = [1087.0, 1306.0]  # «-75%. 1 087 ₽ 4 447 ₽» и «1 306 ₽ 1 810 ₽»
+    stats = build_report("термос", cards, price_samples=samples)
+    assert stats["sample_count"] == 2
+    assert stats["median"] == 1200            # (1087, 1200, 1306) → 1200
+    assert stats["min"] == 1087 and stats["max"] == 1306

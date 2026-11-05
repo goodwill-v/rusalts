@@ -39,33 +39,60 @@ REPORT_QUERIES: list[tuple[str, tuple[str, ...]]] = [
 PRICE_BUCKETS = (1000, 2000, 4000)  # границы распределения цен, ₽
 
 
-async def collect_niche(niche: str, *, per_query_limit: int = 10) -> list[SearchItem]:
-    """Собрать карточки ниши четырьмя запросами с дедупликацией."""
-    from parser.firecrawl_search import FirecrawlClient
+async def collect_niche(
+    niche: str, *, per_query_limit: int = 10
+) -> tuple[list[SearchItem], list[float]]:
+    """Собрать нишу четырьмя запросами: (карточки, ценовые сигнатуры).
+
+    Карточки — товары с URL detail/product (дедуп по ID). Сигнатуры — цены
+    из сниппетов каталогов/тегов WB и Ozon («-75%. 1 087 ₽ 4 447 ₽»):
+    не привязаны к конкретной карточке, но честно показывают рынок.
+    """
+    from parser.firecrawl_search import (
+        _marketplace_of,
+        _extract_price,
+        _parse_results,
+        FirecrawlClient,
+    )
 
     fc = FirecrawlClient()
     items: list[SearchItem] = []
+    samples: list[float] = []
     seen: set[str] = set()
     try:
         for suffix, marketplaces in REPORT_QUERIES:
             query = f"{niche.strip()}{suffix}"
             try:
-                found = await fc.search_marketplaces(
+                raw = await fc.search_web(
                     query, limit=per_query_limit, marketplaces=marketplaces
                 )
             except Exception as exc:
                 logger.warning("report_query_fail", extra={"error": str(exc), "query": query[:60]})
                 continue
-            for it in found:
+            for it in _parse_results({"web": raw}):
                 key = it.product_id or it.url
                 if key in seen:
                     continue
                 seen.add(key)
                 items.append(it)
+            for r in raw:
+                url = r.get("url", "")
+                if "global.wildberries" in url:  # казахстанский WB — цены в ₸
+                    continue
+                price = _extract_price(r.get("description", "")) or _extract_price(
+                    r.get("title", "")
+                )
+                if price and 100 <= price <= 500000:
+                    samples.append(price)
     finally:
         await fc.aclose()
-    logger.info("report_collected", extra={"niche": niche[:40], "cards": len(items)})
-    return items
+    logger.info(
+        "report_collected",
+        extra={"niche": niche[:40], "cards": len(items), "samples": len(samples)},
+    )
+    return items, samples
+
+
 
 
 def _quant_label(price: float) -> str:
@@ -88,18 +115,27 @@ def should_report_caption(caption: str | None) -> bool:
     return bool(caption and REPORT_CAPTION_RE.search(caption))
 
 
-def build_report(niche: str, items: list[SearchItem]) -> dict:
+def build_report(
+    niche: str,
+    items: list[SearchItem],
+    price_samples: list[float] | None = None,
+) -> dict:
     """Статистика ниши: карточки, коридор, медианы по площадкам,
     распределение цен, рейтинги, конкуренция, демпинг, клоны, топ."""
     # Два прохода: черновая медиана по всем ценам → отсев демпинга (<30%) →
     # финальная статистика коридора по «нормальным» ценам (демпинг не искажает).
-    all_priced = [it.price for it in items if it.price > 0]
+    all_priced = [it.price for it in items if it.price > 0] + list(price_samples or [])
     rough_med = statistics.median(all_priced) if all_priced else 0.0
     normal_items = [
         it for it in items
         if it.price > 0 and not (rough_med and it.price < rough_med * 0.3)
     ]
-    priced = [it.price for it in normal_items]
+    normal_prices = [it.price for it in normal_items]
+    clean_samples = [
+        p for p in (price_samples or [])
+        if not (rough_med and p < rough_med * 0.3)
+    ]
+    priced = sorted(normal_prices + clean_samples)
     med = statistics.median(priced) if priced else 0.0
 
     per_mp: Counter[str] = Counter(getattr(it, "marketplace", "ozon") for it in items)
@@ -149,6 +185,7 @@ def build_report(niche: str, items: list[SearchItem]) -> dict:
         "median": med,
         "max": priced[-1] if priced else 0,
         "priced_count": len(priced),
+        "sample_count": len(clean_samples),
         "price_buckets": dict(buckets),
         "recommended_price": recommended,
         "rated_count": len(rated),

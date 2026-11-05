@@ -206,8 +206,8 @@ async def cmd_report(message: Message, state: FSMContext) -> None:
     try:
         from ai.explainer import AIExplainer
 
-        items = await report_svc.collect_niche(niche)
-        stats = report_svc.build_report(niche, items)
+        items, samples = await report_svc.collect_niche(niche)
+        stats = report_svc.build_report(niche, items, price_samples=samples)
         ai_summary = ""
         try:
             ai_summary = await AIExplainer().summarize_report(
@@ -498,9 +498,9 @@ async def on_photo(message: Message, state: FSMContext) -> None:
             return
         quotas.consume_feature(user.id, "report", plan)
         await progress.edit_text(f"📊 Сводка по снимку: анализирую нишу «{query}»…")
-        items = await report_svc.collect_niche(query)
+        items, samples = await report_svc.collect_niche(query)
         await progress.edit_text(
-            report_message(report_svc.build_report(query, items)),
+            report_message(report_svc.build_report(query, items, price_samples=samples)),
             parse_mode="Markdown",
             disable_web_page_preview=True,
         )
