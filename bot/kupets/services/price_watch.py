@@ -35,7 +35,7 @@ from __future__ import annotations
 import asyncio
 import time
 from collections.abc import Awaitable, Callable
-from datetime import datetime
+from datetime import datetime, timedelta
 from typing import Any
 
 from services import credit_monitor, quotas, sqlite_store
@@ -277,8 +277,13 @@ async def watch_scheduler(
     notify_fn: NotifyFn | None = None,
     tick_seconds: int = SWEEP_TICK_SECONDS,
 ) -> None:
-    """Фоновый цикл бота: раз в tick_seconds проверяет окно и метку суток;
-    в окне 07:00–09:00 МСК делает один суточный обход активных слежек."""
+    """Фоновый цикл бота: спит до начала окна обхода (07:00 МСК), делает один
+    суточный обход активных слежек, снова спит до завтрашнего окна.
+
+    Решение Шефа 06.11: тик каждые 10 минут избыточен — один раз в сутки,
+    перед отчётом в чат. Метка sweep_is_done защищает от повторного обхода,
+    если процесс перезапустился внутри окна.
+    """
     if notify_fn is None:
 
         async def notify_fn(chat_id: str, text: str) -> None:
@@ -286,16 +291,35 @@ async def watch_scheduler(
 
     logger.info(
         "watch_scheduler_started",
-        extra={"window": f"{SWEEP_WINDOW_START_HOUR:02d}:00-{SWEEP_WINDOW_END_HOUR:02d}:00 МСК",
-               "tick_sec": tick_seconds},
+        extra={"window": f"{SWEEP_WINDOW_START_HOUR:02d}:00-{SWEEP_WINDOW_END_HOUR:02d}:00 МСК"},
     )
     while True:
         try:
-            if in_sweep_window():
-                await sweep_once(search_fn, notify_fn)
+            wait = seconds_until_sweep_window()
+            logger.info(
+                "watch_scheduler_sleep",
+                extra={"wait_sec": wait},
+            )
+            await asyncio.sleep(max(wait, 1))
+            await sweep_once(search_fn, notify_fn)
         except Exception as exc:
             logger.warning("watch_scheduler_tick_failed", extra={"error": str(exc)})
-        await asyncio.sleep(tick_seconds)
+            # сбой — не крутимся в петле: до следующего окна
+            await asyncio.sleep(seconds_until_sweep_window() or tick_seconds)
+
+
+def seconds_until_sweep_window(now: datetime | None = None) -> int:
+    """Сколько секунд до ближайшего начала окна обхода (07:00 МСК)."""
+    dt = now or datetime.now(MOSCOW)
+    if dt.tzinfo is None:
+        dt = dt.replace(tzinfo=MOSCOW)
+    dt = dt.astimezone(MOSCOW)
+    target = dt.replace(
+        hour=SWEEP_WINDOW_START_HOUR, minute=0, second=0, microsecond=0
+    )
+    if dt >= target:
+        target += timedelta(days=1)
+    return max(1, int((target - dt).total_seconds()))
 
 
 # ─── Мелочи ──────────────────────────────────────────────────────────
