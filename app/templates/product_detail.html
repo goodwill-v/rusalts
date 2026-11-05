@@ -35,6 +35,9 @@
     background: var(--site-primary); color: #fff; border: none; cursor: pointer;
   }
   .pd__trial-btn:hover { filter: brightness(1.08); }
+  .modal__id-hint {
+    font-size: 0.8rem; color: var(--site-muted, #6b7280); margin-top: 0.5rem; line-height: 1.45;
+  }
   @media (max-width: 640px) {
     .pd { padding: 1.25rem 0.75rem 3rem; }
     .pd__hero { flex-direction: column; }
@@ -155,6 +158,13 @@
     <div id="modal-customer-field" class="modal__field">
       <label for="modal-customer">Telegram/МАКС ID (для активации подписки):</label>
       <input id="modal-customer" type="text" placeholder="напишите боту /pay или введите ID вручную" />
+      <div id="modal-id-hint" class="modal__id-hint">
+        Не знаете свой ID? Откройте бота и напишите <b>/status</b> — он покажет ID и тариф.
+        {% if p.max_url or p.tg_url or p.bot_url %}
+        <a id="modal-bot-link" class="link" target="_blank" rel="noopener">Открыть бота →</a>
+        {% endif %}
+        Либо оформите подписку прямо в боте — счёт создастся сам, ID не нужен.
+      </div>
     </div>
     <p class="modal__methods">💳 Карта · 📱 СБП · 🔒 ЮKassa</p>
     <button id="modal-pay-btn" class="btn-buy btn-buy--large">Перейти к оплате</button>
@@ -164,6 +174,13 @@
 
 <script>
 const ALL_BUYABLE = {{ buyable | tojson }};
+// Ссылка «Открыть бота» в подсказке про ID (приоритет: MAX → Telegram → bot_url)
+(() => {
+  const botLink = document.getElementById("modal-bot-link");
+  if (!botLink) return;
+  const url = {{ (p.max_url or p.tg_url or p.bot_url or "") | tojson }};
+  if (url) botLink.href = url; else botLink.style.display = "none";
+})();
 // C5: пробный период в 1 клик (ТЗ Развитие) — без оплаты, по ID из мессенджера
 const trialBtn = document.getElementById("trial-start");
 if (trialBtn) {
