@@ -424,14 +424,14 @@ def _channel(monkeypatch, fc: _FakeFC, serper: _FakeSerper):
     async def fake_fc_raw(q, *, limit, mp):
         return await fc.search_web(q, limit=limit, marketplaces=mp)
 
-    async def fake_si(q, *, limit):
+    async def fake_si(q, *, limit, mp=None):
         from parser.firecrawl_search import _parse_results
         return _parse_results({"web": [
             {"url": r["link"], "title": r["title"], "description": r["snippet"]}
             for r in await serper.search_organic(q, num=limit)
         ]})
 
-    async def fake_sr(q, *, limit):
+    async def fake_sr(q, *, limit, mp=None):
         return [
             {"url": r["link"], "title": r["title"], "description": r["snippet"]}
             for r in await serper.search_organic(q, num=limit)
@@ -561,7 +561,7 @@ def test_serper_quota_alerts_via_channel(monkeypatch):
     async def fake_fc(q, *, limit, mp):
         await fail_fc(q, limit=limit, mp=mp)
 
-    async def fake_si(q, *, limit):
+    async def fake_si(q, *, limit, mp=None):
         await fail_serper(q, limit=limit)
 
     monkeypatch.setattr(ch, "_firecrawl", fake_fc)
