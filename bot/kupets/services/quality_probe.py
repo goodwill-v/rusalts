@@ -60,10 +60,13 @@ async def _collect(provider: str, query: str, limit: int) -> dict:
     else:
         from parser.serper_search import SerperClient
         from parser.firecrawl_search import _parse_results
+        from parser.search_channel import _serper_query
 
         sc = SerperClient()
         try:
-            organic = await sc.search_organic(query, num=limit)
+            organic = await sc.search_organic(
+                _serper_query(query, ("ozon", "wb", "yam")), num=limit
+            )
         finally:
             await sc.aclose()
         items = _parse_results({"web": [
