@@ -804,6 +804,7 @@ def _status_text(chat_id):
     sites, domains, total = _resources_used(chat_id)
     plan_line = ("Тариф: «%s» (%s) — ресурсов %d из %d (сайты %d + домены %d)."
                  % (plan_name, price_text, total, limit, sites, domains))
+    plan_line += "\nВаш ID (для выдачи доступа в админке АЛТ): %s" % chat_id
     if total >= limit:
         plan_line += "\nПредел тарифа — новые сайты/домены не добавить, смените тариф: https://rusalts.ru/techologis/p/vezhpom/"
     sub = vitrina.get_subscription_info(chat_id)
