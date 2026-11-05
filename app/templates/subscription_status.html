@@ -1,0 +1,37 @@
+{% extends "base.html" %}
+{% block body %}
+<main class="site-main">
+  <div class="pd">
+    <h1 style="font-size:1.7rem;color:var(--site-heading);margin:0 0 0.5rem">Подписка АЛТ</h1>
+
+    {% if error %}
+    <div class="pd__panel" style="margin-top:1rem">
+      <p style="margin:0;color:var(--site-text)">{{ error }}</p>
+      <p style="margin:0.75rem 0 0"><a class="link" href="/techologis/">← К продуктам и тарифам</a></p>
+    </div>
+    {% elif info %}
+    <div class="pd__panel" style="margin-top:1rem">
+      <h2 style="margin:0 0 0.6rem">{{ info.product_name }}</h2>
+      <p style="margin:0;color:var(--site-text)">
+        Тариф: <strong>{{ info.plan_name or "—" }}</strong>
+        {% if info.status == "trial" %} · 🎁 пробный период{% endif %}<br />
+        Статус: {{ "активна ✅" if info.status in ("active", "trial") else info.status }}
+        {% if info.expires_at %} · до {{ info.expires_at }}{% endif %}
+      </p>
+      {% if info.resource_limit %}
+      <p style="margin:0.5rem 0 0;color:var(--site-text)">{{ info.limit_label }}: до {{ info.resource_limit }}{% if info.searches_per_month %} · 🔎 поисков: {{ info.searches_per_month }}/мес{% endif %}</p>
+      {% endif %}
+      <div class="pd__actions" style="margin-top:1rem">
+        <a class="btn-buy btn-buy--large" href="/techologis/p/{{ info.product_id }}/">Сменить тариф или продлить →</a>
+      </div>
+      <p class="pd__botnote">В боте: напишите /status — покажет тариф и расход. Лимиты применяются автоматически, без перезапуска.</p>
+    </div>
+    {% else %}
+    <div class="pd__panel" style="margin-top:1rem">
+      <p style="margin:0;color:var(--site-text)">Укажите ссылку с ID: <code>/techologis/subscription/?customer_id=ID&amp;product_id=ID_продукта</code> —
+        или выберите тариф на <a class="link" href="/techologis/">витрине</a>.</p>
+    </div>
+    {% endif %}
+  </div>
+</main>
+{% endblock %}

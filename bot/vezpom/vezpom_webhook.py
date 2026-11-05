@@ -115,7 +115,7 @@ def _plan_limit_reached(chat_id):
     return ("Лимит тарифа «%s» (%s): %d ресурсов — под контролем уже %d"
             " (сайты/серверы + домены).\nВарианты: убрать лишнее"
             " (/monitor_off, /domain_off) или сменить тариф:"
-            " https://rusalts.ru/techologis/subscription/"
+            " https://rusalts.ru/techologis/p/vezhpom/"
             % (plan_name, price_text, limit, total))
 
 
@@ -805,7 +805,7 @@ def _status_text(chat_id):
     plan_line = ("Тариф: «%s» (%s) — ресурсов %d из %d (сайты %d + домены %d)."
                  % (plan_name, price_text, total, limit, sites, domains))
     if total >= limit:
-        plan_line += "\nПредел тарифа — новые сайты/домены не добавить, смените тариф: https://rusalts.ru/techologis/subscription/"
+        plan_line += "\nПредел тарифа — новые сайты/домены не добавить, смените тариф: https://rusalts.ru/techologis/p/vezhpom/"
     sub = vitrina.get_subscription_info(chat_id)
     if sub and sub.get("status") == "active":
         expires = (sub.get("expires_at") or "")[:10]

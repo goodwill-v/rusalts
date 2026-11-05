@@ -310,6 +310,25 @@ PRODUCT_PLAN_SEEDS: dict[str, list[dict[str, Any]]] = {
             "resource_limit": 30, "searches_per_month": 800, "position": 30,
         },
     ],
+    # ВежПом (ТЗ Vitrina tarify v2): monitoring/guard/business — общий пул
+    # ресурсы (сайты/серверы + домены). В проде планы уже есть — сид молчит.
+    "vezhpom": [
+        {
+            "plan": "monitoring", "name": "Мониторинг", "price_rub": 150,
+            "period_days": 30, "trial_days": 7, "resource_limit": 3,
+            "searches_per_month": 0, "position": 10,
+        },
+        {
+            "plan": "guard", "name": "Страж", "price_rub": 500,
+            "period_days": 30, "trial_days": 7, "resource_limit": 10,
+            "searches_per_month": 0, "position": 20,
+        },
+        {
+            "plan": "business", "name": "Бизнес", "price_rub": 1500,
+            "period_days": 30, "trial_days": 7, "resource_limit": 30,
+            "searches_per_month": 0, "position": 30,
+        },
+    ],
 }
 
 
