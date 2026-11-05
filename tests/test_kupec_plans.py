@@ -169,3 +169,34 @@ def test_webhook_persists_plan(client, monkeypatch) -> None:
     assert sub["plan"] == "advanced"
     assert sub["searches_per_month"] == 270
     assert sub["trial"] is False
+
+
+def test_grant_access_gives_top_plan(client) -> None:
+    """«Выдать доступ» подключает старший план (решение Шефа 06.11):
+    тестировщик получает максимум функций, боты видят план через API."""
+    from base64 import b64encode
+
+    auth = {"Authorization": "Basic " + b64encode(b"admin:20rusalt13").decode()}
+    r = client.post("/api/billing/grant-access",
+                    json={"customer_id": "460255752", "product_id": "kupec",
+                          "period_days": 14, "reason": "тест"},
+                    headers=auth)
+    assert r.status_code == 200
+    granted = r.json()["granted"]
+    assert granted["plan"] == "marketing"
+    assert granted["plan_name"] == "Маркетинг"
+
+    # боты видят план и максимальные лимиты через /api/subscription
+    sub = client.get("/api/subscription/460255752/kupec").json()
+    assert sub["plan"] == "marketing"
+    assert sub["searches_per_month"] == 800
+    assert sub["resource_limit"] == 30
+    assert sub["status"] == "active"
+    assert sub["trial"] is False
+
+    # продукт без планов — план не назначается, доступ всё равно выдан
+    r2 = client.post("/api/billing/grant-access",
+                     json={"customer_id": "111", "product_id": "expert", "reason": "тест"},
+                     headers=auth)
+    assert r2.status_code == 200
+    assert r2.json()["granted"]["plan"] == ""

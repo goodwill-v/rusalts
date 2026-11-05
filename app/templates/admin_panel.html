@@ -335,6 +335,7 @@
           <button class="admin-btn admin-btn--action" id="bl-grant">✅ Выдать доступ</button>
           <span class="admin-msg" id="bl-grant-msg"></span>
         </div>
+        <p class="admin-note">Автоматически подключается старший план продукта (максимальный набор функций) — тестировщик получает всё: Купец → «Маркетинг», ВежПом → «Бизнес».</p>
       </div>
 
       <div class="admin-panel">
@@ -783,7 +784,9 @@ $("#bl-grant").addEventListener("click", async () => {
         reason: $("#bl-reason").value,
       }),
     });
-    setMsg($("#bl-grant-msg"), data.ok ? `Выдано: ${data.balance.allowance_tokens} токенов` : (data.error || "Ошибка"), data.ok);
+    setMsg($("#bl-grant-msg"), data.ok
+      ? `Выдано${data.granted?.plan_name ? `: план «${data.granted.plan_name}»` : ""}, ${data.balance.allowance_tokens} токенов, ${data.granted?.period_days ?? 30} дн.`
+      : (data.error || "Ошибка"), data.ok);
   } catch (e) { setMsg($("#bl-grant-msg"), "Ошибка: " + e.message, false); }
 });
 
