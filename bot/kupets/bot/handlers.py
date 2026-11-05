@@ -103,14 +103,10 @@ async def _run_compare(message: Message, qa: str, qb: str) -> None:
         f"⚖️ Сравниваю: {qa} ↔ {qb} (два поиска из вашего пакета)…"
     )
     try:
-        from parser.firecrawl_search import FirecrawlClient
+        from parser.search_channel import search_marketplaces as channel_search
 
-        fc = FirecrawlClient()
-        try:
-            items_a = await fc.search_marketplaces(qa, limit=10)
-            items_b = await fc.search_marketplaces(qb, limit=10)
-        finally:
-            await fc.aclose()
+        items_a = await channel_search(qa, limit=10)
+        items_b = await channel_search(qb, limit=10)
         best_a, best_b = compare.pick_best(items_a), compare.pick_best(items_b)
         a = {
             "name": best_a.name, "price": best_a.price, "rating": best_a.rating,
@@ -166,13 +162,9 @@ async def _run_check(message: Message, name: str) -> None:
         f"🛡 Проверяю «{name[:50]}» (один поиск из вашего пакета)…"
     )
     try:
-        from parser.firecrawl_search import FirecrawlClient
+        from parser.search_channel import search_marketplaces as channel_search
 
-        fc = FirecrawlClient()
-        try:
-            items = await fc.search_marketplaces(name, limit=10)
-        finally:
-            await fc.aclose()
+        items = await channel_search(name, limit=10)
         verdict = anticlone.verdict_for(name, items)
         await progress.edit_text(
             check_result_message(name, verdict), parse_mode="Markdown"
@@ -244,7 +236,7 @@ async def _run_gift(message: Message, description: str, budget: int) -> None:
     )
     try:
         from ai.explainer import AIExplainer
-        from parser.firecrawl_search import FirecrawlClient
+        from parser.search_channel import search_marketplaces as channel_search
 
         ex = AIExplainer()
         queries = await ex.expand_gift(description, budget, gift.max_searches())
@@ -254,14 +246,10 @@ async def _run_gift(message: Message, description: str, budget: int) -> None:
                 "описание: /gift маме до 2000"
             )
             return
-        fc = FirecrawlClient()
         picks: list[tuple[str, object]] = []
-        try:
-            for q in queries:
-                items = await fc.search_marketplaces(q, limit=5)
-                picks.append((q, compare.pick_best(items)))
-        finally:
-            await fc.aclose()
+        for q in queries:
+            items = await channel_search(q, limit=5)
+            picks.append((q, compare.pick_best(items)))
         await progress.edit_text(
             gift_message(description, budget, picks),
             parse_mode="Markdown",

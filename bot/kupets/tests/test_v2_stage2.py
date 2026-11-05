@@ -377,3 +377,126 @@ def test_catalog_price_samples():
     assert stats["sample_count"] == 2
     assert stats["median"] == 1200            # (1087, 1200, 1306) → 1200
     assert stats["min"] == 1087 and stats["max"] == 1306
+
+
+# ─── Канальный поиск: Firecrawl → Serper (решение Шефа 06.11) ────────
+
+
+class _FakeFC:
+    def __init__(self, fail=False, items=None, raw=None):
+        self.fail = fail
+        self.items = items or []
+        self.raw = raw or []
+        self.calls = 0
+
+    async def search_marketplaces(self, query, *, limit=10, marketplaces=None):
+        self.calls += 1
+        if self.fail:
+            raise RuntimeError("firecrawl down")
+        return self.items
+
+    async def search_web(self, query, *, limit=10, marketplaces=None):
+        self.calls += 1
+        if self.fail:
+            raise RuntimeError("firecrawl down")
+        return self.raw
+
+
+class _FakeSerper:
+    def __init__(self):
+        self.calls = 0
+        self.organic = [
+            {"title": "Термос из Google", "link": "https://www.ozon.ru/product/t-123456/",
+             "snippet": "Термос для школы, 1 250 ₽. 4,8 320 оценок"},
+        ]
+
+    async def search_organic(self, query, num=10):
+        self.calls += 1
+        return self.organic
+
+
+def _channel(monkeypatch, fc: _FakeFC, serper: _FakeSerper):
+    import parser.search_channel as ch
+
+    async def fake_fc(q, *, limit, mp):
+        return await fc.search_marketplaces(q, limit=limit, marketplaces=mp)
+
+    async def fake_fc_raw(q, *, limit, mp):
+        return await fc.search_web(q, limit=limit, marketplaces=mp)
+
+    async def fake_si(q, *, limit):
+        from parser.firecrawl_search import _parse_results
+        return _parse_results({"web": [
+            {"url": r["link"], "title": r["title"], "description": r["snippet"]}
+            for r in await serper.search_organic(q, num=limit)
+        ]})
+
+    async def fake_sr(q, *, limit):
+        return [
+            {"url": r["link"], "title": r["title"], "description": r["snippet"]}
+            for r in await serper.search_organic(q, num=limit)
+        ]
+
+    monkeypatch.setattr(ch, "_firecrawl", fake_fc)
+    monkeypatch.setattr(ch, "_firecrawl_raw", fake_fc_raw)
+    monkeypatch.setattr(ch, "_serper_items", fake_si)
+    monkeypatch.setattr(ch, "_serper_raw", fake_sr)
+    monkeypatch.setattr(ch.Config, "FIRECRAWL_API_KEY", "x", raising=False)
+    monkeypatch.setattr(ch.Config, "SERPER_API_KEY", "y", raising=False)
+    monkeypatch.setattr(
+        "services.credit_monitor.usage_snapshot", lambda: {"level": "ok"}, raising=False
+    )
+    monkeypatch.setattr(
+        "parser.search_channel.credit_monitor.mark_provider_exhausted", lambda: None,
+        raising=False,
+    )
+
+
+def test_channel_firecrawl_ok_serper_not_spent(monkeypatch):
+    import parser.search_channel as ch
+
+    fc = _FakeFC(items=[_item("Термос A", 1200, 4.5, 100, "ozon")])
+    serper = _FakeSerper()
+    _channel(monkeypatch, fc, serper)
+    items = asyncio.run(ch.search_marketplaces("термос", limit=10))
+    assert len(items) == 1
+    assert serper.calls == 0  # Firecrawl здоров — резерв не тратится
+
+
+def test_channel_falls_back_to_serper_on_firecrawl_failure(monkeypatch):
+    import parser.search_channel as ch
+
+    fc = _FakeFC(fail=True)
+    serper = _FakeSerper()
+    _channel(monkeypatch, fc, serper)
+    items = asyncio.run(ch.search_marketplaces("термос", limit=10))
+    assert fc.calls == 1 and serper.calls == 1
+    assert items[0].name == "Термос из Google"
+    assert items[0].price == 1250.0  # сниппет Google с ценой парсится
+    assert items[0].reviews_count == 320  # «320 оценок» — тоже парсится
+
+
+def test_channel_raw_falls_back(monkeypatch):
+    import parser.search_channel as ch
+
+    fc = _FakeFC(fail=True)
+    serper = _FakeSerper()
+    _channel(monkeypatch, fc, serper)
+    raw = asyncio.run(ch.search_web_raw("термос", limit=10))
+    assert raw[0]["url"] == "https://www.ozon.ru/product/t-123456/"
+
+
+def test_serper_parsing_quality():
+    """Serper-сниппеты: цена и «оценки» извлекаются стандартными парсерами."""
+    from parser.firecrawl_search import _parse_results
+
+    data = {"web": [
+        {"url": "https://www.wildberries.ru/catalog/tags/termos",
+         "title": "Термос в школу - Купить", "description": "-27%. 1 306 ₽ 1 810 ₽ −27%"},
+        {"url": "https://www.ozon.ru/product/termos-5034127580/",
+         "title": "Детский термос", "description": "4,8 431 оценка. Послезавтра"},
+    ]}
+    items = _parse_results(data)
+    # теги WB — не карточка, но Ozon-карточка с рейтингом «оценки» проходит
+    assert len(items) == 1
+    assert items[0].rating == 4.8 and items[0].reviews_count == 431
