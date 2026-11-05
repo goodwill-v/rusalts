@@ -132,6 +132,7 @@ async def product_generated_page(request: Request, pid: str):
             "p": prod,
             "features": features,
             "plans": plans,
+            "has_plans": bool(plans),
             "limit_label": limit_label,
             "category_label": "услуга" if prod.get("category") == "service" else "продукт",
             "buyable": buyable,
