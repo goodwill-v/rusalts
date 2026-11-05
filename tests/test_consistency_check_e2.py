@@ -58,9 +58,7 @@ def _run(client):
 
     from app.consistency_check import run_consistency_check
 
-    return asyncio.get_event_loop().run_until_complete(
-        run_consistency_check(fetch=_tc_fetch(client))
-    )
+    return asyncio.run(run_consistency_check(fetch=_tc_fetch(client)))
 
 
 def test_check_catches_breakage(client) -> None:
@@ -75,9 +73,7 @@ def test_check_catches_breakage(client) -> None:
             return 200, "<html>планы пропали</html>"
         return (await _tc_fetch(client)(url))
 
-    report = asyncio.get_event_loop().run_until_complete(
-        run_consistency_check(fetch=broken_fetch)
-    )
+    report = asyncio.run(run_consistency_check(fetch=broken_fetch))
     assert not report["ok"]
     assert any("/news/" in i for i in report["issues"])
     assert any("kupec" in i and "не на странице" in i for i in report["issues"])
