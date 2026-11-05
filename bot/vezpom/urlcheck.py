@@ -48,7 +48,10 @@ def normalize_url(raw):
         return None
     if not re.match(r"^[a-z0-9а-яё.\-]+$", host.replace("xn--", "")) and not _is_ip(host):
         return None
-    return urllib.parse.urlunparse((parsed.scheme, parsed.hostname, parsed.path or "/",
+    # ВАЖНО: для поиска по базе оставляем netloc С портом (hostname порт
+    # теряет, а вредоносные ссылки часто на нестандартных портах)
+    netloc = (parsed.netloc or "").lower()
+    return urllib.parse.urlunparse((parsed.scheme, netloc, parsed.path or "/",
                                     parsed.params, parsed.query, ""))
 
 
