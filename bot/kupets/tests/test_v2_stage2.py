@@ -219,3 +219,35 @@ def test_report_message_format():
     assert "Топ карточек" in text
     empty = report_message(build_report("нонсенс xyz", []))
     assert "не нашлось" in empty
+
+
+# ── Витрина-поля (05.11): searches_per_month из API + trial → marketing ──
+
+
+def test_plan_searches_per_month_field_from_vitrina():
+    """Админ добавил searches_per_month — приоритет над локальным маппингом."""
+    plans = [{"plan": "base", "name": "Базовый", "resource_limit": 3,
+              "searches_per_month": 80}]
+    monkey_saved = quotas._plans_state
+    quotas._plans_state = {"at": 1.0, "plans": plans}
+    try:
+        limits = quotas.plan_limits("base")
+        assert limits["searches"] == 80 and limits["period"] == "month"
+    finally:
+        quotas._plans_state = monkey_saved
+
+
+def test_trial_subscription_gets_marketing():
+    client = type("C", (), {})()
+    client.get_plans = lambda: [
+        {"plan": "base", "name": "Базовый", "resource_limit": 3,
+         "searches_per_month": 80},
+        {"plan": "marketing", "name": "Маркетинг", "resource_limit": 30,
+         "searches_per_month": 800},
+    ]
+    client.get_subscription_state = lambda uid: {
+        "present": True, "status": "active", "plan": "base", "trial": True,
+    }
+    code = asyncio.run(quotas.user_plan(9, client=client))
+    assert code == "marketing"  # триал = все опции «Маркетинг» (решение Шефа)
+    assert quotas.plan_limits("marketing")["searches"] == 800
