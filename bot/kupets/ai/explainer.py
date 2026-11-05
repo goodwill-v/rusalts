@@ -97,6 +97,31 @@ class AIExplainer:
                 parsed.append(self._fallback_verdict(products[len(parsed)]))
         return parsed
 
+    async def summarize_report(self, stats_text: str) -> str:
+        """Резюме для продавца по статистике ниши (сводка, ТЗ v2 §3.6): 3–5 строк.
+        Пустая строка = сбой (вызывающий покажет вычисляемое резюме)."""
+        if self._client is None:
+            return ""
+        prompt = (
+            "Ты — аналитик маркетплейсов. Вот статистика ниши для продавца:\n"
+            f"{stats_text}\n\n"
+            "Дай 3–5 коротких строк-рекомендаций по-русски, без маркдауна: "
+            "стоит ли заходить в нишу, с какой ценой (опираясь на медиану), "
+            "на чём выделиться, чего избегать. Только факты из статистики, "
+            "без выдумок."
+        )
+        resp = await self._client.chat.completions.create(
+            model=Config.ROUTERAI_MODEL,
+            messages=[
+                {"role": "system", "content": "Ты — аналитик маркетплейсов. Кратко, по-русски, только по данным."},
+                {"role": "user", "content": prompt},
+            ],
+            max_tokens=300,
+            temperature=0.3,
+        )
+        msg = resp.choices[0].message
+        return (msg.content or "").strip() or (getattr(msg, "reasoning", None) or "").strip()
+
     async def expand_gift(self, description: str, budget: int, n: int = 4) -> list[str]:
         """Подарочный подбор (фича г): «маме до 2000₽» → 3–4 конкретных
         товарных запроса для поиска. Пустой список = сбой (честный отказ)."""

@@ -197,31 +197,12 @@ def test_report_build_stats():
     stats = build_report("термос для школы", items)
     assert stats["total"] == 5
     assert stats["per_marketplace"]["ozon"] == 2
-    assert stats["dump_count"] == 1          # 200 < 30% медианы (1200)
+    assert stats["dump_count"] == 1          # 200 < 30% черновой медианы
     assert stats["clone_count"] == 1         # паттерн клона
     assert len(stats["top"]) == 5
     assert stats["top"][0].name == "Термос A"  # лучший рейтинг×отзывы
-    assert stats["median"] == 1100  # (1000+1200)/2 при чётном количестве
+    assert stats["median"] == 1200  # демпинг 200₽ исключён из коридора
 
-
-def test_report_message_format():
-    from services.report import build_report
-    from bot.messages import report_message
-
-    items = [
-        _item("Термос A", 1000, 4.7, 500, "ozon"),
-        _item("Термос B", 1300, 4.5, 300, "wb"),
-        _item("Термос C", 1200, 4.4, 200, "yam"),
-    ]
-    text = report_message(build_report("термос для школы", items))
-    assert "Сводка для продавца" in text
-    assert "Ценовой коридор" in text and "медиана" in text
-    assert "Топ карточек" in text
-    empty = report_message(build_report("нонсенс xyz", []))
-    assert "не нашлось" in empty
-
-
-# ── Витрина-поля (05.11): searches_per_month из API + trial → marketing ──
 
 
 def test_plan_searches_per_month_field_from_vitrina():
@@ -281,13 +262,87 @@ def test_trial_status_from_vitrina_is_marketing():
     assert code == "marketing"
     assert quotas.plan_limits("marketing")["searches"] == 800
     ok, info = quotas.check_feature_quota(11, "marketing", "report", now=DAY)
-    assert ok and info["limit"] == 30
+    assert ok and info["limit"] == 100
 
 
-def test_report_limit_is_30(monkeypatch, tmp_path):
+
+
+# ─── Сводка v2: многозапросная сборка, аналитика, лимит 100 ──────────
+
+
+def test_report_v2_full_stats():
+    from services.report import build_report
+
+    items = [
+        _item("Термос A 1л", 1000, 4.7, 500, "ozon"),
+        _item("Термос B", 1300, 4.5, 300, "wb"),
+        _item("Термос C", 1200, 4.4, 200, "yam"),
+        _item("Термос D", 1450, 4.8, 800, "wb"),
+        _item("Термос демпинг", 200, None, 5, "wb"),
+        _item("I15 Pro Max клон", 0, None, 0, "ozon"),
+    ]
+    stats = build_report("термос для школы", items)
+    assert stats["total"] == 6
+    assert stats["dump_count"] == 1         # 200₽ < 30% черновой медианы
+    assert stats["median"] == 1250          # (1200+1300)/2 — демпинг не искажает
+    assert stats["min"] == 1000 and stats["max"] == 1450  # коридор без демпинга
+    assert stats["mp_medians"]["wb"]["median"] == 1375  # (1300+1450)/2
+    assert stats["recommended_price"] == 1190  # 1250*0.95 → округление до 10
+    assert stats["rated_count"] == 4 and stats["avg_rating"] > 4.4
+    assert stats["rooted_count"] == 4       # отзывов >100: 500/300/200/800
+    assert stats["dump_count"] == 1
+    assert stats["clone_count"] == 1
+    assert "низкая" in stats["competition"]  # 6 карточек — порог «средней» от 8
+    buckets = stats["price_buckets"]
+    assert buckets.get("1000–2000₽") == 4 and "менее 1000₽" not in buckets
+
+
+def test_report_message_v2_numbers():
+    from services.report import build_report
+    from bot.messages import report_message
+
+    items = [
+        _item("Термос A", 1000, 4.7, 500, "ozon"),
+        _item("Термос B", 1300, 4.5, 300, "wb"),
+        _item("Термос C", 1200, 4.4, 200, "yam"),
+    ]
+    text = report_message(build_report("термос", items), ai_summary="Заходить, цена 1150₽.")
+    assert "известны для 3 из 3" in text
+    assert "медиана *1\u202f200 ₽*" in text
+    assert "Рекомендуемая цена входа: ~1\u202f140 ₽" in text
+    assert "Резюме для продавца" in text and "Заходить" in text
+    assert "100 сводок/мес" in text
+
+
+def test_report_queries_count_and_dedupe():
+    from services.report import niche_queries_count
+
+    assert niche_queries_count() == 4
+
+
+def test_review_pages_excluded():
+    from parser.firecrawl_search import _parse_results
+
+    data = {"web": [
+        {"url": "https://www.ozon.ru/product/termos-2596659119/", "title": "Термос"},
+        {"url": "https://www.ozon.ru/product/termos-2596659119/reviews/", "title": "267 отзыв на Термос"},
+    ]}
+    items = _parse_results(data)
+    assert len(items) == 1  # страница отзывов не карточка
+
+
+def test_report_limit_is_100(monkeypatch, tmp_path):
     _tmp(monkeypatch, tmp_path)
-    assert quotas.feature_limit("marketing", "report") == (30, "month")
-    for _ in range(30):
-        quotas.consume_feature(12, "report", "marketing", now=DAY)
-    ok, info = quotas.check_feature_quota(12, "marketing", "report", now=DAY)
-    assert not ok and info["used"] == 30
+    assert quotas.feature_limit("marketing", "report") == (100, "month")
+    for _ in range(100):
+        quotas.consume_feature(13, "report", "marketing", now=DAY)
+    ok, info = quotas.check_feature_quota(13, "marketing", "report", now=DAY)
+    assert not ok and info["used"] == 100
+
+
+def test_stats_for_ai_contains_numbers():
+    from services.report import build_report, stats_for_ai
+
+    items = [_item("Термос A", 1000, 4.7, 500, "ozon"), _item("Термос B", 1300, 4.5, 300, "wb")]
+    text = stats_for_ai(build_report("термос", items))
+    assert "медиана 1150₽" in text and "Карточек собрано: 2" in text

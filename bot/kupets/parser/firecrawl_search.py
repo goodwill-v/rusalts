@@ -143,6 +143,8 @@ def _parse_results(data) -> list[SearchItem]:
             continue
         if not _PRODUCT_URL_PATTERNS[mp].search(url):
             continue  # категория/подборка, не карточка
+        if mp == "ozon" and url.rstrip("/").endswith(("reviews", "reviews/")):
+            continue  # страница отзывов карточки, не сам товар
         pid = _extract_product_id(url) or hashlib.sha1(url.encode()).hexdigest()[:12]
         if pid in seen:
             continue

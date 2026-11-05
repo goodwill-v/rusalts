@@ -199,24 +199,24 @@ async def cmd_report(message: Message, state: FSMContext) -> None:
             feature_limit_message(FEATURE_LABELS["report"], info)
         )
         return
-    pool_ok, pool_info = quotas.check_search_quota(user.id, plan)
-    if not pool_ok:
-        await message.answer(quota_exhausted_message(pool_info))
-        return
     quotas.consume_feature(user.id, "report", plan)
-    quotas.consume_search(user.id, plan)
-    progress = await message.answer(f"📊 Собираю сводку по нише «{niche}»…")
+    progress = await message.answer(
+        f"📊 Собираю сводку по нише «{niche}» (4 запроса, до минуты)…"
+    )
     try:
-        from parser.firecrawl_search import FirecrawlClient
+        from ai.explainer import AIExplainer
 
-        fc = FirecrawlClient()
-        try:
-            items = await fc.search_marketplaces(niche, limit=10)
-        finally:
-            await fc.aclose()
+        items = await report_svc.collect_niche(niche)
         stats = report_svc.build_report(niche, items)
+        ai_summary = ""
+        try:
+            ai_summary = await AIExplainer().summarize_report(
+                report_svc.stats_for_ai(stats)
+            )
+        except Exception as exc:
+            logger.warning("report_ai_fail", extra={"error": str(exc)})
         await progress.edit_text(
-            report_message(stats), parse_mode="Markdown",
+            report_message(stats, ai_summary), parse_mode="Markdown",
             disable_web_page_preview=True,
         )
     except Exception as exc:
@@ -497,18 +497,10 @@ async def on_photo(message: Message, state: FSMContext) -> None:
             await progress.edit_text(quota_exhausted_message(pool_info))
             return
         quotas.consume_feature(user.id, "report", plan)
-        quotas.consume_search(user.id, plan)
         await progress.edit_text(f"📊 Сводка по снимку: анализирую нишу «{query}»…")
-        from parser.firecrawl_search import FirecrawlClient
-        from services.report import build_report as _build_report
-
-        fc = FirecrawlClient()
-        try:
-            items = await fc.search_marketplaces(query, limit=10)
-        finally:
-            await fc.aclose()
+        items = await report_svc.collect_niche(query)
         await progress.edit_text(
-            report_message(_build_report(query, items)),
+            report_message(report_svc.build_report(query, items)),
             parse_mode="Markdown",
             disable_web_page_preview=True,
         )

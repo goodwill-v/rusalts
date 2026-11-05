@@ -314,7 +314,7 @@ FEATURE_LIMITS: dict[str, dict[str, tuple[int | None, str]]] = {
         "free": (0, "month"),
         "base": (0, "month"),
         "advanced": (0, "month"),
-        "marketing": (30, "month"),  # решение Шефа 06.11: было 10 (≈27₽ worst-case)
+        "marketing": (100, "month"),  # решение Шефа 06.11: было 30; сводка не расходует поисковый пул
     },
 }
 
