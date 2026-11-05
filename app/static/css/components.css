@@ -416,7 +416,7 @@ body.layout-app .file-pill--attach:hover { filter: brightness(1.1); }
 
 /* F2: предупреждение о ПДн рядом с кнопкой прикрепления */
 .pdn-note {
-  font-size: 0.78rem;
+  font-size: 0.74rem;
   color: var(--site-muted, #6b7280);
   max-width: 300px;
   line-height: 1.3;
