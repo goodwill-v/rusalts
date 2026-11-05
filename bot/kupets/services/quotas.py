@@ -137,10 +137,11 @@ def _plan_entry_limits(p: dict, fallback_code: str = "") -> dict[str, Any]:
     except (TypeError, ValueError):
         watches = 0
     code = (p.get("plan") or "").strip()
-    monthly = PLAN_SEARCHES_PER_MONTH.get(code)
+    # Приоритет: поле из витрины (Админ, 05.11) → локальный маппинг → дневной легаси
+    searches_month = p.get("searches_per_month") or PLAN_SEARCHES_PER_MONTH.get(code)
     return {
-        "searches": monthly if monthly else PAID_SEARCHES_PER_DAY,
-        "period": "month" if monthly else "day",
+        "searches": int(searches_month) if searches_month else PAID_SEARCHES_PER_DAY,
+        "period": "month" if searches_month else "day",
         "watches": watches or LEGACY_PAID_WATCH_LIMIT,
         "name": p.get("name") or p.get("plan") or fallback_code or "Покупатель",
     }
@@ -199,6 +200,13 @@ def _resolve_code(sub: dict, plans: list[dict]) -> str:
         return KUPEC_PLAN
     if not present or (sub.get("status") or "").lower() != "active":
         return FREE_PLAN
+    # Триал = все опции «Маркетинг» (решение Шефа 05.11); признак — от витрины
+    if (
+        sub.get("trial") in (True, 1, "1", "true")
+        or sub.get("is_trial") in (True, 1, "1", "true")
+        or (sub.get("status") or "").lower() == "trial"
+    ):
+        return "marketing"
     code = (sub.get("plan") or "").strip()
     if plans:
         if code and any((p.get("plan") or "").strip() == code for p in plans):
