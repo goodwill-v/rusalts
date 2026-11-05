@@ -40,7 +40,7 @@
 ## Команды МАКС
 
 `/monitor` сайт/IP (https → + SSL) · `/monitor_off` отключить · `/backup` бэкапы · `/backup_off` отключить · `/link` проверка ссылки · `/scan` диагностика безопасности · `/domain`, `/domains`,
-`/domain_off` домены · `/check` состояние · `/digest` светофор сейчас ·
+`/domain_off` домены · `/check` состояние · `/digest` светофор сейчас · `/history` журнал за 30 дней ·
 `/settings` оповещения · `/pay` `/status` `/cancel` `/возврат_средств` `/rules`.
 
 ## Тарифы (04.11, решение Шефа)

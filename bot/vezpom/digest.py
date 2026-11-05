@@ -83,12 +83,21 @@ def build_traffic_light(chat_id):
 
 def build_weekly_report(chat_id):
     """Еженедельный отчёт: сбои, простой, топ ресурса, рекомендации."""
+    return build_report(chat_id, days=7, title="📊 Отчёт за неделю:")
+
+
+def build_report(chat_id, days=7, title="📊 Отчёт за неделю:"):
+    """Отчёт по журналу за период (дней): сбои, простой, разбивка по ресурсам.
+
+    days=7 — еженедельный отчёт (с рекомендациями); days=30 — журнал за
+    месяц (/history): та же статистика + разбивка по каждому ресурсу.
+    """
     now = int(time.time())
-    events = db.list_events(chat_id, since_ts=now - 7 * 86400)
+    events = db.list_events(chat_id, since_ts=now - days * 86400)
     downs = [e for e in events if e["kind"] == "incident" and e["status"] == "down"]
     warns = db.list_open_warnings(chat_id)
 
-    lines = [chr(0x1F4CA) + " Отчёт за неделю:"]
+    lines = [title]
     if not downs and not warns:
         lines.append(chr(0x1F7E2) + " Сбоев не было, всё спокойно.")
         return "\n".join(lines)
@@ -116,17 +125,25 @@ def build_weekly_report(chat_id):
         lines.append("• " + chr(0x1F534) + " Сейчас не отвечает: %d" % open_downs)
     if warns:
         lines.append("• Незакрытых предупреждений: %d" % len(warns))
-    recs = []
-    if any(w["kind"] == "ssl" for w in warns):
-        recs.append("продлить SSL-сертификаты")
-    if any(w["kind"] == "domain" for w in warns):
-        recs.append("продлить домены (без них сайт и почта встанут)")
-    if any(w["kind"] == "backup" for w in warns):
-        recs.append("проверить скрипт резервного копирования")
-    if max((v[1] for v in per_target.values()), default=0) > 3600:
-        recs.append("обсудить с хостингом частые сбои")
-    if recs:
-        lines.append("• Рекомендация: " + "; ".join(recs) + ".")
+    # Для журнала за месяц — разбивка по каждому ресурсу (вместо рекомендаций)
+    if days > 7 and per_target:
+        lines.append("Разбивка по ресурсам:")
+        for target, (cnt, dur) in sorted(per_target.items(), key=lambda kv: -kv[1][1])[:8]:
+            lines.append(" • %s — %d раз, %s" % (target[:80], cnt, _fmt_minutes(dur)))
+        if len(per_target) > 8:
+            lines.append(" • …и ещё %d" % (len(per_target) - 8))
+    if days <= 7:
+        recs = []
+        if any(w["kind"] == "ssl" for w in warns):
+            recs.append("продлить SSL-сертификаты")
+        if any(w["kind"] == "domain" for w in warns):
+            recs.append("продлить домены (без них сайт и почта встанут)")
+        if any(w["kind"] == "backup" for w in warns):
+            recs.append("проверить скрипт резервного копирования")
+        if max((v[1] for v in per_target.values()), default=0) > 3600:
+            recs.append("обсудить с хостингом частые сбои")
+        if recs:
+            lines.append("• Рекомендация: " + "; ".join(recs) + ".")
     return "\n".join(lines)
 
 

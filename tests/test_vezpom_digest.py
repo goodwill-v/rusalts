@@ -75,3 +75,34 @@ def test_tick_sends_once_per_day(tmp_path, monkeypatch):
     assert len(sent) == 1 and sent[0][0] == 7
     digest._tick(lambda cid, text: sent.append((cid, text)))  # повтор в тот же день
     assert len(sent) == 1  # второй раз не шлём
+
+
+# ---- журнал за 30 дней (/history), PR «журнал с метриками» ----
+
+def test_monthly_report_breakdown(tmp_path, monkeypatch):
+    _tmp_db(tmp_path, monkeypatch)
+    now = int(time.time())
+    vezdb.add_event(1, 10, "https://a.ru", "incident", "down", "",
+                    started_at=now - 7200, resolved_at=now - 6600)   # 10 мин
+    vezdb.add_event(1, 10, "https://a.ru", "incident", "down", "",
+                    started_at=now - 3600, resolved_at=now - 3000)   # 10 мин
+    vezdb.add_event(1, 10, "https://b.ru", "incident", "down", "",
+                    started_at=now - 600, resolved_at=now - 300)     # 5 мин
+    text = digest.build_report(1, days=30, title="📋 Журнал за 30 дней:")
+    assert "Журнал за 30 дней" in text and "Сбоев: 3" in text
+    assert "Разбивка по ресурсам" in text
+    # a.ru падал 2 раза и дольше всех — первая строка разбивки
+    first = text.split("Разбивка по ресурсам:")[1].strip().splitlines()[0]
+    assert "https://a.ru" in first and "2 раз" in first
+
+
+def test_weekly_report_has_recommendations_but_monthly_has_breakdown(tmp_path, monkeypatch):
+    _tmp_db(tmp_path, monkeypatch)
+    now = int(time.time())
+    vezdb.upsert_warning(1, "ssl", "https://x.ru", days=5)
+    week = digest.build_weekly_report(1)
+    assert "Рекомендация" in week and "Разбивка" not in week
+    vezdb.add_event(1, 10, "https://x.ru", "incident", "down", "",
+                    started_at=now - 300, resolved_at=now - 60)
+    month = digest.build_report(1, days=30, title="📋 Журнал за 30 дней:")
+    assert "Разбивка" in month and "Рекомендация" not in month

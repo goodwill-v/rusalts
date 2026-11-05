@@ -7,7 +7,7 @@ New in v3.1 (по ТЗ Шефа):
   * команда /check — живая проверка текущего состояния всех мониторов
     пользователя через Kuma API (статус, отклик, сообщение).
 
-Commands in MAX chat: /monitor /backup /link /scan /domain /domains /domain_off /check /digest /settings /pay /status /cancel /возврат_средств /rules
+Commands in MAX chat: /monitor /backup /link /scan /history /domain /domains /domain_off /check /digest /settings /pay /status /cancel /возврат_средств /rules
 """
 import ipaddress
 import json
@@ -916,6 +916,10 @@ def handle_command(text, chat_id):
         text = digest.build_traffic_light(chat_id)
         send(chat_id, text or "Мониторы не настроены — /monitor и /backup добавят наблюдение.")
         return
+    if low in ("/history", "/журнал"):
+        text = digest.build_report(chat_id, days=30, title="📋 Журнал за 30 дней:")
+        send(chat_id, text)
+        return
     if low in ("/settings", "/настройки"):
         p = db.get_prefs(chat_id)
         send(chat_id,
@@ -964,7 +968,7 @@ def handle_command(text, chat_id):
         _user_refund(chat_id)
         return
     if low in ("/start", "/help"):
-        send_menu(chat_id, "ВежПом — мониторинг и охрана ваших сайтов и серверов.\n\nВыберите действие кнопками ниже или введите команду:\n/monitor — настроить мониторинг (URL или IP, https → и SSL-сроки)\n/backup — контроль резервных копий (пульс из скрипта бэкапа)\n/domain — следить за сроком домена (30/14/7/1 день)\n/domains — список доменов\n/domain_off <домен> — убрать домен из контроля\n/check — текущее состояние\n/link <ссылка> — проверить на фишинг\n/scan <сайт> — диагностика безопасности\n/scan <сайт> — диагностика безопасности\n/monitor_off — отключить мониторинг сайта\n/backup_off — отключить контроль бэкапов\n/digest — светофор прямо сейчас\n/settings — светофор и еженедельный отчёт: вкл/выкл\n/pay — оплатить подписку\n/status — статус и мониторы\n/cancel — отписка\n/возврат_средств — возврат\n/rules — правила")
+        send_menu(chat_id, "ВежПом — мониторинг и охрана ваших сайтов и серверов.\n\nВыберите действие кнопками ниже или введите команду:\n/monitor — настроить мониторинг (URL или IP, https → и SSL-сроки)\n/backup — контроль резервных копий (пульс из скрипта бэкапа)\n/domain — следить за сроком домена (30/14/7/1 день)\n/domains — список доменов\n/domain_off <домен> — убрать домен из контроля\n/check — текущее состояние\n/link <ссылка> — проверить на фишинг\n/history — журнал за 30 дней\n/scan <сайт> — диагностика безопасности\n/scan <сайт> — диагностика безопасности\n/monitor_off — отключить мониторинг сайта\n/backup_off — отключить контроль бэкапов\n/digest — светофор прямо сейчас\n/history — журнал за 30 дней\n/settings — светофор и еженедельный отчёт: вкл/выкл\n/pay — оплатить подписку\n/status — статус и мониторы\n/cancel — отписка\n/возврат_средств — возврат\n/rules — правила")
         return
     if low in ("/menu", "/меню"):
         send_menu(chat_id, "Меню ВежПом — выберите действие:")
