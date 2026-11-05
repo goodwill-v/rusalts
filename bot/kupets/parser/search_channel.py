@@ -26,7 +26,7 @@ from parser.firecrawl_search import (
     _parse_results,
 )
 from parser.serper_search import SerperClient, SerperQuotaError
-from services import credit_monitor
+from services import credit_monitor, sqlite_store
 from utils import get_logger
 
 logger = get_logger("parser.search_channel")
@@ -41,9 +41,23 @@ def _mp_tuple(marketplaces) -> Marketplaces:
 async def _firecrawl(query: str, *, limit: int, mp: Marketplaces) -> list[SearchItem]:
     fc = FirecrawlClient()
     try:
-        return await fc.search_marketplaces(query, limit=limit, marketplaces=mp)
+        items = await fc.search_marketplaces(query, limit=limit, marketplaces=mp)
+        _log_quality("firecrawl", query, items)
+        return items
     finally:
         await fc.aclose()
+
+
+def _log_quality(provider: str, query: str, items: list[SearchItem]) -> None:
+    """Метрики выдачи в SQLite (решение Шефа: отслеживать качество каналов)."""
+    try:
+        sqlite_store.quality_log(
+            provider, query, len(items),
+            sum(1 for it in items if it.price > 0),
+            sum(1 for it in items if it.rating),
+        )
+    except Exception as exc:
+        logger.warning("quality_log_fail", extra={"error": str(exc)})
 
 
 async def _firecrawl_raw(query: str, *, limit: int, mp: Marketplaces) -> list[dict]:
@@ -69,7 +83,9 @@ async def _serper_items(query: str, *, limit: int) -> list[SearchItem]:
         }
         for r in organic
     ]
-    return _parse_results({"web": mapped})
+    items = _parse_results({"web": mapped})
+    _log_quality("serper", query, items)
+    return items
 
 
 async def _serper_raw(query: str, *, limit: int) -> list[dict]:
@@ -110,6 +126,7 @@ async def search_marketplaces(
         try:
             return await _serper_items(query, limit=limit)
         except SerperQuotaError as exc:
+            credit_monitor.mark_provider_exhausted("serper")
             raise ProviderQuotaError(str(exc)) from exc
     # резерв не настроен — прокидываем исходную ошибку/пустоту
     raise ProviderQuotaError("Firecrawl недоступен, резервный канал не настроен")
@@ -137,5 +154,6 @@ async def search_web_raw(
         try:
             return await _serper_raw(query, limit=limit)
         except SerperQuotaError as exc:
+            credit_monitor.mark_provider_exhausted("serper")
             raise ProviderQuotaError(str(exc)) from exc
     raise ProviderQuotaError("Firecrawl недоступен, резервный канал не настроен")

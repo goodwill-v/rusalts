@@ -114,12 +114,17 @@ def check_and_alert() -> dict:
     return snap
 
 
-def mark_provider_exhausted() -> None:
-    """HTTP 402 от Firecrawl: немедленный алерт без порогов (кулдаун уважаем)."""
-    snap = usage_snapshot()
-    snap["level"] = "exhausted"
-    snap["spent"] = max(snap["spent"], snap["limit"])
-    snap["pct"] = 100
+def mark_provider_exhausted(provider: str = "firecrawl") -> None:
+    """Провайдер поиска исчерпан (402 Firecrawl / квота Serper):
+    немедленный алерт без порогов (кулдаун уважаем)."""
+    snap = usage_snapshot() if provider == "firecrawl" else {
+        "spent": sqlite_store.credits_spent(provider),
+        "limit": Config.SERPER_MONTHLY_QUERIES,
+    }
+    if provider != "firecrawl":
+        snap["level"] = "exhausted"
+        snap["spent"] = max(snap["spent"], snap["limit"])
+        snap["pct"] = 100
     cooldown_sec = Config.ALERT_COOLDOWN_HOURS * 3600
     last = sqlite_store.alert_last_sent("credits:exhausted")
     if last is not None and (time.monotonic() - last) < cooldown_sec:
@@ -127,7 +132,9 @@ def mark_provider_exhausted() -> None:
     message = _MESSAGE_BY_LEVEL["exhausted"].format(
         pct=100, spent=snap["spent"], limit=snap["limit"], month=_month_label()
     )
-    sqlite_store.alert_mark_sent("credits:exhausted", sent_at=time.monotonic())
+    if provider != "firecrawl":
+        message = f"🔴 Купец: лимит канала {provider} исчерпан. Основной канал продолжает работать." + message
+    sqlite_store.alert_mark_sent(f"credits:exhausted:{provider}", sent_at=time.monotonic())
     try:
         from services.max_notify import send_max
 
@@ -135,7 +142,7 @@ def mark_provider_exhausted() -> None:
     except Exception as exc:
         logger.warning("alert_max_fail", extra={"error": str(exc)})
     _schedule_email(
-        "[Купец] Лимит Firecrawl исчерпан (402)",
+        f"[Купец] Лимит канала {provider} исчерпан",
         message + "\n\n(автоотчёт сервиса Купец)",
     )
 

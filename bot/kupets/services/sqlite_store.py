@@ -27,6 +27,7 @@ def _connect(path: str | None = None) -> sqlite3.Connection:
     db_path = path or Config.STATE_DB_PATH
     Path(db_path).parent.mkdir(parents=True, exist_ok=True)
     db = sqlite3.connect(db_path)
+    db.row_factory = sqlite3.Row  # dict(row) в агрегатах (потерялась при мёрже #66)
     db.execute(
         "CREATE TABLE IF NOT EXISTS cache ("
         " key TEXT PRIMARY KEY, value BLOB NOT NULL, expires_at REAL NOT NULL)"
@@ -57,6 +58,11 @@ def _connect(path: str | None = None) -> sqlite3.Connection:
     db.execute(
         "CREATE TABLE IF NOT EXISTS sweeps ("
         " day TEXT PRIMARY KEY, finished_at REAL NOT NULL)"
+    )
+    db.execute(
+        "CREATE TABLE IF NOT EXISTS search_quality ("
+        " ts REAL NOT NULL, provider TEXT NOT NULL, query TEXT NOT NULL,"
+        " cards INTEGER NOT NULL, priced INTEGER NOT NULL, rated INTEGER NOT NULL)"
     )
     db.execute(
         "CREATE TABLE IF NOT EXISTS feature_usage ("
@@ -131,6 +137,40 @@ def credits_add(provider: str, credits: float, *, path: str | None = None) -> No
             " ON CONFLICT(provider, month) DO UPDATE SET credits = credits + ?",
             (provider, _current_month(), credits, credits),
         )
+
+
+# ─── Журнал качества выдачи (сравнение каналов) ──────────────────────
+
+
+def quality_log(
+    provider: str, query: str, cards: int, priced: int, rated: int,
+    *, path: str | None = None,
+) -> None:
+    """Одна строка метрик выдачи канала (ts — wall clock)."""
+    import time as _t
+
+    with _LOCK, _connect(path) as db:
+        db.execute(
+            "INSERT INTO search_quality (ts, provider, query, cards, priced, rated)"
+            " VALUES (?,?,?,?,?,?)",
+            (_t.time(), provider, query[:120], cards, priced, rated),
+        )
+
+
+def quality_compare(days: int = 7, *, path: str | None = None) -> list[dict]:
+    """Агрегат по провайдерам за последние N суток: запросы, средние карточки,
+    доля выдач с ценами и рейтингами. Для решения «кто основной»."""
+    since = time.time() - days * 86400
+    with _connect(path) as db:
+        rows = db.execute(
+            "SELECT provider, COUNT(*) AS queries,"
+            " AVG(cards) AS avg_cards,"
+            " AVG(CASE WHEN priced > 0 THEN 1.0 ELSE 0 END) AS priced_share,"
+            " AVG(CASE WHEN rated > 0 THEN 1.0 ELSE 0 END) AS rated_share"
+            " FROM search_quality WHERE ts >= ? GROUP BY provider",
+            (since,),
+        ).fetchall()
+    return [dict(r) for r in rows]
 
 
 # ─── Счётчики фич (X vs Y, /check, подарочный, сводки) ───────────────

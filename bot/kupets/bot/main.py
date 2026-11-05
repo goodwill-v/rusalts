@@ -80,6 +80,10 @@ async def main() -> None:
     dp.include_router(router)
 
     scheduler = asyncio.create_task(_watch_scheduler_task(bot))
+
+    from services.quality_probe import quality_probe_scheduler
+
+    _quality = asyncio.create_task(quality_probe_scheduler())
     try:
         log.info("polling")
         await dp.start_polling(bot)
