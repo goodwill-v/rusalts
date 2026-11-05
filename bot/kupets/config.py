@@ -49,6 +49,8 @@ class Config:
     # Serper.dev — второй канал (ключ от Шефа 06.11; Google-SERP, 2500 запросов старт)
     SERPER_API_KEY: str = os.getenv("SERPER_API_KEY", "")
     SERPER_MONTHLY_QUERIES: int = int(os.getenv("SERPER_MONTHLY_QUERIES", "2500"))
+    # Ежедневный A/B-пробник качества каналов (quality_probe)
+    QUALITY_PROBE_QUERY: str = os.getenv("QUALITY_PROBE_QUERY", "термос для школы")
     ENABLE_FIRECRAWL: bool = _bool("ENABLE_FIRECRAWL", "true")
     # Composer API Ozon — мёртв с 09.2026 (403 fab_chlg); включать только по решению Шефа
     ENABLE_COMPOSER: bool = _bool("ENABLE_COMPOSER", "false")

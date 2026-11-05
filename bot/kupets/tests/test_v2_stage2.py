@@ -500,3 +500,88 @@ def test_serper_parsing_quality():
     # теги WB — не карточка, но Ozon-карточка с рейтингом «оценки» проходит
     assert len(items) == 1
     assert items[0].rating == 4.8 and items[0].reviews_count == 431
+
+
+# ─── Качество выдачи: журнал, пробник, алерты ────────────────────────
+
+
+def test_quality_log_and_compare(monkeypatch, tmp_path):
+    import services.sqlite_store as st
+
+    db = str(tmp_path / "q.db")
+    st.quality_log("firecrawl", "термос", 6, 2, 3, path=db)
+    st.quality_log("firecrawl", "термос 2", 8, 4, 5, path=db)
+    st.quality_log("serper", "термос", 10, 9, 7, path=db)
+    rows = st.quality_compare(7, path=db)
+    by = {r["provider"]: r for r in rows}
+    assert by["firecrawl"]["queries"] == 2
+    assert by["firecrawl"]["avg_cards"] == 7.0
+    assert by["serper"]["priced_share"] == 1.0
+
+
+def test_probe_runs_both_and_logs(monkeypatch, tmp_path):
+    import asyncio
+
+    import services.quality_probe as qp
+    import services.sqlite_store as st
+
+    db = str(tmp_path / "q.db")
+    monkeypatch.setattr(st.Config, "STATE_DB_PATH", db, raising=False)
+    calls = []
+
+    async def fake_collect(provider, query, limit):
+        calls.append(provider)
+        m = {"firecrawl": {"cards": 6, "priced": 2, "rated": 3},
+             "serper": {"cards": 10, "priced": 9, "rated": 7}}[provider]
+        return m
+
+    monkeypatch.setattr(qp, "_collect", fake_collect)
+    out = asyncio.run(qp.run_probe("термос для школы"))
+    assert set(out) == {"firecrawl", "serper"}
+    assert calls == ["firecrawl", "serper"]
+    rows = st.quality_compare(7, path=db)
+    assert {r["provider"] for r in rows} == {"firecrawl", "serper"}
+
+
+def test_serper_quota_alerts_via_channel(monkeypatch):
+    import parser.search_channel as ch
+
+    class _Q(Exception):
+        pass
+
+    async def fail_fc(q, *, limit, mp):
+        raise RuntimeError("down")
+
+    async def fail_serper(q, *, limit):
+        from parser.serper_search import SerperQuotaError
+
+        raise SerperQuotaError("квота serper исчерпана")
+
+    alerted = []
+    async def fake_fc(q, *, limit, mp):
+        await fail_fc(q, limit=limit, mp=mp)
+
+    async def fake_si(q, *, limit):
+        await fail_serper(q, limit=limit)
+
+    monkeypatch.setattr(ch, "_firecrawl", fake_fc)
+    monkeypatch.setattr(ch, "_serper_items", fake_si)
+    monkeypatch.setattr(ch.Config, "FIRECRAWL_API_KEY", "x", raising=False)
+    monkeypatch.setattr(ch.Config, "SERPER_API_KEY", "y", raising=False)
+    monkeypatch.setattr(
+        "services.credit_monitor.usage_snapshot", lambda: {"level": "ok"}, raising=False
+    )
+    monkeypatch.setattr(
+        "parser.search_channel.credit_monitor.mark_provider_exhausted",
+        lambda provider="firecrawl": alerted.append(provider), raising=False,
+    )
+    import asyncio
+
+    from parser.firecrawl_search import ProviderQuotaError
+
+    try:
+        asyncio.run(ch.search_marketplaces("термос", limit=10))
+        raised = False
+    except ProviderQuotaError:
+        raised = True
+    assert raised and alerted == ["serper"]
