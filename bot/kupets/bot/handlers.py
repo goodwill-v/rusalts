@@ -20,6 +20,7 @@ from bot.messages import (
     format_product_detail,
     format_reject_details,
     format_results,
+    id_message,
     check_result_message,
     compare_result_message,
     feature_limit_message,
@@ -61,6 +62,12 @@ async def cmd_start(message: Message, state: FSMContext) -> None:
     await state.clear()
     await state.set_state(SearchStates.idle)
     await message.answer(start_message(), parse_mode=ParseMode.MARKDOWN)
+
+
+@router.message(Command("id"))
+async def cmd_id(message: Message) -> None:
+    """Ваш ID (стандарт ботов АЛТ): нужен для выдачи доступа в админке витрины."""
+    await message.answer(id_message(message.from_user.id))
 
 
 # ─── «Жду скидку»: слежка за ценой (Ф1) ──────────────────────────────
