@@ -15,6 +15,20 @@ from models.product import SearchItem
 MP_LABELS = {"ozon": "Ozon", "wb": "Wildberries", "yam": "Я.Маркет"}
 
 
+REPORT_CAPTION_RE = __import__("re").compile(
+    r"(сводк|отчет|отчёт|анализ\s+ниши|^\s*report\b)", __import__("re").IGNORECASE
+)
+
+
+def should_report_caption(caption: str | None) -> bool:
+    """Подпись к снимку просит сводку? («сводка», «отчёт», «report»…).
+
+    Так работает инструкция для продавцов: фото товара с подписью
+    «сводка» → анализ ниши по распознанному запросу.
+    """
+    return bool(caption and REPORT_CAPTION_RE.search(caption))
+
+
 def build_report(niche: str, items: list[SearchItem]) -> dict:
     """Статистика ниши из поисковой выдачи (карточки, не категории)."""
     priced = sorted(it.price for it in items if it.price > 0)
