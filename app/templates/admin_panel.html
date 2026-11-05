@@ -23,6 +23,12 @@
     <!-- ═══ Таб 1: Главная (редакция страницы) ═══ -->
     <section id="tab-home" class="admin-tab-content is-active">
       <div class="admin-panel">
+        <h2>📈 Воронка (30 дней) <span class="admin-note" style="font-weight:400">— анкеты → лиды → оплаты (G3)</span></h2>
+        <div class="admin-grid" id="funnel-stats"></div>
+        <p class="admin-note" id="funnel-byproduct" style="margin-top:0.5rem"></p>
+      </div>
+
+      <div class="admin-panel">
         <h2>Герой главной страницы</h2>
         <p class="admin-note">Тексты первого экрана на <a class="link" href="/">главной</a>. Пустое поле = значение по умолчанию.</p>
         <div class="admin-form-grid">
@@ -588,6 +594,25 @@ $("#hs-save").addEventListener("click", async () => {
     setMsg($("#hs-msg"), "Сохранено ✓", true);
   } catch (e) { setMsg($("#hs-msg"), "Ошибка: " + e.message, false); }
 });
+
+// ─── Воронка (G3): анкеты → лиды → оплаты ───────────────────────────────
+async function loadFunnel() {
+  try {
+    const f = await api("/admin/api/funnel");
+    const rate = (v) => `${v} %`;
+    $("#funnel-stats").innerHTML = `
+      <div class="stat-card"><div class="stat-card__value">${f.diagnostics_30d}</div><div class="stat-card__label">анкет за 30 дн</div></div>
+      <div class="stat-card"><div class="stat-card__value">${f.leads_30d} <small style="font-size:0.7em;color:var(--site-muted)">${rate(f.lead_rate_30d)}</small></div><div class="stat-card__label">лидов (с контактом)</div></div>
+      <div class="stat-card"><div class="stat-card__value">${f.payments_30d} <small style="font-size:0.7em;color:var(--site-muted)">${rate(f.conversion_30d)}</small></div><div class="stat-card__label">оплат за 30 дн</div></div>
+      <div class="stat-card"><div class="stat-card__value">${f.revenue_30d.toLocaleString("ru")} ₽</div><div class="stat-card__label">выручка 30 дн</div></div>
+      <div class="stat-card"><div class="stat-card__value">${f.revenue_total.toLocaleString("ru")} ₽</div><div class="stat-card__label">выручка всего</div></div>
+      <div class="stat-card"><div class="stat-card__value">${f.active_subscriptions}</div><div class="stat-card__label">активных подписок</div></div>`;
+    $("#funnel-byproduct").textContent = f.by_product_30d.length
+      ? "По продуктам (30 дн): " + f.by_product_30d.map((p) => `${p.product_id}: ${p.n} шт / ${p.sum.toLocaleString("ru")} ₽`).join(" · ")
+      : "Оплат за 30 дней пока нет.";
+  } catch (e) { $("#funnel-byproduct").textContent = "Воронка: " + e.message; }
+}
+loadFunnel();
 
 // ─── Таб 2: Товары ───────────────────────────────────────────────────────
 let productsCache = [];

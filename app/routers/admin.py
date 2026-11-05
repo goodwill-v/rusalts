@@ -637,3 +637,63 @@ async def api_consistency_run(_user: str = Depends(_require_admin_auth)) -> JSON
 
     report = await run_consistency_check()
     return JSONResponse({"ok": True, "report": report})
+
+
+@router.get("/admin/api/funnel")
+async def api_funnel(_user: str = Depends(_require_admin_auth)) -> JSONResponse:
+    """G3 ТЗ Развития: воронка за 30 дней и всего — анкеты → лиды → оплаты.
+
+    Метрика-API (G1) не требует: считаем по своим БД (diagnostics/payments/billing).
+    """
+    from datetime import datetime, timedelta, timezone
+
+    from app.diagnostics_store import list_diagnostics
+    from app.payments import _connect as _payments_connect
+
+    now = datetime.now(timezone.utc)
+    since = (now - timedelta(days=30)).isoformat()
+
+    diags = list_diagnostics(limit=1000)
+    d30 = [d for d in diags if (d.get("created_at") or "") >= since]
+    leads30 = [d for d in d30 if d.get("email") or d.get("phone")]
+
+    with closing(_payments_connect()) as db:
+        paid30 = db.execute(
+            "SELECT COUNT(*) AS n, COALESCE(SUM(amount_rub), 0) AS sum FROM payments"
+            " WHERE status = 'succeeded' AND created_at >= ?",
+            (since,),
+        ).fetchone()
+        paid_all = db.execute(
+            "SELECT COUNT(*) AS n, COALESCE(SUM(amount_rub), 0) AS sum FROM payments"
+            " WHERE status = 'succeeded'",
+        ).fetchone()
+        by_product = db.execute(
+            "SELECT product_id, COUNT(*) AS n, COALESCE(SUM(amount_rub), 0) AS sum"
+            " FROM payments WHERE status = 'succeeded' AND created_at >= ?"
+            " GROUP BY product_id ORDER BY sum DESC LIMIT 6",
+            (since,),
+        ).fetchall()
+        active_subs = db.execute(
+            "SELECT COUNT(*) AS n FROM subscriptions WHERE status = 'active'"
+            " AND expires_at > ?",
+            (now.isoformat(),),
+        ).fetchone()
+
+    d30n, l30n = len(d30), len(leads30)
+    return JSONResponse({
+        "ok": True,
+        "diagnostics_30d": d30n,
+        "leads_30d": l30n,
+        "lead_rate_30d": round(l30n / d30n * 100, 1) if d30n else 0.0,
+        "payments_30d": paid30["n"],
+        "revenue_30d": paid30["sum"],
+        "conversion_30d": round(paid30["n"] / l30n * 100, 1) if l30n else 0.0,
+        "payments_total": paid_all["n"],
+        "revenue_total": paid_all["sum"],
+        "active_subscriptions": active_subs["n"],
+        "by_product_30d": [
+            {"product_id": r["product_id"], "n": r["n"], "sum": r["sum"]}
+            for r in by_product
+        ],
+        "generated_at": now.replace(microsecond=0).isoformat(),
+    })

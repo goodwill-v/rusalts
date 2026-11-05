@@ -100,3 +100,17 @@ def test_key_pages_live(client) -> None:
     ):
         r = client.get(path)
         assert r.status_code == 200, f"{path} → {r.status_code}"
+
+
+def test_admin_funnel_endpoint(client) -> None:
+    """G3: воронка в админке — считаем по своим БД без внешних API."""
+    from base64 import b64encode
+
+    auth = {"Authorization": "Basic " + b64encode(b"admin:20rusalt13").decode()}
+    r = client.get("/admin/api/funnel", headers=auth)
+    assert r.status_code == 200
+    f = r.json()
+    for k in ("diagnostics_30d", "leads_30d", "payments_30d", "revenue_30d",
+              "revenue_total", "active_subscriptions", "lead_rate_30d", "conversion_30d"):
+        assert k in f, f"нет поля {k}"
+    assert f["payments_30d"] == 0  # чистая БД — нули, но структура полная
