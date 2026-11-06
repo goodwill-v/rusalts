@@ -103,7 +103,7 @@
 
             <h3 class="prod-card__title">{{ p.name }}</h3>
             {% set more_url = p.detail_url or ('/techologis/p/' ~ p.id ~ '/') %}
-            <p class="prod-card__desc">{{ p.description }} <a class="prod-more-link" href="{{ more_url }}">Подробнее</a></p>
+            <p class="prod-card__desc">{{ p.description }} <a class="prod-more-link" href="{{ more_url }}">ПОДРОБНЕЕ</a></p>
 
             <div class="prod-card__meta">
               {% if p.platform %}
@@ -135,11 +135,6 @@
                 {% endif %}
               </div>
               <div class="prod-card__actions">
-                {% if p.detail_url %}
-                <a class="btn-buy btn-buy--secondary" href="{{ p.detail_url }}">Подробнее</a>
-                {% else %}
-                <button class="btn-buy btn-buy--secondary btn-buy--details" data-product="{{ p.id }}" data-price="{{ p.price_rub }}">Подробнее</button>
-                {% endif %}
                 <button class="btn-buy" data-product="{{ p.id }}" data-price="{{ p.price_rub }}">
                   Купить
                 </button>
