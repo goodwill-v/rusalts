@@ -1,6 +1,14 @@
-"""AI-объяснения топ-3 через RouterAI (batch)."""
+"""AI-объяснения топ-3 через RouterAI (batch) + ИИ-фичи (резюме, сравнение, подарки).
+
+СТРУКТУРА (важно): все методы — внутри класса AIExplainer; модульные хелперы —
+только ПОСЛЕ класса. История 06.11: модульный хелпер, вставленный в середину
+класса, сделал все последующие методы вложенными — класс «потерял» их, и
+поиск падал целиком. Регресс-тест: tests/test_explainer_structure.py.
+"""
 
 from __future__ import annotations
+
+import re
 
 import httpx
 from openai import AsyncOpenAI
@@ -97,6 +105,28 @@ class AIExplainer:
                 parsed.append(self._fallback_verdict(products[len(parsed)]))
         return parsed
 
+    def _parse_numbered(self, text: str, n: int) -> list[str]:
+        found = re.findall(
+            r"(?:^|\n)\s*(?:\d+)[\)\.\-:]\s*(.+)",
+            text,
+        )
+        if found:
+            return [f.strip() for f in found[:n]]
+        parts = [p.strip() for p in text.split("\n") if p.strip()]
+        return parts[:n]
+
+    def _fallback_verdict(self, product: ScoredProduct) -> str:
+        if product.match_notes:
+            note = product.match_notes[0]
+            if product.score >= 85:
+                return f"Сильный вариант: {note}"
+            return note
+        if product.score >= 85:
+            return "Отличный выбор: хорошая цена и надёжный продавец"
+        if product.score >= 65:
+            return "Достойный вариант, но проверьте альтернативы"
+        return "Есть вопросы по качеству — читайте отзывы внимательнее"
+
     async def summarize_report(self, stats_text: str) -> str:
         """Резюме для продавца по статистике ниши (сводка, ТЗ v2 §3.6): 3–5 строк.
         Пустая строка = сбой (вызывающий покажет вычисляемое резюме)."""
@@ -122,55 +152,6 @@ class AIExplainer:
         msg = resp.choices[0].message
         raw = (msg.content or "").strip() or (getattr(msg, "reasoning", None) or "").strip()
         return _strip_reasoning_echo(raw)
-
-
-def _strip_reasoning_echo(text: str) -> str:
-    """Ризонер-модели выводят цепочку размышлений («Сейчас нужно…»,
-    «Пользователь просит…», «Анализирую…») перед рекомендациями —
-    оставляем финальный блок (от «Рекомендации/Итог/…» или последние 5 строк)."""
-    if not text:
-        return text
-    meta_starts = (
-        "Сейчас нужно", "Пользователь просит", "Анализирую", "Данные:",
-        "Нужно ответить", "Нужно дать", "Хорошо", "Итак",
-    )
-    lines = [
-        l for l in text.splitlines()
-        if l.strip() and not any(l.lstrip().startswith(m) for m in meta_starts)
-    ]
-    for i, l in enumerate(lines):
-        low = l.lstrip().lower()
-        if low.startswith(("рекомендации", "итог", "вывод", "резюме")):
-            lines = lines[i:]
-            break
-    return "\n".join(lines[-5:]).strip()
-
-    async def expand_gift(self, description: str, budget: int, n: int = 4) -> list[str]:
-        """Подарочный подбор (фича г): «маме до 2000₽» → 3–4 конкретных
-        товарных запроса для поиска. Пустой список = сбой (честный отказ)."""
-        if self._client is None:
-            return []
-        prompt = (
-            f"Нужно купить подарок: {description}, бюджет {budget}₽. "
-            f"Придумай {n} конкретных товарных запросов для поиска на "
-            "маркетплейсах (то, что реально введёшь в поисковую строку). "
-            "Формат ответа строго:\n1) запрос\n2) запрос\n...\n"
-            "Без пояснений, по-русски, каждый запрос 2–4 слова."
-        )
-        resp = await self._client.chat.completions.create(
-            model=Config.ROUTERAI_MODEL,
-            messages=[
-                {"role": "system", "content": "Ты — помощник по подаркам. Кратко, по-русски."},
-                {"role": "user", "content": prompt},
-            ],
-            max_tokens=200,
-            temperature=0.6,
-        )
-        msg = resp.choices[0].message
-        text = (msg.content or "").strip() or (getattr(msg, "reasoning", None) or "")
-        from services.gift import queries_from_llm
-
-        return queries_from_llm(text, n)
 
     async def explain_compare(self, a: dict, b: dict) -> str:
         """Итог сравнения двух товаров (фича X vs Y, ТЗ v2): 2–3 короткие строки.
@@ -212,26 +193,51 @@ def _strip_reasoning_echo(text: str) -> str:
         text = (msg.content or "").strip()
         return text or (getattr(msg, "reasoning", None) or "").strip()
 
-    def _parse_numbered(self, text: str, n: int) -> list[str]:
-        import re
-
-        found = re.findall(
-            r"(?:^|\n)\s*(?:\d+)[\)\.\-:]\s*(.+)",
-            text,
+    async def expand_gift(self, description: str, budget: int, n: int = 4) -> list[str]:
+        """Подарочный подбор (фича г): «маме до 2000₽» → 3–4 конкретных
+        товарных запроса для поиска. Пустой список = сбой (честный отказ)."""
+        if self._client is None:
+            return []
+        prompt = (
+            f"Нужно купить подарок: {description}, бюджет {budget}₽. "
+            f"Придумай {n} конкретных товарных запросов для поиска на "
+            "маркетплейсах (то, что реально введёшь в поисковую строку). "
+            "Формат ответа строго:\n1) запрос\n2) запрос\n...\n"
+            "Без пояснений, по-русски, каждый запрос 2–4 слова."
         )
-        if found:
-            return [f.strip() for f in found[:n]]
-        parts = [p.strip() for p in text.split("\n") if p.strip()]
-        return parts[:n]
+        resp = await self._client.chat.completions.create(
+            model=Config.ROUTERAI_MODEL,
+            messages=[
+                {"role": "system", "content": "Ты — помощник по подаркам. Кратко, по-русски."},
+                {"role": "user", "content": prompt},
+            ],
+            max_tokens=200,
+            temperature=0.6,
+        )
+        msg = resp.choices[0].message
+        text = (msg.content or "").strip() or (getattr(msg, "reasoning", None) or "")
+        from services.gift import queries_from_llm
 
-    def _fallback_verdict(self, product: ScoredProduct) -> str:
-        if product.match_notes:
-            note = product.match_notes[0]
-            if product.score >= 85:
-                return f"Сильный вариант: {note}"
-            return note
-        if product.score >= 85:
-            return "Отличный выбор: хорошая цена и надёжный продавец"
-        if product.score >= 65:
-            return "Достойный вариант, но проверьте альтернативы"
-        return "Есть вопросы по качеству — читайте отзывы внимательнее"
+        return queries_from_llm(text, n)
+
+
+def _strip_reasoning_echo(text: str) -> str:
+    """Ризонер-модели выводят цепочку размышлений («Сейчас нужно…»,
+    «Пользователь просит…», «Анализирую…») перед рекомендациями —
+    оставляем финальный блок (от «Рекомендации/Итог/…» или последние 5 строк)."""
+    if not text:
+        return text
+    meta_starts = (
+        "Сейчас нужно", "Пользователь просит", "Анализирую", "Данные:",
+        "Нужно ответить", "Нужно дать", "Хорошо", "Итак",
+    )
+    lines = [
+        l for l in text.splitlines()
+        if l.strip() and not any(l.lstrip().startswith(m) for m in meta_starts)
+    ]
+    for i, l in enumerate(lines):
+        low = l.lstrip().lower()
+        if low.startswith(("рекомендации", "итог", "вывод", "резюме")):
+            lines = lines[i:]
+            break
+    return "\n".join(lines[-5:]).strip()

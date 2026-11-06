@@ -171,7 +171,12 @@ class SearchPipeline:
 
             verdicts: list[str] = []
             if scored:
-                verdicts = await self.explainer.explain_top3(scored[:3], context)
+                try:
+                    verdicts = await self.explainer.explain_top3(scored[:3], context)
+                except Exception as exc:
+                    # Бронь 06.11: сбой ИИ (любой) не отменяет найденные товары
+                    logger.warning("explain_stage_failed", error=str(exc))
+                    verdicts = []
                 for sp, verdict in zip(scored[:3], verdicts):
                     sp.verdict = verdict
 
