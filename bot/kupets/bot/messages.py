@@ -20,7 +20,23 @@ def id_message(user_id: int | str) -> str:
     )
 
 
-def start_message() -> str:
+SEASON_START = (2026, 11, 6)
+SEASON_END = (2026, 11, 14)   # авто-реверс: после распродажи обычный /start
+
+
+def start_message(now=None) -> str:
+    """Приветствие /start. С 06.11 по 14.11.2026 — сезонное к 11.11
+    (решение Шефа 06.11), затем автоматически обычное."""
+    from datetime import datetime
+
+    now = now or datetime.now()
+    if datetime(*SEASON_START) <= now <= datetime(*SEASON_END, 23, 59, 59):
+        return (
+            "🛒 До 11.11 включи /watch — узнаешь о реальной скидке первым!\n\n"
+            "Купец ищет и сравнивает товары на Ozon, Wildberries и Яндекс.Маркете.\n"
+            "/watch <запрос> — слежка за ценой (напр. /watch термос до 2000).\n"
+            "Напиши, что искать, пришли фото или сравни «A vs B»."
+        )
     return (
         "🛒 *Купец*\n"
         "Найду и сравню товары на Ozon, Wildberries и Яндекс.Маркете.\n\n"
