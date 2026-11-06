@@ -585,3 +585,17 @@ def test_serper_quota_alerts_via_channel(monkeypatch):
     except ProviderQuotaError:
         raised = True
     assert raised and alerted == ["serper"]
+
+
+def test_seasonal_start_message():
+    """06.11–14.11.2026 — сезонный /start к 11.11, после — обычный."""
+    from datetime import datetime
+    from bot.messages import start_message
+
+    during = datetime(2026, 11, 8, 12, 0)
+    seasonal = start_message(during)
+    assert "До 11.11 включи /watch" in seasonal
+    assert "11.11" in seasonal
+    after = start_message(datetime(2026, 11, 20, 12, 0))
+    assert "До 11.11" not in after
+    assert "Найду и сравню" in after
