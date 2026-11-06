@@ -599,3 +599,28 @@ def test_seasonal_start_message():
     after = start_message(datetime(2026, 11, 20, 12, 0))
     assert "До 11.11" not in after
     assert "Найду и сравню" in after
+
+def test_explainer_class_structure():
+    """Регресс 06.11: модульный хелпер, вставленный в середину класса,
+    сделал методы вложенными — поиск падал целиком. Проверяем ast-разбором
+    исходника (работает в CI без тяжёлых зависимостей)."""
+    import ast as _ast
+    from pathlib import Path
+
+    src = Path(__file__).resolve().parent.parent / "ai" / "explainer.py"
+    tree = _ast.parse(src.read_text(encoding="utf-8"))
+    cls = [n for n in tree.body if isinstance(n, _ast.ClassDef) and n.name == "AIExplainer"]
+    assert len(cls) == 1, "класс AIExplainer должен быть один на верхнем уровне"
+    methods = {
+        n.name for n in cls[0].body
+        if isinstance(n, (_ast.FunctionDef, _ast.AsyncFunctionDef))
+    }
+    for required in (
+        "__init__", "explain_top3", "_batch_explain", "_parse_numbered",
+        "_fallback_verdict", "summarize_report", "explain_compare", "expand_gift",
+    ):
+        assert required in methods, f"AIExplainer потерял метод {required}"
+    mod_funcs = {
+        n.name for n in tree.body if isinstance(n, (_ast.FunctionDef, _ast.AsyncFunctionDef))
+    }
+    assert mod_funcs == {"_strip_reasoning_echo"}  # хелпер — только он на уровне модуляassert callable(_strip_reasoning_echo)
