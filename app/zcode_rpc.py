@@ -196,13 +196,26 @@ class ZcodeChannel:
             token = _read_ingress_token()
             if not token:
                 raise ZcodeRpcError("ingress-токен zcode не найден (ZCODE_INGRESS_TOKEN/файл)")
-            self._ws = await websockets.connect(
-                f"{self.ws_url}/ws?token={token}",
-                max_size=64 * 1024 * 1024,
-                open_timeout=10,
-                ping_interval=20,
-                ping_timeout=20,
-            )
+            try:
+                self._ws = await websockets.connect(
+                    f"{self.ws_url}/ws?token={token}",
+                    max_size=64 * 1024 * 1024,
+                    open_timeout=10,
+                    ping_interval=20,
+                    ping_timeout=20,
+                )
+            except websockets.exceptions.InvalidStatus as e:
+                # 401 от ingress — токен сменился (рестарт zcode-server), а файл
+                # секрета ещё не обновился; следующий connect() перечитает файл.
+                code = getattr(getattr(e, "response", None), "status_code", "?")
+                raise ZcodeRpcError(
+                    f"ingress zcode отверг подключение (HTTP {code}): токен неактуален",
+                    code="ingress-auth",
+                ) from e
+            except (OSError, asyncio.TimeoutError) as e:
+                raise ZcodeRpcError(
+                    f"zcode-server недоступен ({e.__class__.__name__})", code="connect-failed"
+                ) from e
             init_raw = await asyncio.wait_for(self._ws.recv(), timeout=10)
             rpc_type, _ = self._parse_rpc_header(init_raw)
             if rpc_type != 200:  # Initialize
