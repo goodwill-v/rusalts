@@ -38,7 +38,6 @@ logger = logging.getLogger("zcode_rpc")
 
 UPSTREAM_WS_URL = os.getenv("ZCODE_UPSTREAM_WS_URL", "ws://127.0.0.1:42265").rstrip("/")
 UPSTREAM_HTTP_URL = os.getenv("ZCODE_UPSTREAM_HTTP_URL", "http://127.0.0.1:42265").rstrip("/")
-INGRESS_TOKEN_FILE = os.getenv("ZCODE_INGRESS_TOKEN_FILE", "")
 # Политика подключения рантайма для чтения: existing-only не порождает процессы.
 LIST_RUNTIME_POLICY = os.getenv("ZCODE_LIST_RUNTIME_POLICY", "existing-only")
 
@@ -54,10 +53,16 @@ SEND_TIMEOUT_S = 180.0
 
 
 def _read_ingress_token() -> str:
-    token = os.getenv("ZCODE_INGRESS_TOKEN", "").strip()
-    if token:
-        return token
-    paths = [INGRESS_TOKEN_FILE] if INGRESS_TOKEN_FILE else list(_DEFAULT_TOKEN_PATHS)
+    # Порядок важен: zcode-server меняет ingress-токен при каждом рестарте
+    # (createIngressToken: randomBytes + rename), поэтому ПРИОРИТЕТ у файлов,
+    # которые обновляются вживую (примонтированный секрет / синхронизация
+    # systemd-юнитом — см. deploy/systemd/zcode-ingress-sync.*). Статичная
+    # копия ZCODE_INGRESS_TOKEN из .env — только резерв для ручного запуска.
+    paths: list[str] = []
+    explicit = os.getenv("ZCODE_INGRESS_TOKEN_FILE", "").strip()
+    if explicit:
+        paths.append(explicit)
+    paths.extend(_DEFAULT_TOKEN_PATHS)
     for path in paths:
         try:
             with open(path, "r", encoding="utf-8") as fh:
@@ -66,7 +71,7 @@ def _read_ingress_token() -> str:
                 return token
         except OSError:
             continue
-    return ""
+    return os.getenv("ZCODE_INGRESS_TOKEN", "").strip()
 
 
 # ── Сериализация протокола (снята с server-core.js, см. шапку модуля) ────────

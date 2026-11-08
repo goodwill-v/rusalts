@@ -29,6 +29,9 @@ services:
       - ./data:/app/data
       # persist knowledge base edits done by parser
       - ./knowledge_base:/app/knowledge_base
+      # Живой ingress-токен zcode для /zcode (zcode-server меняет токен при каждом
+      # рестарте; файл обновляет systemd-юнит zcode-ingress-sync, см. deploy/systemd/)
+      - /etc/zcode-web/ingress-token:/run/secrets/zcode_ingress_token:ro
     restart: unless-stopped
 
   parser-worker:

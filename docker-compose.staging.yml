@@ -31,6 +31,8 @@ services:
     volumes:
       - ./data_staging:/app/data
       - ./knowledge_base:/app/knowledge_base
+      # Живой ingress-токен zcode для /zcode (обновляет systemd-юнит zcode-ingress-sync)
+      - /etc/zcode-web/ingress-token:/run/secrets/zcode_ingress_token:ro
     restart: unless-stopped
 
   parser-worker:
