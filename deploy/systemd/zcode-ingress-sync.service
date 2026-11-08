@@ -1,0 +1,16 @@
+[Unit]
+Description=ZCode ingress-token sync for /zcode web-chat (ВЭБ)
+# zcode-server меняет ingress-токен при каждом старте (randomBytes + rename),
+# а docker bind-mount одиночного файла прибивает старый inode. Поэтому
+# синхронизируем содержимое в файл со стабильным inode, который примонтирован
+# в контейнеры (docker-compose*: /run/secrets/zcode_ingress_token).
+# Установка (Алик/Шеф): см. deploy/systemd/README-zcode-ingress-sync.md
+
+[Service]
+Type=oneshot
+# shell-редирект обрезает файл НА МЕСТЕ (inode сохраняется) — монтирование
+# в контейнерах продолжает видеть свежее содержимое.
+ExecStart=/bin/sh -c 'cat /root/.zcode/server/run/ingress-token > /etc/zcode-web/ingress-token && chmod 600 /etc/zcode-web/ingress-token'
+
+# Безопасность: минимум прав (читает файл под /root, пишет в /etc/zcode-web)
+NoNewPrivileges=true

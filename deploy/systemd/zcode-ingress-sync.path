@@ -1,0 +1,9 @@
+[Unit]
+Description=Watch zcode ingress-token file (updates on every zcode-server restart)
+
+[Path]
+# rename нового токена поверх пути = событие создания файла; срабатывает и на boot
+PathModified=/root/.zcode/server/run/ingress-token
+
+[Install]
+WantedBy=multi-user.target
