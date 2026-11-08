@@ -202,7 +202,7 @@
     renderList();
     el.empty.hidden = true;
     el.messages.hidden = false;
-    el.more.hidden = false;
+    el.more.hidden = true;
     el.title.textContent = session.title || 'Без названия';
     el.input.disabled = false;
     el.send.disabled = false;
@@ -220,8 +220,7 @@
     rows.forEach(upsertRow);
     if (rows.length >= 60) {
       state.oldestRowId = Math.min(...rows.map((r) => r.rowId));
-    } else {
-      el.more.hidden = true;
+      el.more.hidden = false;
     }
     if (!rows.length) {
       el.messages.innerHTML = '<div class="zc-item__meta">Сообщений пока нет — напишите первым.</div>';
@@ -235,9 +234,10 @@
 
   function startStream(sid, workspace) {
     closeStream();
+    const ids = [...state.rows.keys()].filter((x) => x > 0);
     const url = '/zcode/api/stream?session_id=' + encodeURIComponent(sid) +
       '&workspace=' + encodeURIComponent(workspace || '') +
-      '&after_row_id=' + (state.oldestRowId ? '' : Math.max(0, ...[...state.rows.keys()]));
+      '&after_row_id=' + (ids.length ? Math.max(...ids) : 0);
     state.stream = new EventSource(url);
     state.stream.onmessage = (ev) => {
       let msg;
@@ -272,6 +272,7 @@
     rows.forEach((r) => { state.rows.set(r.rowId, r); frag.appendChild(rowNode(r)); });
     el.messages.prepend(frag);
     state.oldestRowId = Math.min(...rows.map((r) => r.rowId));
+    if (rows.length < 60) el.more.hidden = true;
   });
 
   // ── Отправка ────────────────────────────────────────────────────────────
