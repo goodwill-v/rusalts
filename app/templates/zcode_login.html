@@ -1,0 +1,50 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <meta name="robots" content="noindex, nofollow" />
+  <title>Вход — ZCode чат</title>
+  <link rel="stylesheet" href="/static/css/zcode_web.css" />
+</head>
+<body class="zc-body">
+  <main class="zc-login">
+    <h1 class="zc-login__title">ZCode · чат с агентами</h1>
+    {% if error %}<p class="zc-login__error">{{ error }}</p>{% endif %}
+    <form class="zc-login__form" onsubmit="return zcLogin(event)">
+      <label class="zc-label" for="zc-token">Токен доступа</label>
+      <input class="zc-input" type="password" id="zc-token" autocomplete="current-password"
+             placeholder="ZCODE_WEB_TOKEN" required autofocus />
+      <label class="zc-check">
+        <input type="checkbox" id="zc-remember" />
+        <span>Запомнить на этом устройстве (2 недели)</span>
+      </label>
+      <button class="zc-btn zc-btn--primary" type="submit">Войти</button>
+      <p class="zc-login__hint">Доступ к агентам = доступ к серверу. Не сохраняйте токен в браузере на чужих устройствах.</p>
+    </form>
+  </main>
+  <script>
+    async function zcLogin(ev) {
+      ev.preventDefault();
+      const btn = ev.target.querySelector('button');
+      btn.disabled = true;
+      try {
+        const resp = await fetch('/zcode/login', {
+          method: 'POST',
+          headers: {'Content-Type': 'application/json'},
+          body: JSON.stringify({
+            token: document.getElementById('zc-token').value,
+            remember: document.getElementById('zc-remember').checked
+          })
+        });
+        if (resp.ok) { location.reload(); return false; }
+        const data = await resp.json().catch(() => ({}));
+        alert(data.detail || 'Ошибка входа (' + resp.status + ')');
+      } finally {
+        btn.disabled = false;
+      }
+      return false;
+    }
+  </script>
+</body>
+</html>
