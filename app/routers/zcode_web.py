@@ -278,16 +278,20 @@ async def api_create_session(request: Request):
         body = await request.json()
     except Exception:
         body = {}
-    title = str(body.get("title", "")).strip() or None
     workspace = str(body.get("workspace", "")).strip() or _default_workspace()
     try:
-        result = await get_channel().create_session(workspace, title)
+        result = await get_channel().create_session(workspace)
     except ZcodeRpcError as e:
         return _err(502, f"zcode: {str(e)[:200]}")
     session = (result or {}).get("session") if isinstance(result, dict) else None
     if not session:
         return _err(502, "zcode не вернул данные новой сессии")
-    return _no_index(JSONResponse({"session": _session_public(session)}))
+    # API zcode имя при создании не принимает — название появится из первого
+    # сообщения (ТЗ §3.1: честный отчёт об ограничении, обходов не выдумываем).
+    return _no_index(JSONResponse({
+        "session": _session_public(session),
+        "titleFromFirstMessage": True,
+    }))
 
 
 def _default_workspace() -> str:

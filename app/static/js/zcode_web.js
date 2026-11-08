@@ -314,23 +314,23 @@
   el.input.addEventListener('input', autosize);
 
   // ── Новая сессия (Этап 2) ───────────────────────────────────────────────
+  // API zcode имя при создании не принимает — название чата появится из
+  // первого сообщения (честное ограничение, ТЗ §3.1).
 
   el.newBtn.addEventListener('click', async () => {
-    const title = prompt('Название нового чата:', '');
-    if (title === null) return;
     el.newBtn.disabled = true;
     try {
       const data = await api('/zcode/api/sessions', {
         method: 'POST',
-        body: JSON.stringify({ title: title.trim() || '', workspace: (state.sessions[0] || {}).workspace || '' }),
+        body: JSON.stringify({ workspace: (state.sessions[0] || {}).workspace || '' }),
       });
       if (data.session) {
         await loadSessions(true);
         openSession(data.session.sessionId);
+        setStatus('новый чат создан — название появится из первого сообщения');
       }
     } catch (e) {
-      alert('Не удалось создать сессию: ' + (e.message || e) +
-        '\n(если API zcode не поддерживает создание — см. отчёт в PR)');
+      alert('Не удалось создать сессию: ' + (e.message || e));
     } finally {
       el.newBtn.disabled = false;
     }

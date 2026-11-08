@@ -181,6 +181,8 @@ class ZcodeChannel:
     _connect_lock: asyncio.Lock = field(default_factory=asyncio.Lock)
     _v4_ready: bool = False
     _server_id: str = ""
+    _project_ids: dict[str, str] = field(default_factory=dict)
+    _project_ids_at: dict[str, float] = field(default_factory=dict)
 
     async def connect(self) -> None:
         async with self._connect_lock:
@@ -245,15 +247,16 @@ class ZcodeChannel:
                     pending.fut.set_exception(ZcodeRpcError(message, code))
             # 204/205 (EventFire/EventError) здесь не используются
 
-    async def request(self, name: str, args: list[Any], timeout: float = REQUEST_TIMEOUT_S) -> Any:
-        """Вызов команды канала "zcode-agent"; args — массив позиционных аргументов."""
+    async def request(self, name: str, args: list[Any], timeout: float = REQUEST_TIMEOUT_S,
+                      channel: str = "zcode-agent") -> Any:
+        """Вызов команды канала (по умолчанию "zcode-agent"); args — позиционные."""
         if self._ws is None:
             await self.connect()
         rpc_id = self._next_id
         self._next_id += 1
         fut: asyncio.Future = asyncio.get_running_loop().create_future()
         self._pending[rpc_id] = _PendingRequest(fut=fut)
-        payload = _serialize([100, rpc_id, "zcode-agent", name]) + _serialize(args)
+        payload = _serialize([100, rpc_id, channel, name]) + _serialize(args)
         try:
             await self._ws.send(_frame(payload))
         except Exception as e:  # соединение умерло — переподключение и один ретрай
@@ -336,6 +339,24 @@ class ZcodeChannel:
             pass
         return ref
 
+    async def project_id(self, workspace_path: str) -> str | None:
+        """Id проекта для workspace (реестр проектов канала "project", кэш 60 с)."""
+        now = time.monotonic()
+        cached = self._project_ids.get(workspace_path)
+        if cached and now - self._project_ids_at.get(workspace_path, 0) < 60:
+            return cached
+        result = await self.request("readTree", [{"includeDeletedTasks": False}], channel="project")
+        found = None
+        for project in (result or {}).get("projects", []):
+            roots = [r.get("rootPath") for r in project.get("roots", [])]
+            if workspace_path in roots:
+                found = project.get("id")
+                break
+        if found:
+            self._project_ids[workspace_path] = found
+            self._project_ids_at[workspace_path] = now
+        return found
+
     async def list_sessions(self, workspace_path: str) -> list[dict]:
         params = {
             **await self.workspace_ref(workspace_path),
@@ -376,21 +397,17 @@ class ZcodeChannel:
         return await self.request("sendPrompt", [params], timeout=SEND_TIMEOUT_S)
 
     async def create_session(self, workspace_path: str, title: str | None = None) -> dict:
+        # Название сессии API при создании не принимает (проверено живьём):
+        # title появится из первого сообщения (titleSource first_input/generated).
+        project_id = await self.project_id(workspace_path)
         params: dict[str, Any] = {
             **await self.workspace_ref(workspace_path),
             "mode": "build",
             "runtimePolicy": "start-if-needed",
         }
-        if title:
-            params["title"] = title
-        try:
-            return await self.request("createSession", [params], timeout=SEND_TIMEOUT_S)
-        except ZcodeRpcError:
-            if not title:
-                raise
-            # Старые схемы могут не принимать title при создании — повтор без него.
-            params.pop("title")
-            return await self.request("createSession", [params], timeout=SEND_TIMEOUT_S)
+        if project_id:
+            params["projectId"] = project_id
+        return await self.request("createSession", [params], timeout=SEND_TIMEOUT_S)
 
     async def close_session(self, session_id: str, workspace_path: str) -> dict:
         params = {**await self.workspace_ref(workspace_path), "sessionId": session_id}

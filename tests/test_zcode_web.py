@@ -229,8 +229,11 @@ def test_create_session_returns_new_session(client):
     _login(client)
     r = client.post("/zcode/api/sessions", json={"title": "Тестовая сессия"})
     assert r.status_code == 200
-    assert r.json()["session"]["sessionId"] == "sess_new"
-    assert r.json()["session"]["title"] == "Тестовая сессия"
+    body = r.json()
+    assert body["session"]["sessionId"] == "sess_new"
+    # Имя при создании API не принимает — UI честно сообщает, что название
+    # появится из первого сообщения (ТЗ §3.1).
+    assert body["titleFromFirstMessage"] is True
 
 
 def test_stream_requires_auth(client):
