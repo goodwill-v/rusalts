@@ -9,7 +9,7 @@ from fastapi.staticfiles import StaticFiles
 from app import config
 from app.middleware import EmbedSecurityMiddleware
 from app.observability import RequestIdMiddleware
-from app.routers import admin, api, billing_admin, content, diagnostics, pages, parser, request_form, sandbox_shop, talk
+from app.routers import admin, api, billing_admin, content, diagnostics, pages, parser, request_form, sandbox_shop, talk, zcode_web
 
 config.ensure_data_dirs()
 
@@ -102,6 +102,7 @@ app.include_router(talk.router)
 app.include_router(request_form.router)
 app.include_router(billing_admin.router)
 app.include_router(sandbox_shop.router)
+app.include_router(zcode_web.router)
 
 static_dir = config.BASE_DIR / "app" / "static"
 app.mount("/static", StaticFiles(directory=str(static_dir)), name="static")

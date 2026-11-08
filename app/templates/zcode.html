@@ -1,0 +1,51 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <meta name="robots" content="noindex, nofollow" />
+  <title>ZCode · чат с агентами</title>
+  <link rel="stylesheet" href="/static/css/zcode_web.css" />
+</head>
+<body class="zc-body">
+  <div class="zc-app">
+    <!-- Боковая панель: список чатов (на мобиле — выдвижная) -->
+    <aside class="zc-side" id="zc-side">
+      <div class="zc-side__head">
+        <span class="zc-side__brand">ZCode</span>
+        <button class="zc-btn zc-btn--ghost zc-btn--new" id="zc-new" title="Новый чат">+ Новый чат</button>
+      </div>
+      <ul class="zc-list" id="zc-list"></ul>
+      <div class="zc-side__foot">
+        <button class="zc-btn zc-btn--ghost" id="zc-refresh" title="Обновить список">↻ Обновить</button>
+        <button class="zc-btn zc-btn--ghost" id="zc-logout">Выйти</button>
+      </div>
+    </aside>
+    <div class="zc-overlay" id="zc-overlay"></div>
+
+    <!-- Основная область: выбранный чат -->
+    <main class="zc-main">
+      <header class="zc-topbar">
+        <button class="zc-burger" id="zc-burger" aria-label="Список чатов">☰</button>
+        <div class="zc-topbar__title" id="zc-title">Выберите чат</div>
+        <div class="zc-status" id="zc-status" hidden></div>
+      </header>
+
+      <div class="zc-chat" id="zc-chat">
+        <div class="zc-empty" id="zc-empty">
+          <p>Выберите чат слева — история агентов подгрузится автоматически.</p>
+        </div>
+        <div class="zc-messages" id="zc-messages" hidden></div>
+        <button class="zc-more" id="zc-more" hidden>← Ещё (старые сообщения)</button>
+      </div>
+
+      <footer class="zc-composer">
+        <textarea class="zc-input zc-composer__input" id="zc-input" rows="1"
+                  placeholder="Сообщение агенту… (Enter — отправить, Shift+Enter — новая строка)" disabled></textarea>
+        <button class="zc-btn zc-btn--primary zc-composer__send" id="zc-send" disabled>➤</button>
+      </footer>
+    </main>
+  </div>
+  <script src="/static/js/zcode_web.js"></script>
+</body>
+</html>
