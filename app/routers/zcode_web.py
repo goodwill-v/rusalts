@@ -1,13 +1,15 @@
-"""Веб-чат с агентами ZCode на /zcode (ТЗ: /opt/alt_docs/ALT_ZAI_devops/TZ_VEB_zcode_web.md).
+"""Веб-чат с агентами ZCode на /zcode (ТЗ: /opt/alt_docs/ALT_ZAI_devops/TZ_VEB_zcode_web.md)
+и таб «Алик» (ТЗ-дополнение: TZ_VEB_zcode_web_addendum_alik.md).
 
-Зоны ВЭБ: этот роутер, app/zcode_rpc.py, app/templates/zcode*.html,
-static/css/zcode_web.css, static/js/zcode_web.js, tests/test_zcode_web.py.
-zcode-runtime и его службы НЕ трогаются (СТОП-условие ТЗ §1.4).
+Зоны ВЭБ: этот роутер, app/zcode_rpc.py, app/alik_rpc.py, app/alik_store.py,
+app/templates/zcode*.html, static/css/zcode_web.css, static/js/zcode_web.js,
+tests/test_zcode_web.py, tests/test_alik_web.py.
+zcode-runtime и openclaw-gateway НЕ трогаются (СТОП-условия обоих ТЗ).
 
 Безопасность (ТЗ §2.1): доступ к агентам = доступ к серверу, поэтому:
 - вход только по ZCODE_WEB_TOKEN из .env, rate-limit 5/мин на IP;
 - cookie HttpOnly + SameSite=Lax (+ Secure на HTTPS), TTL 12 ч (или 14 дней
-  при «помнить»); содержимое переписки нигде не логируется.
+  при «помнить»); содержимое переписок нигде не логируется.
 """
 
 from __future__ import annotations
@@ -25,6 +27,8 @@ from pathlib import Path
 from fastapi import APIRouter, Request
 from fastapi.responses import JSONResponse, Response, StreamingResponse
 
+from app import alik_store
+from app.alik_rpc import AlikError, stream_chat
 from app.templating import templates
 from app.zcode_rpc import ZcodeRpcError, get_channel
 
@@ -37,6 +41,7 @@ SESSION_TTL_S = 12 * 3600          # ТЗ §2.1: TTL сессии 12 ч
 REMEMBER_TTL_S = 14 * 24 * 3600    # ТЗ §3.3: «помнить» — 2 недели
 LOGIN_RATE_LIMIT = 5               # попыток...
 LOGIN_RATE_WINDOW_S = 60           # ...в минуту с одного IP
+ALIK_SEND_RATE_LIMIT = 5           # сообщений Алику... (ТЗ-дополнение §1.5 — защита gateway)
 STREAM_MAX_S = 30 * 60             # SSE живёт до 30 мин, клиент переподключается
 POLL_INTERVAL_S = 1.0
 MAX_MESSAGE_LEN = 16000
@@ -378,6 +383,111 @@ async def api_stream(request: Request, session_id: str, workspace: str = "", aft
                 last_heartbeat = now
                 yield ": ping\n\n"
             await asyncio.sleep(POLL_INTERVAL_S)
+
+    return _no_index(StreamingResponse(
+        event_gen(),
+        media_type="text/event-stream",
+        headers={"X-Accel-Buffering": "no"},
+    ))
+
+
+# ── Таб «Алик» (ТЗ-дополнение: chat с OpenClaw Gateway) ──────────────────────
+
+_alik_send_attempts: dict[str, deque[float]] = defaultdict(deque)
+
+
+def _alik_rate_limited(ip: str) -> bool:
+    now = time.monotonic()
+    bucket = _alik_send_attempts[ip]
+    while bucket and now - bucket[0] > LOGIN_RATE_WINDOW_S:
+        bucket.popleft()
+    if len(bucket) >= ALIK_SEND_RATE_LIMIT:
+        return True
+    bucket.append(now)
+    return False
+
+
+@router.get("/zcode/api/alik/chats")
+async def alik_chats(request: Request):
+    """Список чатов с Аликом — из БД (общая для телефона и десктопа)."""
+    denied = _require_auth(request)
+    if denied:
+        return denied
+    return _no_index(JSONResponse({"chats": alik_store.chats()}))
+
+
+@router.post("/zcode/api/alik/chats")
+async def alik_new_chat(request: Request):
+    """«+ Новый чат» — новый chat_id; старые диалоги остаются в списке."""
+    denied = _require_auth(request)
+    if denied:
+        return denied
+    chat_id = alik_store.new_chat_id()
+    return _no_index(JSONResponse({"chat_id": chat_id}))
+
+
+@router.get("/zcode/api/alik/history")
+async def alik_history(request: Request, chat_id: str, limit: int = 500):
+    """История диалога из БД (F5 / другое устройство — та же история)."""
+    denied = _require_auth(request)
+    if denied:
+        return denied
+    if not chat_id.strip():
+        return _err(400, "Пустой chat_id")
+    return _no_index(JSONResponse({
+        "chat_id": chat_id,
+        "messages": alik_store.history(chat_id.strip(), limit=min(max(limit, 1), 1000)),
+    }))
+
+
+@router.post("/zcode/api/alik/send")
+async def alik_send(request: Request):
+    """Сообщение Алику: история из БД → gateway (SSE) → куски в браузер → БД.
+
+    SSE-события: {type:"delta",text}, {type:"done"}, {type:"error",message}.
+    """
+    denied = _require_auth(request)
+    if denied:
+        return denied
+    ip = _client_ip(request)
+    if _alik_rate_limited(ip):
+        logger.warning("alik send: rate-limited ip=%s", ip)
+        return _err(429, "Слишком много сообщений. Подождите минуту.")
+    try:
+        body = await request.json()
+    except Exception:
+        return _err(400, "Ожидается JSON")
+    chat_id = str(body.get("chat_id", "")).strip()
+    text = str(body.get("text", "")).strip()
+    if not chat_id:
+        return _err(400, "Пустой chat_id")
+    if not text:
+        return _err(400, "Пустое сообщение")
+    if len(text) > MAX_MESSAGE_LEN:
+        return _err(413, "Сообщение слишком длинное")
+
+    row_id = alik_store.add_message(chat_id, "user", text)
+    messages = alik_store.context_messages(chat_id)  # последние ~30 (ТЗ §3)
+
+    async def event_gen():
+        accumulated: list[str] = []
+        try:
+            async for delta in stream_chat(messages, chat_id):
+                accumulated.append(delta)
+                payload = {"type": "delta", "text": delta}
+                yield f"data: {json.dumps(payload, ensure_ascii=False)}\n\n"
+        except AlikError as e:
+            if not accumulated:
+                # Ответа не было вовсе: откатываем сообщение пользователя,
+                # чтобы повторная отправка не задублировала его в истории.
+                alik_store.delete_message(row_id)
+            payload = {"type": "error", "message": str(e)[:220]}
+            yield f"data: {json.dumps(payload, ensure_ascii=False)}\n\n"
+            return
+        full = "".join(accumulated)
+        if full.strip():
+            alik_store.add_message(chat_id, "assistant", full)
+        yield "data: {\"type\": \"done\"}\n\n"
 
     return _no_index(StreamingResponse(
         event_gen(),
