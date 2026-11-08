@@ -30,6 +30,18 @@ body.zc-body {
 
 .zc-app { display: flex; height: 100dvh; }
 
+/* ── Табы ZCode | Алик (ТЗ-дополнение §1.3) ────────────────────────────── */
+.zc-tabs {
+  display: flex; gap: 4px; padding: 8px 10px 0;
+}
+.zc-tab {
+  flex: 1; padding: 7px 0; font: inherit; font-size: 14px; font-weight: 600;
+  border: 1px solid var(--zc-line); border-radius: 9px 9px 0 0; border-bottom: none;
+  background: #eef0f4; color: var(--zc-muted); cursor: pointer;
+}
+.zc-tab.is-active { background: var(--zc-panel); color: var(--zc-accent); }
+.zc-tabs + .zc-list { border-top: 1px solid var(--zc-line); }
+
 /* ── Панель чатов ───────────────────────────────────────────────────────── */
 .zc-side {
   width: 300px;
