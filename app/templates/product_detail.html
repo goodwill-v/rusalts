@@ -64,7 +64,7 @@
         <h2>{{ features_title or "Что вы получаете" }}</h2>
         {% if features %}
         <ul class="pd__features">
-          {% for f in features %}<li>{{ f }}</li>{% endfor %}
+          {% for f in features %}<li>{% if features_bold_names and ":" in f %}<strong>{{ f.split(":", 1)[0] }}:</strong>{{ f.split(":", 1)[1] }}{% else %}{{ f }}{% endif %}</li>{% endfor %}
         </ul>
         {% else %}
         <p class="muted-site">Подробную консультацию по возможностям инструмента проведёт АЛТ-эксперт —

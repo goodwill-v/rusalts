@@ -130,6 +130,7 @@ async def product_generated_page(request: Request, pid: str):
     features_title = (
         "Вы получаете на тарифах" if pid == "kupec" else "Что вы получаете"
     )
+    features_bold_names = pid == "kupec"
 
     return templates.TemplateResponse(
         request,
@@ -148,6 +149,7 @@ async def product_generated_page(request: Request, pid: str):
             "buyable": buyable,
             "trial_note": trial_note,
             "features_title": features_title,
+            "features_bold_names": features_bold_names,
         },
     )
 
