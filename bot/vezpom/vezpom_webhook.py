@@ -182,10 +182,10 @@ def main_menu_keyboard():
     }]
 
 
-def send_menu(chat_id, text):
-    """Отправить сообщение с кнопками меню."""
+def send_menu(chat_id, text, keyboard=None):
+    """Отправить сообщение с кнопками (по умолчанию — главное меню)."""
     url = API_URL + "/messages?chat_id=" + str(chat_id)
-    payload = json.dumps({"text": text, "attachments": main_menu_keyboard()}).encode("utf-8")
+    payload = json.dumps({"text": text, "attachments": keyboard or main_menu_keyboard()}).encode("utf-8")
     req = urllib.request.Request(
         url,
         data=payload,
@@ -1014,7 +1014,20 @@ def handle_command(text, chat_id):
         return
     if low in ("/rules", "/offer", "/oferta"):
         price, trial, _period = _tariff()
-        send(chat_id, "ВежПом: подписка %s, пробный период %d дн. Возврат в течение 14 дней с оплаты (полный или пропорциональный), если услуга не оказывалась. Отключить автоплатежи и отвязать карту: /cancel. Полный текст оферты и политики возвратов: https://rusalts.ru/oferta" % (_tariff_price_text(), trial))
+        pay_keyboard = [{
+            "type": "inline_keyboard",
+            "payload": {"buttons": [[
+                {"type": "callback", "text": "💳 Оплатить подписку", "payload": "menu:pay"},
+            ]]}
+        }]
+        send_menu(chat_id,
+                  "ВежПом: подписка %s, пробный период %d дн.\n"
+                  "💳 Оплатить подписку: https://rusalts.ru/techologis/p/vezhpom/ — или командой /pay.\n"
+                  "Возврат в течение 14 дней с оплаты (полный или пропорциональный), если услуга не оказывалась.\n"
+                  "Отключить автоплатежи и отвязать карту: /cancel.\n"
+                  "Полный текст оферты и политики возвратов: https://rusalts.ru/oferta"
+                  % (_tariff_price_text(), trial),
+                  keyboard=pay_keyboard)
         return
     # Любой другой не-командный текст (приветствие, вопрос и т.п.) — показать меню с кнопками.
     # Важно: событие bot_started приходит только при ПЕРВОМ запуске бота, у существующих
