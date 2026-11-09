@@ -42,11 +42,23 @@ PUSH_PUBLIC_URL = os.environ.get("VEZPOM_PUSH_URL", "https://rusalts.ru/kuma-pus
 if not BOT_TOKEN or not CHAT_ID:
     sys.exit("ERROR: BOT_TOKEN and CHAT_ID must be set (see .env.example)")
 
-# chat_id -> True: bot is waiting for the user to type a target URL/IP
-awaiting_target = {}
+# Двухшаговый сценарий: chat_id -> режим ожидания адреса
+# ('monitor'|'monitor_off'|'domain'|'domain_off'|'link'|'scan').
+# Команда без аргумента включает режим; следующее сообщение пользователя
+# (обычно адрес из буфера) уходит в соответствующий поток.
+awaiting_mode = {}
 # chat_id -> True: bot is waiting for the user to type a domain (PR-5)
-awaiting_domain = {}
 AWAIT_LOCK = threading.Lock()
+
+
+def _set_awaiting(chat_id, mode):
+    with AWAIT_LOCK:
+        awaiting_mode[chat_id] = mode
+
+
+def _pop_awaiting(chat_id):
+    with AWAIT_LOCK:
+        return awaiting_mode.pop(chat_id, None)
 
 CHAT_RE = re.compile(r"chat(\d+)")
 
@@ -854,41 +866,58 @@ def handle_command(text, chat_id):
     if cmd == "/":
         send_menu(chat_id, "Меню ВежПом — выберите действие кнопками или введите команду:")
         return
-    # Режим ожидания цели мониторинга: любое не-командное сообщение — это URL/IP
-    with AWAIT_LOCK:
-        waiting = awaiting_target.get(chat_id, False)
-    if waiting and not cmd.startswith("/"):
-        with AWAIT_LOCK:
-            awaiting_target[chat_id] = False
-        _add_monitor_flow(chat_id, cmd)
-        return
-    # Режим ожидания домена (PR-5): не-командное сообщение — это домен
-    with AWAIT_LOCK:
-        waiting_domain = awaiting_domain.get(chat_id, False)
-    if waiting_domain and not cmd.startswith("/"):
-        with AWAIT_LOCK:
-            awaiting_domain[chat_id] = False
-        _add_domain_flow(chat_id, cmd)
-        return
+    # Двухшаговый сценарий: не-командное сообщение в режиме ожидания — это адрес
+    mode = _pop_awaiting(chat_id)
+    if mode and not cmd.startswith("/"):
+        flow = {
+            "monitor": _add_monitor_flow,
+            "monitor_off": _remove_monitor_flow,
+            "domain": _add_domain_flow,
+            "domain_off": _remove_domain_flow,
+            "link": _link_flow,
+            "scan": _scan_flow,
+        }.get(mode)
+        if flow:
+            flow(chat_id, cmd)
+            return
     low = cmd.lower()
     if low == "/refund" or low.startswith("/refund "):
         _handle_refund(chat_id, cmd.split()[1:])
         return
     if low in ("/link", "/ссылка") or low.startswith("/link ") or low.startswith("/ссылка "):
-        _link_flow(chat_id, cmd.split(None, 1)[1] if len(cmd.split()) > 1 else "")
+        arg = cmd.split(None, 1)[1] if len(cmd.split()) > 1 else ""
+        if arg:
+            _link_flow(chat_id, arg)
+        else:
+            _set_awaiting(chat_id, "link")
+            send(chat_id, "Пришлите ссылку следующим сообщением (обычно она уже в буфере) — проверю на фишинг и вредоносное.")
         return
     if low in ("/scan", "/аудит") or low.startswith("/scan ") or low.startswith("/аудит "):
-        _scan_flow(chat_id, cmd.split(None, 1)[1] if len(cmd.split()) > 1 else "")
+        arg = cmd.split(None, 1)[1] if len(cmd.split()) > 1 else ""
+        if arg:
+            _scan_flow(chat_id, arg)
+        else:
+            _set_awaiting(chat_id, "scan")
+            send(chat_id, "Пришлите адрес СВОЕГО сайта или IP следующим сообщением (обычно он в буфере) — сделаю диагностику безопасности.")
         return
     if low == "/monitor_off" or low.startswith("/monitor_off ") or low in ("/отключить_мониторинг",) or low.startswith("/отключить_мониторинг "):
-        _remove_monitor_flow(chat_id, cmd.split(None, 1)[1] if len(cmd.split()) > 1 else "")
+        arg = cmd.split(None, 1)[1] if len(cmd.split()) > 1 else ""
+        if arg:
+            _remove_monitor_flow(chat_id, arg)
+        else:
+            monitors = [m for m in db.list_monitors(chat_id) if m["target"] != "backup"]
+            lines = ["Под контролем:"]
+            for m in monitors:
+                lines.append(" • " + m["target"])
+            lines.append("Пришлите адрес того, что снять с контроля (обычно он в буфере).")
+            _set_awaiting(chat_id, "monitor_off")
+            send(chat_id, "\n".join(lines))
         return
     if low == "/backup_off" or low in ("/бэкап_выкл",):
         _backup_off_flow(chat_id)
         return
     if low in ("/monitor", "/monitor_on", "/настройка", "/настройка_мониторинга"):
-        with AWAIT_LOCK:
-            awaiting_target[chat_id] = True
+        _set_awaiting(chat_id, "monitor")
         send(chat_id, "Введите URL сайта или IP сервера для мониторинга. Примеры: https://example.com, example.com, 192.168.1.10\n\nДля https-сайтов сразу включу и контроль срока SSL-сертификата.")
         return
     if low == "/backup":
@@ -899,8 +928,7 @@ def handle_command(text, chat_id):
         if len(parts) > 1:
             _add_domain_flow(chat_id, " ".join(parts[1:]))
         else:
-            with AWAIT_LOCK:
-                awaiting_domain[chat_id] = True
+            _set_awaiting(chat_id, "domain")
             send(chat_id, "Введите домен, чтобы я следил за сроком его регистрации. Примеры: company.ru, магазин.рф\n\nПредупрежу заранее: за 30, 14, 7 и 1 день. Список: /domains")
         return
     if low in ("/domains", "/домены"):
@@ -911,7 +939,13 @@ def handle_command(text, chat_id):
         if len(parts) > 1:
             _remove_domain_flow(chat_id, " ".join(parts[1:]))
         else:
-            send(chat_id, "Формат: /domain_off <домен>. Список: /domains")
+            domains = db.list_domains(chat_id)
+            lines = ["Домены под контролем:"]
+            for d in domains:
+                lines.append(" • " + d["domain"])
+            lines.append("Пришлите домен, который снять с контроля (обычно он в буфере).")
+            _set_awaiting(chat_id, "domain_off")
+            send(chat_id, "\n".join(lines))
         return
     if low == "/digest":
         text = digest.build_traffic_light(chat_id)
@@ -992,8 +1026,7 @@ def handle_callback(chat_id, callback_id, payload):
     """Обработка нажатия кнопок меню (message_callback)."""
     action = (payload or "").lower()
     if action == "menu:monitor":
-        with AWAIT_LOCK:
-            awaiting_target[chat_id] = True
+        _set_awaiting(chat_id, "monitor")
         answer_callback(
             callback_id,
             notification="Введите URL или IP",
