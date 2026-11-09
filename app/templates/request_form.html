@@ -90,10 +90,10 @@
   {% endif %}
   {% else %}
 
-  <h1>📩 Запросить функционал</h1>
+  <h1>📩 Заявка — обращение</h1>
   <p class="subtitle">
-    Опишите кратко ваши задачи — и мы подберём готовое решение
-    или создадим инструмент под вас.
+    Задайте вопрос, предложите идею или опишите задачу —
+    мы ответим и подберём решение под ваше дело.
   </p>
 
   {% if error %}
@@ -102,14 +102,19 @@
 
   <form method="post" action="/request/" class="request-card">
     <div class="request-field">
-      <label for="req-name">Ваше имя <span class="request-hint">(необязательно)</span></label>
-      <input type="text" id="req-name" name="name" value="{{ form.get('name', '') if form else '' }}" placeholder="Как к вам обращаться" />
+      <label for="req-name">Ваше имя <span class="req">*</span></label>
+      <input type="text" id="req-name" name="name" value="{{ form.get('name', '') if form else '' }}" placeholder="Как к вам обращаться" required />
     </div>
 
     <div class="request-field">
-      <label for="req-email">Электронная почта <span class="req">*</span></label>
-      <input type="email" id="req-email" name="email" value="{{ form.get('email', '') if form else '' }}" placeholder="you@example.com" required />
-      <p class="request-hint">Обязательное поле — на него придёт ответ.</p>
+      <label for="req-contact">Контакт — телефон или почта <span class="req">*</span></label>
+      <input type="text" id="req-contact" name="contact" value="{{ form.get('contact', '') if form else '' }}" placeholder="+7 900 000-00-00 или you@example.com" required />
+      <p class="request-hint">Обязательное поле — по нему мы свяжемся с вами.</p>
+    </div>
+
+    <div class="request-field">
+      <label for="req-topic">Тема обращения</label>
+      <input type="text" id="req-topic" name="topic" value="{{ form.get('topic', '') if form else '' }}" placeholder="Например: автоматизация складского учёта" />
     </div>
 
     <div class="request-field">
@@ -124,11 +129,11 @@
     </div>
 
     <div class="request-field">
-      <label for="req-message">Кратко опишите ваши задачи</label>
+      <label for="req-message">Описание заявки, вопроса, предложения</label>
       <textarea id="req-message" name="message" placeholder="Например: нужен ИИ-ассистент для обработки заявок клиентов, 2–3 канала, до 500 диалогов в день…">{{ form.get('message', '') if form else '' }}</textarea>
     </div>
 
-    <button type="submit" class="request-submit">Запросить →</button>
+    <button type="submit" class="request-submit">Отправить обращение →</button>
   </form>
 
   {% endif %}
