@@ -64,7 +64,7 @@
         <h2>{% if features %}Вы получаете на тарифах{% else %}Что вы получаете{% endif %}</h2>
         {% if features %}
         <ul class="pd__features">
-          {% for f in features %}<li>{{ f }}</li>{% endfor %}
+          {% for f in features %}{% set name_part = f.split(" — ", 1)[0] %}{% set rest_part = f.split(" — ", 1)[1] if " — " in f else "" %}{% if rest_part %}<li><strong>{{ name_part }}</strong> — {{ rest_part }}</li>{% else %}<li><strong>{{ f }}</strong></li>{% endif %}{% endfor %}
         </ul>
         {% else %}
         <p class="muted-site">Подробную консультацию по возможностям инструмента проведёт АЛТ-эксперт —
