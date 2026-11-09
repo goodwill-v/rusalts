@@ -56,6 +56,13 @@ MAX_LEADS_CHAT_ID = os.getenv("MAX_LEADS_CHAT_ID", "").strip()
 # Сервисные ключи ботов для API витрины (X-API-Key), через запятую (Этап A3)
 VITRINA_API_KEYS = [k.strip() for k in os.getenv("VITRINA_API_KEYS", "").split(",") if k.strip()]
 
+# Подпись ссылок «управление картами» (требование ЮKassa, 09.11): HMAC-ключ
+# для ссылок вида /techologis/?cards=<cid>&exp=<ts>&sig=... Боты получают URL
+# через GET /api/cards-link (X-API-Key), секрет наружу не выдаётся.
+CARDS_LINK_SECRET = os.getenv("CARDS_LINK_SECRET", "").strip() or (
+    ADMIN_PASSWORD + "|cards-link"
+)
+
 # Системный промпт АЛТ-эксперта — вне git, контент, не код
 SYSTEM_PROMPT_PATH = Path("/opt/alt_docs/ALT-expert/system_prompt_v2.md")
 

@@ -6,6 +6,18 @@
 
 {% block body %}
 <main class="site-main">
+  <!-- Скрытый блок «Управление картами» (требование ЮKassa): появляется
+       только по подписанной ссылке из бота /techologis/?cards=…&exp=…&sig=… -->
+  <section id="cards-manage" class="showcase" style="display:none">
+    <div class="showcase__inner">
+      <div class="panel" style="background:var(--site-surface);border:1px solid var(--site-border);border-radius:12px;padding:1.25rem;max-width:720px;margin:0 auto">
+        <h2 style="margin:0 0 0.5rem;color:var(--site-heading)">💳 Управление картами</h2>
+        <p class="muted-site" style="margin:0 0 1rem">Сохранённые карты для подписок АЛТ. Отвязка прекращает автоплатежи — подписка действует до конца оплаченного периода.</p>
+        <div id="cards-list">Загрузка…</div>
+        <p class="muted-site" style="margin:0.75rem 0 0;font-size:0.82rem">Ссылка персональная и действует 24 часа. Вопросы — <a class="link" href="/request/">форма «Заявка — обращение»</a>.</p>
+      </div>
+    </div>
+  </section>
   <section class="showcase">
     <div class="showcase__inner">
       <h1 class="showcase__title">{{ content_block('showcase', 'title', 'Продукты и услуги АЛТ') }}</h1>
@@ -705,5 +717,67 @@ document.getElementById("rvs-send")?.addEventListener("click", async () => {
     } else msg.textContent = data.error || "Не удалось отправить";
   } catch (e) { msg.textContent = "Ошибка соединения"; }
 });
+// ─── Управление картами (требование ЮKassa): скрытый блок по ссылке из бота ───
+(() => {
+  const q = new URLSearchParams(location.search);
+  const cid = q.get("cards");
+  const exp = q.get("exp");
+  const sig = q.get("sig");
+  if (!cid || !exp || !sig) return;
+  const section = document.getElementById("cards-manage");
+  const list = document.getElementById("cards-list");
+  if (!section || !list) return;
+  section.style.display = "block";
+  section.scrollIntoView({ behavior: "smooth", block: "start" });
+
+  const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({
+    "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;",
+  }[c]));
+
+  async function load() {
+    try {
+      const r = await fetch(`/api/payment-methods/${encodeURIComponent(cid)}?exp=${encodeURIComponent(exp)}&sig=${encodeURIComponent(sig)}`);
+      const d = await r.json();
+      if (!r.ok || !d.ok) {
+        list.innerHTML = "<p class='muted-site'>Ссылка недействительна или истекла. Запросите новую в боте.</p>";
+        return;
+      }
+      if (!d.cards.length) {
+        list.innerHTML = "<p class='muted-site'>Сохранённых карт нет — отвязывать нечего.</p>";
+        return;
+      }
+      list.innerHTML = d.cards.map((c, i) => `
+        <div style="display:flex;align-items:center;gap:0.75rem;padding:0.6rem 0;border-bottom:1px solid var(--site-border)">
+          <span style="flex:1">💳 <strong>${esc(c.label)}</strong> · продукт <code>${esc(c.product_id)}</code> · с ${esc(c.saved_at)}</span>
+          <button data-unlink="${i}" style="font:inherit;font-size:0.88rem;padding:0.4rem 0.9rem;border-radius:8px;border:1px solid #dc2626;background:#fff;color:#dc2626;cursor:pointer">Отвязать</button>
+        </div>`).join("");
+      list.querySelectorAll("[data-unlink]").forEach((btn) => {
+        btn.addEventListener("click", async () => {
+          const c = d.cards[+btn.dataset.unlink];
+          if (!confirm(`Отвязать карту ${c.label} (продукт «${c.product_id}»)? Автоплатежи прекратятся.`)) return;
+          btn.disabled = true;
+          btn.textContent = "Отвязываю…";
+          try {
+            const r2 = await fetch("/api/payment-method/delete", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ customer_id: cid, product_id: c.product_id, exp, sig }),
+            });
+            const d2 = await r2.json();
+            if (r2.ok && d2.ok) {
+              await load();
+            } else {
+              btn.textContent = "Ошибка";
+              list.insertAdjacentHTML("beforeend", `<p class='muted-site'>Не удалось отвязать: ${esc(d2.error || "попробуйте позже")}</p>`);
+            }
+          } catch (e) { btn.textContent = "Ошибка сети"; }
+        });
+      });
+    } catch (e) {
+      list.innerHTML = "<p class='muted-site'>Ошибка соединения. Попробуйте позже.</p>";
+    }
+  }
+  load();
+})();
 </script>
 {% endblock %}
