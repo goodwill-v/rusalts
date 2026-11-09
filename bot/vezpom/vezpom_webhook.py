@@ -454,12 +454,18 @@ def _user_refund(chat_id):
 
 
 def normalize_target(raw):
-    """Normalize user input to an http(s) URL or None if invalid."""
+    """Normalize user input to an http(s) URL or None if invalid.
+
+    Принимает IDN-домены (кириллица: лидерыпромышленности.рф), в том числе
+    короткую форму без схемы. Домен без схемы → https://, IP без схемы →
+    http:// (к IP по https с самоподписанным сертификатом не ходим).
+    """
     t = (raw or "").strip()
     if not t:
         return None
-    if "://" not in t:
-        t = "http://" + t
+    host_only = "://" not in t
+    if host_only:
+        t = "https://" + t
     parsed = urllib.parse.urlparse(t)
     host = parsed.hostname or ""
     if not host:
@@ -467,12 +473,20 @@ def normalize_target(raw):
     # IP address (IPv4/IPv6)
     try:
         ipaddress.ip_address(host)
+        if host_only:
+            t = "http://" + t.split("://", 1)[1]  # IP без схемы → http://
         return t
     except ValueError:
         pass
-    # Domain: latin letters, digits, dots, hyphens; must contain a dot
-    if not re.match(r"^[a-zA-Z0-9.-]+$", host):
+    # Domain: буквы/цифры/точки/дефисы, включая IDN (кириллица и др.);
+    # должен быть хотя бы один разделитель-«.»
+    if not re.match(r"^[a-zA-Z0-9а-яё.\-]+$", host, re.IGNORECASE):
         return None
+    # имя хоста — в нижнем регистре (путь/запрос не трогаем)
+    if not host_only and parsed.netloc != parsed.netloc.lower():
+        t = urllib.parse.urlunparse((parsed.scheme, parsed.netloc.lower(),
+                                     parsed.path, parsed.params,
+                                     parsed.query, parsed.fragment))
     if "." not in host:
         return None
     return t
