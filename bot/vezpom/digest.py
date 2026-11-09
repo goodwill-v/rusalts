@@ -11,6 +11,7 @@ import threading
 import time
 
 import db
+import kuma
 
 MSK_OFFSET = 3 * 3600
 WARN_LINES_LIMIT = 3  # максимум предупреждений/проблем в одном светофоре
@@ -147,6 +148,53 @@ def build_report(chat_id, days=7, title="📊 Отчёт за неделю:"):
     return "\n".join(lines)
 
 
+# ---- Ежедневный свип статусов: закрыть зависшие инциденты ----
+
+# После рестарта Kuma не присылает «up»-уведомлений (первая проверка после
+# старта не нотифицируется) — открытый down мог висеть вечно (прод 04.11:
+# рестарт при закрытии порта → 2 ложных down по 117 ч в журнале).
+STATUS_SWEEP_NAME = "statuses"
+STATUS_SWEEP_AT = (9, 35)   # МСК, после светофора и обхода доменов
+
+
+def refresh_statuses():
+    """Сверить статусы мониторов с Kuma; закрыть зависшие открытые инциденты.
+
+    Возвращает число закрытых зависших инцидентов.
+    """
+    closed = 0
+    now = int(time.time())
+    for chat_id in db.list_active_users():
+        for m in db.list_monitors(chat_id):
+            if not m.get("kuma_id") or m["target"] == "backup":
+                continue
+            try:
+                status, ping, msg = kuma.get_monitor_status(m["kuma_id"])
+            except Exception:
+                continue
+            if status not in ("up", "down"):
+                continue
+            db.update_monitor_status(m["monitor_name"], status)
+            if status == "up":
+                if db.close_open_incident(chat_id, m["target"], now):
+                    closed += 1
+    return closed
+
+
+def _status_sweep_tick(now_ts=None):
+    ts = time.time() if now_ts is None else now_ts
+    shifted = ts + MSK_OFFSET
+    day_id = int(shifted // 86400)
+    if day_id == db.get_sweep_day(STATUS_SWEEP_NAME):
+        return
+    gmt = time.gmtime(shifted)
+    if (gmt.tm_hour, gmt.tm_min) < STATUS_SWEEP_AT:
+        return
+    closed = refresh_statuses()
+    db.mark_sweep_sent(STATUS_SWEEP_NAME, day_id)
+    print("[VeZhPom] status sweep done: closed=%d" % closed, flush=True)
+
+
 # ---- Планировщик ----
 
 def _parse_hhmm(value, default="09:00"):
@@ -185,10 +233,11 @@ def _tick(send_fn):
 
 
 def run_scheduler(send_fn, check_interval=30):
-    """Фоновый цикл планировщика (поток-демон)."""
+    """Фоновый цикл планировщика (поток-демон): светофор/отчёт + свип статусов."""
     while True:
         try:
             _tick(send_fn)
+            _status_sweep_tick()
         except Exception as exc:
             print("[VeZhPom] scheduler error:", exc, flush=True)
         time.sleep(check_interval)

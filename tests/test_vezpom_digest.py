@@ -108,3 +108,42 @@ def test_weekly_report_has_recommendations_but_monthly_has_breakdown(tmp_path, m
                     started_at=now - 300, resolved_at=now - 60)
     month = digest.build_report(1, days=30, title="📋 Журнал за 30 дней:")
     assert "Разбивка" in month and "Рекомендация" not in month
+
+
+# ---- свип статусов: авто-закрытие зависших инцидентов (fix 09.11) ----
+
+def test_refresh_statuses_closes_stale_incident(tmp_path, monkeypatch):
+    import time as _time
+    _tmp_db(tmp_path, monkeypatch)
+    now = int(_time.time())
+    vezdb.create_user(9)
+    vezdb.add_monitor(9, "https://stale.ru", "VeZhPom chat9: https://stale.ru", 99)
+    vezdb.update_monitor_status("VeZhPom chat9: https://stale.ru", "down")
+    vezdb.add_event(9, 99, "https://stale.ru", "incident", "down", "",
+                    started_at=now - 400000)  # открытый down 4+ суток
+
+    class FakeKuma:
+        def get_monitor_status(self, mid):
+            return "up", 42, "OK"   # сайт на самом деле жив
+
+    monkeypatch.setattr(digest, "kuma", FakeKuma())
+    closed = digest.refresh_statuses()
+    assert closed == 1
+    ev = vezdb.list_events(9, since_ts=now - 500000)[0]
+    assert ev["resolved_at"] is not None            # инцидент закрыт
+    assert vezdb.list_monitors(9)[0]["last_status"] == "up"  # статус обновлён
+
+
+def test_status_sweep_day_idempotent(tmp_path, monkeypatch):
+    _tmp_db(tmp_path, monkeypatch)
+    vezdb.create_user(7)
+    vezdb.add_monitor(7, "https://y.ru", "VeZhPom chat7: https://y.ru", 11)
+    calls = []
+    monkeypatch.setattr(digest, "refresh_statuses", lambda: calls.append(1) or 0)
+    ts = 1800000000 + 3600   # 11:00 МСК
+    digest._status_sweep_tick(now_ts=ts - 9 * 3600)  # 02:00 МСК — рано
+    assert len(calls) == 0
+    digest._status_sweep_tick(now_ts=ts)             # первый проход
+    assert len(calls) == 1
+    digest._status_sweep_tick(now_ts=ts + 60)        # тот же день — молчим
+    assert len(calls) == 1
