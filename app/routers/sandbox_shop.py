@@ -121,6 +121,16 @@ async def product_generated_page(request: Request, pid: str):
     # Подпись к resource_limit (kupec: слежки «Жду скидку», иначе — ресурсы)
     limit_label = "Слежек" if pid == "kupec" else "Лимит ресурсов"
 
+    # Подпись триала и заголовок опций — по продукту (Купец: 06.11, Шеф)
+    trial_note = (
+        "нажмите — бот включает максимальный тариф «Маркетинг» на 7 дней."
+        if pid == "kupec"
+        else "нажмите → бот включит триал сам, без оплаты и без ввода ID"
+    )
+    features_title = (
+        "Вы получаете на тарифах" if pid == "kupec" else "Что вы получаете"
+    )
+
     return templates.TemplateResponse(
         request,
         "product_detail.html",
@@ -136,6 +146,8 @@ async def product_generated_page(request: Request, pid: str):
             "limit_label": limit_label,
             "category_label": "услуга" if prod.get("category") == "service" else "продукт",
             "buyable": buyable,
+            "trial_note": trial_note,
+            "features_title": features_title,
         },
     )
 
