@@ -154,6 +154,10 @@ def main_menu_keyboard():
                     {"type": "callback", "text": "💾 Бэкапы", "payload": "menu:backup"},
                 ],
                 [
+                    {"type": "callback", "text": "📋 Журнал", "payload": "menu:history"},
+                    {"type": "callback", "text": "🔎 Диагностика", "payload": "menu:scan"},
+                ],
+                [
                     {"type": "callback", "text": "🌐 Домены", "payload": "menu:domains"},
                     {"type": "callback", "text": "❌ Отмена", "payload": "menu:cancel"},
                 ],
@@ -1005,6 +1009,12 @@ def handle_callback(chat_id, callback_id, payload):
     elif action == "menu:backup":
         answer_callback(callback_id, notification="Бэкапы")
         _add_backup_flow(chat_id)
+    elif action == "menu:history":
+        answer_callback(callback_id, notification="Журнал")
+        handle_command("/history", chat_id)
+    elif action == "menu:scan":
+        answer_callback(callback_id, notification="Диагностика")
+        handle_command("/scan", chat_id)
     elif action == "menu:domains":
         answer_callback(callback_id, notification="Домены")
         send(chat_id,
