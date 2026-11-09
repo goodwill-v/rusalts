@@ -204,3 +204,11 @@ def delete_payment_method(chat_id: int) -> dict:
         "product_id": "vezhpom",
     }) or {}
     return data
+
+
+def get_cards_link(chat_id: int) -> str:
+    """Подписанная ссылка «управление картами» (требование ЮKassa, живёт 24 ч)."""
+    status, data = _get_raw(f"/api/cards-link?customer_id={chat_id}")
+    if status == 200 and data:
+        return data.get("url") or ""
+    return ""

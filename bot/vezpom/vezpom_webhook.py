@@ -1004,6 +1004,13 @@ def handle_command(text, chat_id):
         if payment_url:
             send(chat_id, "Ссылка на оплату %s: " % _tariff_price_text() + payment_url)
             send(chat_id, "После оплаты нажмите «Статус» — подписка активируется автоматически.")
+        cards_url = ""
+        try:
+            cards_url = vitrina.get_cards_link(chat_id)
+        except Exception:
+            cards_url = ""
+        if cards_url:
+            send(chat_id, "💳 Сохранённая карта и отвязка: " + cards_url + "\n(ссылка действует 24 часа; отвязка прекращает автоплатежи)")
         return
     if low == "/status":
         send(chat_id, _status_text(chat_id))

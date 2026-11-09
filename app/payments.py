@@ -203,6 +203,10 @@ def _connect() -> sqlite3.Connection:
     cols = {r[1] for r in db.execute("PRAGMA table_info(payments)").fetchall()}
     if "plan" not in cols:
         db.execute("ALTER TABLE payments ADD COLUMN plan TEXT NOT NULL DEFAULT ''")
+    # Метаданные карты для блока «управление картами» (требование ЮKassa, 09.11)
+    for col in ("pm_brand", "pm_last4"):
+        if col not in cols:
+            db.execute(f"ALTER TABLE payments ADD COLUMN {col} TEXT NOT NULL DEFAULT ''")
     scols = {r[1] for r in db.execute("PRAGMA table_info(subscriptions)").fetchall()}
     if "plan" not in scols:
         db.execute("ALTER TABLE subscriptions ADD COLUMN plan TEXT NOT NULL DEFAULT ''")
@@ -242,6 +246,16 @@ def update_payment_status(yookassa_id: str, status: str, payment_method_id: str 
         params.append(yookassa_id)
         sql = f"UPDATE payments SET status = ?, updated_at = datetime('now'){extra} WHERE yookassa_id = ?"
         db.execute(sql, params)
+        db.commit()
+
+
+def update_payment_card_meta(yookassa_id: str, brand: str, last4: str) -> None:
+    """Запомнить brand/last4 карты из вебхука — для списка карт клиента."""
+    with closing(_connect()) as db:
+        db.execute(
+            "UPDATE payments SET pm_brand = ?, pm_last4 = ? WHERE yookassa_id = ?",
+            (brand, last4, yookassa_id),
+        )
         db.commit()
 
 
