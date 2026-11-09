@@ -20,6 +20,29 @@ function errText(e) {
   }
 }
 
+/** Текст бота → фрагмент: всё экранируется, кроме безопасных ссылок
+ *  [текст](url) — только http(s) и mailto (защита от XSS, баг 09.11:
+ *  HTML в ответе триггера показывался как код). */
+function renderChatText(text) {
+  const frag = document.createDocumentFragment();
+  const re = /\[([^\]]+)\]\(((?:https?:\/\/|mailto:)[^)\s]+)\)/g;
+  let last = 0;
+  let m;
+  while ((m = re.exec(text)) !== null) {
+    if (m.index > last) frag.appendChild(document.createTextNode(text.slice(last, m.index)));
+    const a = document.createElement("a");
+    a.href = m[2];
+    a.target = m[2].startsWith("mailto:") ? "_self" : "_blank";
+    a.rel = "noopener noreferrer";
+    a.className = "link";
+    a.textContent = m[1];
+    frag.appendChild(a);
+    last = re.lastIndex;
+  }
+  if (last < text.length) frag.appendChild(document.createTextNode(text.slice(last)));
+  return frag;
+}
+
 function appendMessage(log, role, text) {
   if (!log) return;
   const div = document.createElement("div");
@@ -28,7 +51,11 @@ function appendMessage(log, role, text) {
   label.className = "label";
   label.textContent = role === "user" ? "Вы" : "Ответ";
   div.appendChild(label);
-  div.appendChild(document.createTextNode(text));
+  if (role === "user") {
+    div.appendChild(document.createTextNode(text));
+  } else {
+    div.appendChild(renderChatText(text));
+  }
   log.appendChild(div);
   log.scrollTop = log.scrollHeight;
 }
