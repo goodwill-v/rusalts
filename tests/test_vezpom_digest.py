@@ -69,7 +69,9 @@ def test_tick_sends_once_per_day(tmp_path, monkeypatch):
     vezdb.create_user(7)  # триал 14 дней → активен
     vezdb.add_monitor(7, "https://y.ru", "VeZhPom chat7: https://y.ru", 11)
     vezdb.update_monitor_status("VeZhPom chat7: https://y.ru", "up")
-    vezdb.set_prefs(7, light_time="00:00")  # время уже наступило в любые часы суток
+    # фокус теста — только светофор: еженедельный отчёт выключен, иначе тест
+    # падает по дням недели (в понедельник тик шлёт и отчёт — баг 09.11)
+    vezdb.set_prefs(7, light_time="00:00", weekly_report=0)
     sent = []
     digest._tick(lambda cid, text: sent.append((cid, text)))
     assert len(sent) == 1 and sent[0][0] == 7
