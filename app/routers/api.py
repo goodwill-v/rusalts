@@ -512,9 +512,10 @@ def _human_handoff_reply(text: str) -> str:
     contact = (
         "\n\n———\n"
         "💬 Персональное обсуждение (быстрее и точнее, чем в чате):\n"
+        "✍️ [Заполните простую форму — «Заявка — обращение»](https://rusalts.ru/request/) — ответим по указанному контакту\n"
         "📧 [v.devops@yandex.ru](mailto:v.devops@yandex.ru)"
         " · "
-        "[💬 МАКС — Жлудов В.О.](https://max.ru/u/f9LHodD0cOKMhFRsnfRVOT-ChF-0t--tFtjM0b0MwNMgVZQmvpzPQave_6Q)"
+        "[💬 МАКС](https://max.ru/u/f9LHodD0cOKMhFRsnfRVOT-ChF-0t--tFtjM0b0MwNMgVZQmvpzPQave_6Q)"
     )
     return f"{intro}{contact}"
 def _doc_reply(*, query: str) -> tuple[str, list[dict]]:
