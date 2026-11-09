@@ -25,6 +25,12 @@ function errText(e) {
  *  HTML в ответе триггера показывался как код). */
 function renderChatText(text) {
   const frag = document.createDocumentFragment();
+  // Голая ссылка на форму обращения → кликабельная (эксперт может написать URL текстом);
+  // lookbehind не зацепит уже-маркдаунную ](https://rusalts.ru/request/)
+  text = String(text).replace(
+    /(?<![\]/\w])rusalts\.ru\/request\/?(?![\w])/g,
+    "[rusalts.ru/request/](https://rusalts.ru/request/)"
+  );
   const re = /\[([^\]]+)\]\(((?:https?:\/\/|mailto:)[^)\s]+)\)/g;
   let last = 0;
   let m;
