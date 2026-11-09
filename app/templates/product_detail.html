@@ -61,7 +61,7 @@
 
     <div class="pd__grid" style="margin-top:1.5rem">
       <div class="pd__panel">
-        <h2>Что вы получаете</h2>
+        <h2>{% if features %}Вы получаете на тарифах{% else %}Что вы получаете{% endif %}</h2>
         {% if features %}
         <ul class="pd__features">
           {% for f in features %}<li>{{ f }}</li>{% endfor %}
@@ -77,7 +77,7 @@
         <div class="pd__trial-btns">
           <a class="pd__trial-btn" href="{{ trial_bot_url }}" target="_blank" rel="noopener noreferrer"
              title="Откроется бот — триал включится сам при первом сообщении">🎁 {{ p.trial_days }} дней Пробный период</a>
-          <span class="muted-site" style="font-size:0.85rem;align-self:center">нажмите → бот включит триал сам, без оплаты и без ввода ID</span>
+          <span class="muted-site" style="font-size:0.85rem;align-self:center">{{ p.trial_hint or "нажмите → бот включит триал сам, без оплаты и без ввода ID" }}</span>
         </div>
         {% else %}
         <p class="muted-site" style="margin:0 0 0.5rem">Пробный период {{ p.trial_days }} дней включается менеджером —
