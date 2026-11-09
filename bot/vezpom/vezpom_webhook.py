@@ -150,7 +150,7 @@ def main_menu_keyboard():
                     {"type": "link", "text": "🛍 Витрина", "url": "https://rusalts.ru/techologis/"},
                 ],
                 [
-                    {"type": "callback", "text": "📊 Статус", "payload": "menu:status"},
+                    {"type": "callback", "text": "🌐 Домены", "payload": "menu:domains"},
                     {"type": "callback", "text": "💾 Бэкапы", "payload": "menu:backup"},
                 ],
                 [
@@ -158,7 +158,7 @@ def main_menu_keyboard():
                     {"type": "callback", "text": "🔎 Диагностика", "payload": "menu:scan"},
                 ],
                 [
-                    {"type": "callback", "text": "🌐 Домены", "payload": "menu:domains"},
+                    {"type": "callback", "text": "📊 Статус", "payload": "menu:status"},
                     {"type": "callback", "text": "❌ Отмена", "payload": "menu:cancel"},
                 ],
                 [
