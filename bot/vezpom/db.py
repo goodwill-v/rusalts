@@ -15,7 +15,8 @@ Table monitors:
   target        TEXT                 -- URL or IP the user wants to watch
   monitor_name  TEXT                 -- name inside Uptime Kuma
   kuma_id       INTEGER              -- monitor id in Uptime Kuma
-  kuma_server   TEXT DEFAULT 'alt'   -- alt | rol
+  kuma_server   TEXT DEFAULT 'alt'   -- инстанс Kuma; с 09.11 единый ALT
+                                  -- (сервер ROL 195.208.2.63 выведен из эксплуатации)
   last_status   TEXT                 -- up | down (last known)
   created_at    INTEGER
 
