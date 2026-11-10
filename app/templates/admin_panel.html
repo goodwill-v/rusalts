@@ -141,8 +141,14 @@
             <input id="pf-name" />
           </div>
           <div class="admin-field" style="grid-column: 1 / -1;">
-            <label for="pf-desc">Описание</label>
-            <textarea id="pf-desc" rows="3"></textarea>
+            <label for="pf-desc">Описание — полное, для страницы «ПОДРОБНЕЕ»</label>
+            <textarea id="pf-desc" rows="5"></textarea>
+            <p class="admin-note">Разрешён HTML: &lt;b&gt;жирный&lt;/b&gt;, списки. Показывается на странице продукта.</p>
+          </div>
+          <div class="admin-field" style="grid-column: 1 / -1;">
+            <label for="pf-desc-short">Краткое описание — баннер на витрине</label>
+            <textarea id="pf-desc-short" rows="2"></textarea>
+            <p class="admin-note">Показывается на карточке витрины. Пустое = используется полное описание.</p>
           </div>
           <div class="admin-field">
             <label for="pf-price">Цена, ₽ (0 = бесплатно)</label>
@@ -786,6 +792,7 @@ window.editProduct = (pid) => {
   $("#pf-id").value = pid; $("#pf-id").disabled = true;
   $("#pf-name").value = p.name || "";
   $("#pf-desc").value = p.description || "";
+  $("#pf-desc-short").value = p.description_short || "";
   $("#pf-price").value = p.price_rub ?? 0;
   $("#pf-period").value = p.period_days ?? 30;
   $("#pf-trial").value = p.trial_days ?? 0;
@@ -803,7 +810,7 @@ window.editProduct = (pid) => {
 $("#prod-new").addEventListener("click", () => {
   editingId = null;
   $("#prod-form-title").textContent = "Новый товар";
-  ["pf-name","pf-desc","pf-icon","pf-platform","pf-bot","pf-detail"].forEach((id) => $("#" + id).value = "");
+  ["pf-name","pf-desc","pf-desc-short","pf-icon","pf-platform","pf-bot","pf-detail"].forEach((id) => $("#" + id).value = "");
   $("#pf-id").value = ""; $("#pf-id").disabled = false;
   $("#pf-price").value = 0; $("#pf-period").value = 30; $("#pf-trial").value = 0;
   $("#pf-category").value = "product"; $("#pf-status").value = "draft"; $("#pf-sort").value = 100;
@@ -816,6 +823,7 @@ $("#pf-save").addEventListener("click", async () => {
   const body = {
     name: $("#pf-name").value,
     description: $("#pf-desc").value,
+    description_short: $("#pf-desc-short").value,
     price_rub: +$("#pf-price").value || 0,
     period_days: +$("#pf-period").value || 0,
     trial_days: +$("#pf-trial").value || 0,
