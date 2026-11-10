@@ -743,29 +743,7 @@ document.getElementById("rvs-send")?.addEventListener("click", async () => {
         return;
       }
       if (!d.cards.length) {
-        // ВРЕМЕННО (до отмены Шефа, 10.11): демо-строка для скриншотов ЮKassa.
-        // Реальной карты у клиента нет — кнопка безопасна: /payment-method/delete
-        // вернёт removed:false, ЮKassa не вызывается. После скринов убрать.
-        list.innerHTML = `
-          <div style="display:flex;align-items:center;gap:0.75rem;padding:0.6rem 0;border-bottom:1px solid var(--site-border)">
-            <span style="flex:1">💳 <strong>Mastercard ••2023</strong> · продукт <code>vezhpom</code> · с 2026-11-09</span>
-            <button data-unlink-demo style="font:inherit;font-size:0.88rem;padding:0.4rem 0.9rem;border-radius:8px;border:1px solid #dc2626;background:#fff;color:#dc2626;cursor:pointer">Отвязать</button>
-          </div>`;
-        const demoBtn = list.querySelector("[data-unlink-demo]");
-        demoBtn.addEventListener("click", async () => {
-          if (!confirm("Отвязать карту Mastercard ••2023 (продукт «vezhpom»)? Автоплатежи прекратятся.")) return;
-          demoBtn.disabled = true;
-          demoBtn.textContent = "Отвязываю…";
-          try {
-            const r2 = await fetch("/api/payment-method/delete", {
-              method: "POST",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({ customer_id: cid, product_id: "vezhpom", exp, sig }),
-            });
-            await r2.json();
-            list.innerHTML = "<p class='muted-site'>✅ Карта отвязана. Автоплатежи прекращены — подписка действует до конца оплаченного периода.</p>";
-          } catch (e) { demoBtn.textContent = "Ошибка сети"; }
-        });
+        list.innerHTML = "<p class='muted-site'>Сохранённых карт нет — отвязывать нечего.</p>";
         return;
       }
       list.innerHTML = d.cards.map((c, i) => `
