@@ -145,11 +145,11 @@
   <div class="modal__content">
     <button class="modal__close" onclick="closeModal()">✕</button>
     <h2 id="modal-title">{{ p.name }}</h2>
-    <p id="modal-desc">{{ p.description }}</p>
+    <p id="modal-desc">{{ p.description | striptags }}</p>
     <div class="modal__price"><span id="modal-amount">{{ p.price_rub }} ₽</span></div>
     <div id="modal-customer-field" class="modal__field">
-      <label for="modal-customer">Telegram/МАКС ID (для активации подписки):</label>
-      <input id="modal-customer" type="text" placeholder="напишите боту /pay или введите ID вручную" />
+      <label for="modal-customer">Получите в боте ID. МАКС: /pay  Telegram: /id — для активации подписки:</label>
+      <input id="modal-customer" type="text" placeholder="вставьте ID Telegram/МАКС" />
       <div id="modal-id-hint" class="modal__id-hint">
         {% if p.max_url or p.tg_url or p.bot_url %}
         Не знаете свой ID? Откройте бота и напишите <b>/status</b> или <b>/id</b> — он покажет ID и тариф.
