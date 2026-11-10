@@ -367,65 +367,75 @@ async def payment_webhook(request: Request):
 
     if event_type == "payment.succeeded":
         payment_id = payment_obj.get("id", "")
-        # Перепроверяем фактический статус в ЮKassa (sandbox запрос = заглушка)
+        # Перепроверяем фактический статус в ЮKassa (sandbox запрос = заглушка;
+        # уведомления не подписаны — доверяем только перезапросу)
         try:
             real = await get_payment(payment_id)
         except Exception:
             real = payment_obj  # API недоступен — доверяем событию
         if real.get("status") != "succeeded":
             return JSONResponse({"ok": True})  # событие не подтвердилось — игнорируем
-
-        pm_id = (payment_obj.get("payment_method") or {}).get("id", "") or \
-            (real.get("payment_method") or {}).get("id", "")
-        update_payment_status(payment_id, "succeeded", payment_method_id=pm_id)
-        # Мета карты (brand/last4) — блок «управление картами» (ЮKassa, 09.11)
-        _pm_obj = real.get("payment_method") or payment_obj.get("payment_method") or {}
-        _card = _pm_obj.get("card") or {}
-        if _card:
-            try:
-                from app.payments import update_payment_card_meta
-                update_payment_card_meta(
-                    payment_id, str(_card.get("card_type") or ""), str(_card.get("last4") or "")
-                )
-            except Exception:
-                pass
-        # Get stored payment record and activate subscription
-        rec = get_payment_record(payment_id)
-        if rec and rec["customer_id"] and rec["product_id"]:
-            # План из платежа (ТЗ tarify v2): allowance/period бёрём из плана, если есть
-            plan = (rec.get("plan") or "").strip()
-            allowance = None
-            period_days = None
-            if plan:
-                from app.tariffs_store import list_plans
-                pl = next((x for x in list_plans(rec["product_id"]) if x["plan"] == plan), None)
-                if pl:
-                    allowance = pl["resource_limit"] * 100_000 if pl["resource_limit"] else None
-                    period_days = pl["period_days"]
-            tariff = TARIFFS.get(rec["product_id"])
-            if tariff:
-                get_or_create_balance(
-                    customer_id=rec["customer_id"],
-                    product_id=rec["product_id"],
-                    allowance_tokens=allowance if allowance else tariff.token_allowance,
-                    period_days=period_days or tariff.period_days,
-                )
-            # План подписки — в subscriptions (ТЗ Купец v2 §7): /api/subscription
-            # отдаёт план ботам. Раньше таблица не писалась и гейтинг фолбэчил
-            # всех платных на первый план.
-            from app.payments import activate_subscription
-            try:
-                activate_subscription(
-                    rec["id"], rec["product_id"], str(rec.get("customer_email") or ""),
-                    pm_id,
-                    period_days=period_days or (tariff.period_days if tariff else 30),
-                    plan=plan,
-                    customer_id=rec["customer_id"],
-                )
-            except Exception:
-                pass
+        await process_succeeded_payment(payment_id, real)
 
     return JSONResponse({"ok": True})
+
+
+async def process_succeeded_payment(payment_id: str, real: dict) -> dict:
+    """Платёж подтверждён как succeeded: обновить запись, мету карты и
+    активировать подписку/баланс. Общий путь вебхука и реконсилиатора
+    (реконсилиатор: когда уведомления ЮKassa не дошли — сами опрашиваем API).
+    """
+    pm_id = (real.get("payment_method") or {}).get("id", "")
+    update_payment_status(payment_id, "succeeded", payment_method_id=pm_id)
+    # Мета карты (brand/last4) — блок «управление картами» (ЮKassa, 09.11)
+    card = (real.get("payment_method") or {}).get("card") or {}
+    if card:
+        try:
+            from app.payments import update_payment_card_meta
+            update_payment_card_meta(
+                payment_id, str(card.get("card_type") or ""), str(card.get("last4") or "")
+            )
+        except Exception:
+            pass
+
+    # Активация подписки: баланс + запись в subscriptions (план для ботов)
+    rec = get_payment_record(payment_id)
+    activated = False
+    if rec and rec["customer_id"] and rec["product_id"]:
+        # План из платежа (ТЗ tarify v2): allowance/period бёрём из плана, если есть
+        plan = (rec.get("plan") or "").strip()
+        allowance = None
+        period_days = None
+        if plan:
+            from app.tariffs_store import list_plans
+            pl = next((x for x in list_plans(rec["product_id"]) if x["plan"] == plan), None)
+            if pl:
+                allowance = pl["resource_limit"] * 100_000 if pl["resource_limit"] else None
+                period_days = pl["period_days"]
+        tariff = TARIFFS.get(rec["product_id"])
+        if tariff:
+            get_or_create_balance(
+                customer_id=rec["customer_id"],
+                product_id=rec["product_id"],
+                allowance_tokens=allowance if allowance else tariff.token_allowance,
+                period_days=period_days or tariff.period_days,
+            )
+        # План подписки — в subscriptions (ТЗ Купец v2 §7): /api/subscription
+        # отдаёт план ботам. Раньше таблица не писалась и гейтинг фолбэчил
+        # всех платных на первый план.
+        from app.payments import activate_subscription
+        try:
+            activate_subscription(
+                rec["id"], rec["product_id"], str(rec.get("customer_email") or ""),
+                pm_id,
+                period_days=period_days or (tariff.period_days if tariff else 30),
+                plan=plan,
+                customer_id=rec["customer_id"],
+            )
+            activated = True
+        except Exception:
+            pass
+    return {"payment_id": payment_id, "activated": activated}
 
 
 # ---------------------------------------------------------------------------
