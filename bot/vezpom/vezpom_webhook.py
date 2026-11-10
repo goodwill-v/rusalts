@@ -300,6 +300,9 @@ def _record_event(result, chat_id, data):
     kuma_id = monitor.get("id")
     name = monitor.get("name") or result.get("name") or ""
     target = result.get("target") or monitor.get("url") or ""
+    # ping-мониторы: у Kuma url = "https://" (мусор в журнале) — пишем hostname
+    if monitor.get("type") == "ping" and monitor.get("hostname"):
+        target = monitor["hostname"]
     kind, st = result.get("kind"), result.get("status")
     now = int(time.time())
     detail = result.get("detail") or result.get("message") or ""
