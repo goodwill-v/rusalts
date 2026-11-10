@@ -148,7 +148,7 @@
     <p id="modal-desc">{{ p.description | striptags }}</p>
     <div class="modal__price"><span id="modal-amount">{{ p.price_rub }} ₽</span></div>
     <div id="modal-customer-field" class="modal__field">
-      <label for="modal-customer">Получите в боте ID. МАКС: /pay  Telegram: /id — для активации подписки:</label>
+      <label for="modal-customer">Получите в боте ID. МАКС: /status  Telegram: /id — для активации подписки:</label>
       <input id="modal-customer" type="text" placeholder="вставьте ID Telegram/МАКС" />
       <div id="modal-id-hint" class="modal__id-hint">
         {% if p.max_url or p.tg_url or p.bot_url %}
@@ -159,6 +159,11 @@
         ID — номер из вашего мессенджера, где подключён продукт (подскажет менеджер или бот продукта).
         {% endif %}
       </div>
+    </div>
+    <div class="modal__field">
+      <label for="modal-promo">Промокод (если есть):</label>
+      <input id="modal-promo" type="text" placeholder="например, ALTAUTUMN" style="text-transform:uppercase" />
+      <span id="modal-promo-status" class="pd__period" style="font-size:0.82rem"></span>
     </div>
     <p class="modal__methods">💳 Карта · 📱 СБП · 🔒 ЮKassa</p>
     <button id="modal-pay-btn" class="btn-buy btn-buy--large">Перейти к оплате</button>
@@ -188,6 +193,8 @@ document.querySelectorAll(".btn-buy[data-product]").forEach((btn) => {
     if (!prod) return;
     document.getElementById("modal-amount").textContent = btn.dataset.price + " ₽";
     window.__currentPlan = "";
+    window.__curProductId = prod.id;
+    window.__resetPromo && window.__resetPromo();
     document.getElementById("modal-pay-btn").onclick = () => startPayment(prod.id, parseInt(btn.dataset.price), "");
     document.getElementById("payment-modal").style.display = "flex";
   });
@@ -202,16 +209,44 @@ document.querySelectorAll("[data-plan]").forEach((btn) => {
     document.getElementById("modal-desc").textContent = "Тарифный план. " + (document.querySelector(".pd__desc")?.textContent || "").slice(0, 140);
     document.getElementById("modal-amount").textContent = price + " ₽";
     window.__currentPlan = plan;
+    window.__curProductId = "{{ p.id }}";
+    window.__resetPromo && window.__resetPromo();
     document.getElementById("modal-pay-btn").onclick = () => startPayment("{{ p.id }}", price, plan);
     document.getElementById("payment-modal").style.display = "flex";
   });
+});
+
+// Промокод: проверка на сервере (скидка считается только там)
+const promoInput = document.getElementById("modal-promo");
+const promoStatus = document.getElementById("modal-promo-status");
+window.__resetPromo = () => { promoInput.value = ""; promoStatus.textContent = ""; window.__promoFinal = null; };
+promoInput.addEventListener("change", async () => {
+  const code = promoInput.value.trim();
+  const pid = window.__curProductId || "{{ p.id }}";
+  if (!code) { promoStatus.textContent = ""; window.__promoFinal = null; return; }
+  promoStatus.textContent = "Проверяем…";
+  try {
+    const r = await fetch("/api/promo/validate", {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ product_id: pid, promo_code: code }),
+    });
+    const d = await r.json();
+    if (d.final_rub !== undefined) {
+      window.__promoFinal = d;
+      promoStatus.textContent = "✓ Скидка " + d.discount_rub + " ₽ — к оплате " + d.final_rub + " ₽";
+      document.getElementById("modal-amount").textContent = d.final_rub + " ₽";
+    } else {
+      window.__promoFinal = null;
+      promoStatus.textContent = "✗ " + (d.error || "Промокод недействителен");
+    }
+  } catch (e) { window.__promoFinal = null; promoStatus.textContent = "Ошибка проверки"; }
 });
 
 async function startPayment(productId, price, plan) {
   const btn = document.getElementById("modal-pay-btn");
   const cid = document.getElementById("modal-customer").value.trim();
   if (!cid) {
-    document.getElementById("modal-desc").textContent = "❌ Укажите Telegram ID — напишите боту /pay или введите ID вручную";
+    document.getElementById("modal-desc").textContent = "❌ Получите ID в боте: МАКС — /status, Telegram — /id, и вставьте в поле";
     return;
   }
   btn.textContent = "⏳ Подготовка...";
@@ -221,6 +256,7 @@ async function startPayment(productId, price, plan) {
       method: "POST", headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         product_id: productId, amount_rub: price, customer_id: cid, plan: plan || "",
+        promo_code: promoInput.value.trim(),
         return_url: PAY_BASE.replace(/\/+$/, "") + "/techologis/?payment=success",
       }),
     });
