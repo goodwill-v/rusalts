@@ -526,11 +526,11 @@ function buildApprovalsItem(it) {
 
     <div class="approv-grid">
       <div class="approv-col">
-        <div class="approv-col__title">Сайт</div>
+        <div class="approv-col__title">Сайт <label class="approv-flag" style="margin-left:auto"><input type="checkbox" data-flag-cancel-site> Отмена</label></div>
         <textarea class="approv-textarea" rows="10" data-edit-site>${escapeHtml(String(it.site_text || ""))}</textarea>
       </div>
       <div class="approv-col">
-        <div class="approv-col__title">ВКонтакте</div>
+        <div class="approv-col__title">ВКонтакте <label class="approv-flag" style="margin-left:auto"><input type="checkbox" data-flag-cancel-vk> Отмена</label></div>
         <textarea class="approv-textarea" rows="10" data-edit-vk>${escapeHtml(String(it.vk_text || ""))}</textarea>
       </div>
     </div>
@@ -805,7 +805,11 @@ async function initPublApprov() {
       const pinned = !!card.querySelector("[data-flag-pin]:checked");
       const site = card.querySelector("[data-edit-site]")?.value || "";
       const vk = card.querySelector("[data-edit-vk]")?.value || "";
-      commands.push({ publication_id: pid, action, pinned, site_text: site, vk_text: vk });
+      const site_cancel = Boolean(card.querySelector("[data-flag-cancel-site]")?.checked);
+      const vk_cancel = Boolean(card.querySelector("[data-flag-cancel-vk]")?.checked);
+      if (site_cancel) cancels += 1;
+      if (vk_cancel) cancels += 1;
+      commands.push({ publication_id: pid, action, pinned, site_text: site, vk_text: vk, site_cancel, vk_cancel });
     });
     const label = cancels ? ` (из них отмен/удалений: ${cancels})` : "";
     if (!confirm(`Применить команды ко всей очереди${label}?\nБез отметки новости публикуются.`)) return;
@@ -878,7 +882,14 @@ async function initPublApprov() {
           return;
         }
         // «Опубликовать» = сохранить и выгрузить на сайт/ВК (чекбокс «Одобрить» не обязателен).
-        const ares = await fetchJson(`/api/content/queue/${encodeURIComponent(pubId)}/approve`, { method: "POST" });
+        // Раздельные «Отмена» каналов (Шеф 11.11): помеченный канал не публикуется.
+        const cancelSite = Boolean(item.querySelector("[data-flag-cancel-site]")?.checked);
+        const cancelVk = Boolean(item.querySelector("[data-flag-cancel-vk]")?.checked);
+        const ares = await fetchJson(`/api/content/queue/${encodeURIComponent(pubId)}/approve`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ site_cancel: cancelSite, vk_cancel: cancelVk }),
+        });
         if (ares.last_publish_error) {
           if (st) st.textContent = `Опубликовано с ошибкой: ${ares.last_publish_error}`;
         } else if (ares.vk_post_url) {

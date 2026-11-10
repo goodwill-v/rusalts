@@ -39,12 +39,22 @@ router = APIRouter(prefix="/api/content", tags=["content"])
 _ID_RE = re.compile(r"^\d{5}$")
 
 
-async def _corporate_refine_bg(publication_id: str) -> None:
-    """Фоновый LLM-refine после «Сохранить», чтобы запрос не упирался в nginx 504."""
+async def _corporate_refine_bg(publication_id: str, auto_publish: bool = False) -> None:
+    """Фоновый LLM-refine после «Сохранить», чтобы запрос не упирался в nginx 504.
+    auto_publish (тумблер «Режим публикаций») → сразу опубликовать после refine."""
     try:
         await refine_corporate_item_by_id(publication_id)
     except Exception as e:  # noqa: BLE001
         json_log({"type": "content_corporate_refine_bg_failed", "publication_id": publication_id, "error": str(e)})
+        return
+    if auto_publish:
+        try:
+            await approve_publication_by_id(
+                request_id=f"corp-auto-{publication_id}", publication_id=publication_id
+            )
+            json_log({"type": "content_corporate_auto_published", "publication_id": publication_id})
+        except Exception as e:  # noqa: BLE001
+            json_log({"type": "content_corporate_auto_publish_failed", "publication_id": publication_id, "error": str(e)})
 
 _basic = HTTPBasic()
 
@@ -188,13 +198,19 @@ class ApproveResponse(SimpleOkResponse):
     last_publish_error: str | None = None
 
 
-async def _approve_and_publish_item(*, rid: str, publication_id: str) -> ApproveResponse:
+async def _approve_and_publish_item(
+    *, rid: str, publication_id: str,
+    publish_site: bool = True, publish_vk: bool = True,
+) -> ApproveResponse:
     """Общая логика кнопки «Опубликовать» в веб-очереди и мгновенной публикации с /publapprov."""
     if not _ID_RE.match(publication_id):
         raise HTTPException(status_code=400, detail="Некорректный ID")
     if not item_exists(publication_id):
         raise HTTPException(status_code=404, detail="Не найдено")
-    data = await approve_publication_by_id(request_id=rid, publication_id=publication_id)
+    data = await approve_publication_by_id(
+        request_id=rid, publication_id=publication_id,
+        publish_site=publish_site, publish_vk=publish_vk,
+    )
     json_log(
         {
             "type": "content_approved_web",
@@ -271,9 +287,14 @@ async def toggle_pin(request: Request, publication_id: str) -> SimpleOkResponse:
 
 
 @router.post("/queue/{publication_id}/approve", response_model=ApproveResponse, dependencies=[Depends(_require_admin_auth)])
-async def approve(request: Request, publication_id: str) -> ApproveResponse:
+async def approve(request: Request, publication_id: str, body: ChannelCancelBody | None = None) -> ApproveResponse:
     rid = getattr(request.state, "request_id", uuid.uuid4().hex)
-    return await _approve_and_publish_item(rid=rid, publication_id=publication_id)
+    site_cancel = bool(body.site_cancel) if body else False
+    vk_cancel = bool(body.vk_cancel) if body else False
+    return await _approve_and_publish_item(
+        rid=rid, publication_id=publication_id,
+        publish_site=not site_cancel, publish_vk=not vk_cancel,
+    )
 
 
 class ApproveAllResponse(SimpleOkResponse):
@@ -282,12 +303,20 @@ class ApproveAllResponse(SimpleOkResponse):
     items: list[ApproveResponse]
 
 
+class ChannelCancelBody(BaseModel):
+    """Раздельная отмена каналов для кнопки «Опубликовать» (Шеф 11.11)."""
+    site_cancel: bool = False
+    vk_cancel: bool = False
+
+
 class ApplyItemCommand(BaseModel):
     publication_id: str
     action: str = "publish"  # publish / approve / cancel
     pinned: bool = False
     site_text: str = ""
     vk_text: str = ""
+    site_cancel: bool = False  # «Отмена» в окне Сайт (решение Шефа 11.11)
+    vk_cancel: bool = False    # «Отмена» в окне ВКонтакте
 
 
 class ApplyAllRequest(BaseModel):
@@ -351,12 +380,28 @@ async def apply_all(request: Request, body: ApplyAllRequest | None = None) -> Ap
                 res_approved += 1
                 entry["ok"] = True
             else:
-                r = await _do_publish(pid)
-                entry["ok"] = bool(r.get("ok"))
-                if entry["ok"]:
-                    res_published += 1
+                cmd = next((c for c in (body.commands if body else []) if str(c.publication_id) == pid), None)
+                if cmd and (cmd.site_cancel or cmd.vk_cancel):
+                    # Раздельная отмена каналов (Шеф 11.11): публикуются только непомеченные
+                    r = await approve_publication_by_id(
+                        request_id=rid, publication_id=pid,
+                        publish_site=not cmd.site_cancel,
+                        publish_vk=not cmd.vk_cancel,
+                    )
+                    entry["ok"] = bool(r.get("ok"))
+                    entry["skipped"] = {
+                        "site": bool(cmd.site_cancel),
+                        "vk": bool(cmd.vk_cancel) or not r.get("vk_published"),
+                    }
+                    res_published += 1 if entry["ok"] else 0
+                    res_failed += 0 if entry["ok"] else 1
                 else:
-                    res_failed += 1
+                    r = await _do_publish(pid)
+                    entry["ok"] = bool(r.get("ok"))
+                    if entry["ok"]:
+                        res_published += 1
+                    else:
+                        res_failed += 1
             if pin_set.get(pid):
                 try:
                     update_item(pid, pinned=True)
@@ -485,7 +530,7 @@ async def corporate_save(
     pub_id = next_publication_id()
     site_s = body.site_text.strip()
     title_e = (body.title or "").strip() or title_fallback_from_site_text(site_s)
-    vk_s = (body.vk_text or "").strip() or site_s
+    vk_s = (body.vk_text or "").strip()  # пусто → публикации ВК не будет (Шеф 11.11)
     item = ContentItem(
         publication_id=pub_id,
         created_at_utc=datetime.now(timezone.utc).replace(microsecond=0).isoformat(),
@@ -498,7 +543,12 @@ async def corporate_save(
         pinned=bool(body.pinned),
     )
     save_item(item)
-    background_tasks.add_task(_corporate_refine_bg, pub_id)
+    try:
+        from app import site_settings as _ss
+        _auto = _ss.get_auto_publish()
+    except Exception:
+        _auto = False
+    background_tasks.add_task(_corporate_refine_bg, pub_id, _auto)
     json_log({"type": "content_corporate_saved", "request_id": rid, "publication_id": pub_id})
     return CorporateSaveResponse(ok=True, request_id=rid, publication_id=pub_id)
 
@@ -509,13 +559,9 @@ async def corporate_publish(request: Request, body: CorporateNewsRequest) -> App
     rid = getattr(request.state, "request_id", uuid.uuid4().hex)
     config.ensure_data_dirs()
     site_raw = body.site_text.strip()
-    vk_raw = (body.vk_text or "").strip() or site_raw
-    if len(vk_raw) < 10:
-        raise HTTPException(status_code=400, detail="Текст для публикации слишком короткий")
+    vk_raw = (body.vk_text or "").strip()  # пусто → публикации ВК не будет (Шеф 11.11)
     site_s = strip_markdown_public(site_raw)
     vk_s = strip_markdown_public(vk_raw)
-    if len(vk_s) < 10:
-        vk_s = site_s
     title_e = (body.title or "").strip() or title_fallback_from_site_text(site_s)
     pub_id = next_publication_id()
     item = ContentItem(
@@ -531,7 +577,10 @@ async def corporate_publish(request: Request, body: CorporateNewsRequest) -> App
     )
     save_item(item)
     json_log({"type": "content_corporate_publish", "request_id": rid, "publication_id": pub_id})
-    data = await approve_publication_by_id(request_id=rid, publication_id=pub_id)
+    data = await approve_publication_by_id(
+        request_id=rid, publication_id=pub_id,
+        publish_vk=bool(vk_s),
+    )
     json_log({"type": "content_corporate_publish_done", "request_id": rid, "publication_id": pub_id})
     return ApproveResponse(**data)
 

@@ -24,19 +24,27 @@ def _append_feedback(*, publication_id: str, payload: dict) -> None:
         pass
 
 
-async def approve_publication_by_id(*, request_id: str, publication_id: str) -> dict:
+async def approve_publication_by_id(
+    *,
+    request_id: str,
+    publication_id: str,
+    publish_site: bool = True,
+    publish_vk: bool = True,
+) -> dict:
     """
-    Одобрить и опубликовать материал (сайт + ВК). Общая логика для роутера и content-worker.
-    Возвращает поля для ApproveResponse.
+    Одобрить и опубликовать материал. Общая логика для роутера и content-worker.
+
+    publish_site / publish_vk — раздельные каналы (решение Шефа 11.11:
+    «Отмена» на канале отменяет публикацию только в нём). Пустое окно
+    ВКонтакте → публикации ВК НЕТ (без подстановки текста сайта).
     """
     set_status(publication_id, status="approved", message_id="web_approved")
     it = load_item(publication_id)
 
     from app.markdown_plain import sanitize_public_with_links
     site_c = sanitize_public_with_links(it.site_text or "")  # markdown-ссылки сохраняются (ТЗ 23.10)
-    vk_c = strip_markdown_public((it.vk_text or "").strip() or site_c)
-    if len(vk_c) < 10:
-        vk_c = site_c
+    vk_raw = (it.vk_text or "").strip()
+    vk_c = strip_markdown_public(vk_raw) if vk_raw else ""
     title_c = title_fallback_from_site_text(site_c)
     if (
         site_c != (it.site_text or "").strip()
@@ -60,25 +68,30 @@ async def approve_publication_by_id(*, request_id: str, publication_id: str) -> 
 
     site_published = False
     vk_published = False
-    if not it.site_published_at_utc:
+    vk_skipped_empty = False
+    if publish_site and not it.site_published_at_utc:
         pub_at, url_path = publish_to_site(it)
         update_item(publication_id, site_published_at_utc=pub_at, site_url=url_path, last_publish_error=None)
         site_published = True
 
     it = load_item(publication_id)
-    if not it.vk_published_at_utc:
-        try:
-            pub_at, post_id, post_url = await publish_to_vk(it)
-            update_item(
-                publication_id,
-                vk_published_at_utc=pub_at,
-                vk_post_id=post_id,
-                vk_post_url=post_url,
-                last_publish_error=None,
-            )
-            vk_published = True
-        except Exception as e:  # noqa: BLE001
-            update_item(publication_id, last_publish_error=str(e))
+    if publish_vk and not it.vk_published_at_utc:
+        if not vk_c:
+            # Пустое окно ВК → публикации ВК нет (решение Шефа 11.11)
+            vk_skipped_empty = True
+        else:
+            try:
+                pub_at, post_id, post_url = await publish_to_vk(it)
+                update_item(
+                    publication_id,
+                    vk_published_at_utc=pub_at,
+                    vk_post_id=post_id,
+                    vk_post_url=post_url,
+                    last_publish_error=None,
+                )
+                vk_published = True
+            except Exception as e:  # noqa: BLE001
+                update_item(publication_id, last_publish_error=str(e))
 
     it2 = load_item(publication_id)
     json_log(
@@ -88,6 +101,7 @@ async def approve_publication_by_id(*, request_id: str, publication_id: str) -> 
             "publication_id": publication_id,
             "site_published": site_published,
             "vk_published": vk_published,
+            "vk_skipped_empty": vk_skipped_empty,
             "last_publish_error": it2.last_publish_error,
         }
     )
