@@ -20,7 +20,7 @@
   }
   .pd__panel h2 { font-size: 1.1rem; color: var(--site-heading); margin: 0 0 0.75rem; }
   .pd__features { margin: 0; padding-left: 1.1rem; }
-  .pd__features li { margin-bottom: 0.5rem; line-height: 1.45; color: var(--site-text); }
+  .pd__features li { margin-bottom: 0.5rem; line-height: 1.45; color: var(--site-text); white-space: pre-line; }
   .pd__price { font-size: 2rem; font-weight: 800; color: var(--site-heading); }
   .pd__period { font-size: 0.95rem; color: var(--site-muted, #6b7280); font-weight: 500; }
   .pd__actions { display: flex; flex-direction: column; gap: 0.6rem; margin-top: 1rem; }
@@ -64,7 +64,7 @@
         <h2>{{ features_title or "Что вы получаете" }}</h2>
         {% if features %}
         <ul class="pd__features">
-          {% for f in features %}<li>{% if features_bold_names and ":" in f %}<strong>{{ f.split(":", 1)[0] }}:</strong>{{ f.split(":", 1)[1] }}{% else %}{{ f }}{% endif %}</li>{% endfor %}
+          {% for f in features %}<li>{% if features_bold_names and ":" in f and "<" not in f %}<strong>{{ f.split(":", 1)[0] }}:</strong>{{ f.split(":", 1)[1] }}{% else %}{{ f | safe }}{% endif %}</li>{% endfor %}
         </ul>
         {% else %}
         <p class="muted-site">Подробную консультацию по возможностям инструмента проведёт АЛТ-эксперт —
