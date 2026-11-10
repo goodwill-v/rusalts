@@ -259,6 +259,22 @@ def update_payment_card_meta(yookassa_id: str, brand: str, last4: str) -> None:
         db.commit()
 
 
+def list_stale_pending(hours: int = 48) -> list[dict[str, Any]]:
+    """Pending-платежи за последние часы (реконсилиатор: сверка с ЮKassa,
+    когда уведомления не дошли). Sandbox-платежи исключены."""
+    since = (datetime.now(timezone.utc) - timedelta(hours=hours)).isoformat()
+    with closing(_connect()) as db:
+        rows = db.execute(
+            """SELECT id, yookassa_id, customer_id, product_id, created_at
+               FROM payments
+               WHERE status = 'pending' AND yookassa_id NOT LIKE 'sandbox-%'
+                 AND created_at >= ?
+               ORDER BY id""",
+            (since,),
+        ).fetchall()
+    return [dict(r) for r in rows]
+
+
 async def create_recurring_payment(
     payment_method_id: str,
     amount_rub: int,
