@@ -507,7 +507,8 @@ async def site_batch_pin(request: Request, body: SiteBatchPinRequest) -> SiteBat
 
 class CorporateNewsRequest(BaseModel):
     title: str = Field(default="", max_length=200)
-    site_text: str = Field(..., min_length=20, max_length=50_000)
+    # Пустое окно «Сайт» разрешено: публикуется только заполненное (Шеф 11.11)
+    site_text: str = Field(default="", max_length=50_000)
     vk_text: str = Field(default="", max_length=20_000)
     internal_note: str = Field(default="", max_length=50_000)
     sources: list[str] = Field(default_factory=list, max_length=50)
@@ -529,8 +530,10 @@ async def corporate_save(
     config.ensure_data_dirs()
     pub_id = next_publication_id()
     site_s = body.site_text.strip()
-    title_e = (body.title or "").strip() or title_fallback_from_site_text(site_s)
     vk_s = (body.vk_text or "").strip()  # пусто → публикации ВК не будет (Шеф 11.11)
+    if not site_s and not vk_s:
+        raise HTTPException(status_code=400, detail="Заполните хотя бы одно окно — Сайт или ВКонтакте")
+    title_e = (body.title or "").strip() or title_fallback_from_site_text(site_s or vk_s)
     item = ContentItem(
         publication_id=pub_id,
         created_at_utc=datetime.now(timezone.utc).replace(microsecond=0).isoformat(),
@@ -560,9 +563,11 @@ async def corporate_publish(request: Request, body: CorporateNewsRequest) -> App
     config.ensure_data_dirs()
     site_raw = body.site_text.strip()
     vk_raw = (body.vk_text or "").strip()  # пусто → публикации ВК не будет (Шеф 11.11)
+    if not site_raw and not vk_raw:
+        raise HTTPException(status_code=400, detail="Заполните хотя бы одно окно — Сайт или ВКонтакте")
     site_s = strip_markdown_public(site_raw)
     vk_s = strip_markdown_public(vk_raw)
-    title_e = (body.title or "").strip() or title_fallback_from_site_text(site_s)
+    title_e = (body.title or "").strip() or title_fallback_from_site_text(site_s or vk_s)
     pub_id = next_publication_id()
     item = ContentItem(
         publication_id=pub_id,
@@ -579,6 +584,7 @@ async def corporate_publish(request: Request, body: CorporateNewsRequest) -> App
     json_log({"type": "content_corporate_publish", "request_id": rid, "publication_id": pub_id})
     data = await approve_publication_by_id(
         request_id=rid, publication_id=pub_id,
+        publish_site=bool(site_s),
         publish_vk=bool(vk_s),
     )
     json_log({"type": "content_corporate_publish_done", "request_id": rid, "publication_id": pub_id})

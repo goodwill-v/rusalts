@@ -156,3 +156,40 @@ def test_corporate_draft_auto_publish_by_toggle(client, tmp_path, monkeypatch, v
     it = load_item(pid)
     assert it.site_published_at_utc, "черновик не опубликован по тумблеру"
     assert vk_calls == [pid]
+
+
+def test_corporate_empty_site_publishes_vk_only(client, vk_calls) -> None:
+    """Корпоративная новость с пустым окном «Сайт» → публикуется только ВК
+    (баг 11.11: 422 string_too_short вместо публикации)."""
+    r = client.post("/api/content/corporate/publish", headers=AUTH, json={
+        "title": "Только ВК",
+        "site_text": "",
+        "vk_text": "Текст корпоративной новости для ВКонтакте — заполнено только это окно.",
+        "sources": [],
+    })
+    assert r.status_code == 200, r.text
+    d = r.json()
+    assert d["site_published"] is False
+    assert d["vk_published"] is True
+
+
+def test_corporate_empty_vk_publishes_site_only(client, vk_calls) -> None:
+    r = client.post("/api/content/corporate/publish", headers=AUTH, json={
+        "title": "Только сайт",
+        "site_text": SITE_TEXT,
+        "vk_text": "",
+        "sources": [],
+    })
+    assert r.status_code == 200, r.text
+    d = r.json()
+    assert d["site_published"] is True
+    assert d["vk_published"] is False
+    assert vk_calls == []
+
+
+def test_corporate_both_empty_rejected(client) -> None:
+    r = client.post("/api/content/corporate/publish", headers=AUTH, json={
+        "title": "", "site_text": "", "vk_text": "", "sources": [],
+    })
+    assert r.status_code == 400
+    assert "хотя бы одно окно" in r.json().get("detail", "")
