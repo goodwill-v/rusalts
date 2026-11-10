@@ -63,6 +63,9 @@ CARDS_LINK_SECRET = os.getenv("CARDS_LINK_SECRET", "").strip() or (
     ADMIN_PASSWORD + "|cards-link"
 )
 
+# План выручки на месяц (₽) — для дашборда «Финансы» в админке (ТЗ Алика 10.11 §2)
+MONTH_REVENUE_PLAN_RUB = int(os.getenv("MONTH_REVENUE_PLAN_RUB", "15000") or 0)
+
 # Системный промпт АЛТ-эксперта — вне git, контент, не код
 SYSTEM_PROMPT_PATH = Path("/opt/alt_docs/ALT-expert/system_prompt_v2.md")
 

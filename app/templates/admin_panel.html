@@ -14,6 +14,7 @@
       <button class="admin-tab-btn" data-tab="products">📦 Товары</button>
       <button class="admin-tab-btn" data-tab="orders">🧾 Заказы и подписки</button>
       <button class="admin-tab-btn" data-tab="billing">💳 Биллинг</button>
+      <button class="admin-tab-btn" data-tab="finance">📊 Финансы</button>
       <button class="admin-tab-btn" data-tab="content">📰 Публикации</button>
       <button class="admin-tab-btn" data-tab="diagnostics">📋 Диагностики</button>
       <button class="admin-tab-btn" data-tab="pdn">🔒 ПДн</button>
@@ -526,6 +527,78 @@
         </div>
       </div>
     </section>
+
+    <!-- ═══ Таб: Финансы (ТЗ Алика 10.11 §2-§3) ═══ -->
+    <section id="tab-finance" class="admin-tab-content">
+      <div class="admin-panel">
+        <h2>📊 Дашборд месяца</h2>
+        <div class="admin-grid" id="fin-stats"></div>
+      </div>
+
+      <div class="admin-panel">
+        <h2>💰 Доход по продуктам (30 дней)</h2>
+        <div class="admin-table-wrap">
+          <table class="admin-table">
+            <thead><tr><th>Продукт</th><th>Активных</th><th>Доход/мес</th><th>Возвраты</th><th></th></tr></thead>
+            <tbody id="fin-byproduct"></tbody>
+          </table>
+        </div>
+      </div>
+
+      <div class="admin-panel">
+        <h2>👥 Подписчики</h2>
+        <div class="admin-form-grid" style="margin-bottom:0.75rem">
+          <div class="admin-field">
+            <label for="fin-product">Продукт</label>
+            <select id="fin-product"><option value="">все</option></select>
+          </div>
+          <div class="admin-field">
+            <label for="fin-status">Статус</label>
+            <select id="fin-status">
+              <option value="">все</option>
+              <option value="active">active</option>
+              <option value="trial">trial</option>
+              <option value="expired">expired</option>
+            </select>
+          </div>
+          <div class="admin-field">
+            <label for="fin-search">Поиск по Customer ID</label>
+            <input id="fin-search" placeholder="12345…" />
+          </div>
+        </div>
+        <div class="admin-table-wrap">
+          <table class="admin-table">
+            <thead><tr><th>Customer ID</th><th>Продукт</th><th>Статус</th><th>Сумма</th><th>Карта</th><th>Оплачено до</th><th>Автоплатёж</th><th>Платёж ID</th><th></th></tr></thead>
+            <tbody id="fin-subs-tbody"></tbody>
+          </table>
+        </div>
+      </div>
+
+      <div class="admin-panel">
+        <h2>📋 Журнал действий (50 последних)</h2>
+        <div class="admin-form-grid" style="margin-bottom:0.75rem">
+          <div class="admin-field">
+            <label for="frf-payment">Отметить возврат — Платёж ID (yk… или №)</label>
+            <input id="frf-payment" placeholder="328419a4-… или 19" />
+          </div>
+          <div class="admin-field">
+            <label for="frf-note">Комментарий</label>
+            <input id="frf-note" placeholder="возврат через ЛК ЮKassa" />
+          </div>
+        </div>
+        <div class="admin-actions">
+          <button class="admin-btn admin-btn--small" id="frf-submit">Записать возврат</button>
+          <span class="admin-msg" id="frf-msg"></span>
+        </div>
+        <p class="admin-note">Деньги возвращаются в личном кабинете ЮKassa — здесь только отметка для журнала.</p>
+        <div class="admin-table-wrap">
+          <table class="admin-table">
+            <thead><tr><th>Дата</th><th>Действие</th><th>Объект</th><th>Детали</th></tr></thead>
+            <tbody id="fin-audit-tbody"></tbody>
+          </table>
+        </div>
+      </div>
+    </section>
   </div>
 </main>
 
@@ -569,7 +642,7 @@ document.querySelectorAll(".admin-tab-btn").forEach((btn) => {
     $("#tab-" + btn.dataset.tab).classList.add("is-active");
     if (!loaded[btn.dataset.tab]) {
       loaded[btn.dataset.tab] = true;
-      const loaders = { products: loadProducts, billing: loadBilling, content: loadContentTab, diagnostics: loadDiagnostics, pagecontent: loadContentBlocks };
+      const loaders = { products: loadProducts, billing: loadBilling, content: loadContentTab, diagnostics: loadDiagnostics, pagecontent: loadContentBlocks, finance: loadFinance };
       if (loaders[btn.dataset.tab]) loaders[btn.dataset.tab]();
       if (btn.dataset.tab === 'products') loadReviews();
       if (btn.dataset.tab === 'billing') { loadPromos(); loadTariffPlans(); }
@@ -613,6 +686,74 @@ async function loadFunnel() {
   } catch (e) { $("#funnel-byproduct").textContent = "Воронка: " + e.message; }
 }
 loadFunnel();
+
+// ─── Таб: Финансы (ТЗ Алика 10.11 §2-§3) ────────────────────────────────
+let finData = null;
+
+function finRenderSubs() {
+  if (!finData) return;
+  const prod = $("#fin-product").value;
+  const st = $("#fin-status").value;
+  const q = $("#fin-search").value.trim().toLowerCase();
+  const rows = (finData.subscriptions || []).filter((s) => {
+    if (prod && s.product_id !== prod) return false;
+    const eff = (s.status === "active" && s.expires_at && s.expires_at < new Date().toISOString().slice(0, 10)) ? "expired" : s.status;
+    if (st && eff !== st) return false;
+    if (q && !String(s.customer_id).toLowerCase().includes(q)) return false;
+    return true;
+  });
+  $("#fin-subs-tbody").innerHTML = rows.map((s) => `
+    <tr>
+      <td><code>${esc(s.customer_id)}</code></td>
+      <td>${esc(s.product_name)}</td>
+      <td>${s.status === "active" && s.expires_at >= new Date().toISOString().slice(0, 10) ? "✅ active" : (s.status === "trial" ? "⏳ trial" : (s.expires_at && s.expires_at < new Date().toISOString().slice(0, 10) ? "❌ expired" : badge(s.status)))}</td>
+      <td>${s.amount_rub ? s.amount_rub + " ₽" : "—"}</td>
+      <td>${esc(s.card_label || "—")}</td>
+      <td>${esc(s.expires_at || "—")}</td>
+      <td>${s.auto_renew ? "✅ вкл" : "— выкл"}</td>
+      <td>${s.payment_id ? `<a class="link" href="https://yookassa.ru/my/payments/${encodeURIComponent(s.payment_id)}" target="_blank" rel="noopener" title="Открыть в ЛК ЮKassa"><code>${esc(String(s.payment_id).slice(0, 8))}…</code> →</a>` : "—"}</td>
+      <td>${s.payment_id ? `<a class="link" href="https://yookassa.ru/my/payments/${encodeURIComponent(s.payment_id)}" target="_blank" rel="noopener">→ ЛК ЮKassa</a>` : ""}</td>
+    </tr>`).join("") || '<tr><td colspan="9" class="admin-note">Нет подписок по фильтру.</td></tr>';
+}
+
+async function loadFinance() {
+  try {
+    finData = await api("/admin/api/finance/overview");
+    const st = finData.stats || {};
+    const prevPct = st.revenue_prev_month ? Math.round((st.total_revenue_month - st.revenue_prev_month) / st.revenue_prev_month * 100) : null;
+    $("#fin-stats").innerHTML = `
+      <div class="stat-card"><div class="stat-card__value">${st.total_revenue_month.toLocaleString("ru")} ₽</div><div class="stat-card__label">доход за месяц ${prevPct !== null ? (prevPct >= 0 ? "↑ +" : "↓ ") + prevPct + "% к прошл." : ""}</div></div>
+      <div class="stat-card"><div class="stat-card__value">${st.active_subscriptions}</div><div class="stat-card__label">активных подписок ${st.expiring_today ? "⚠️ продлений сегодня: " + st.expiring_today : ""}</div></div>
+      <div class="stat-card"><div class="stat-card__value">${st.avg_cheque.toLocaleString("ru")} ₽</div><div class="stat-card__label">средний чек (${st.payments_count_month} опл.)</div></div>
+      <div class="stat-card"><div class="stat-card__value">${st.month_plan_pct}%</div><div class="stat-card__label">план месяца ${st.month_plan.toLocaleString("ru")} ₽</div></div>`;
+    $("#fin-byproduct").innerHTML = (finData.by_product || []).map((b) => `
+      <tr><td>${esc(b.product_name)}</td><td>${b.active}</td><td>${b.revenue_month.toLocaleString("ru")} ₽</td><td>${b.refunds ? b.refunds.toLocaleString("ru") + " ₽" : "0 ₽"}</td><td><a class="link" href="https://yookassa.ru/my/payments/" target="_blank" rel="noopener">→ ЛК ЮKassa</a></td></tr>`).join("")
+      || '<tr><td colspan="5" class="admin-note">Активных подписок нет.</td></tr>';
+    const prods = [...new Set((finData.subscriptions || []).map((s) => s.product_id))];
+    $("#fin-product").innerHTML = '<option value="">все</option>' + prods.map((p) => `<option value="${esc(p)}">${esc(finData.subscriptions.find((s) => s.product_id === p)?.product_name || p)}</option>`).join("");
+    finRenderSubs();
+    const ACTION_LABELS = { unbind_card: "Отвязка карты", grant_trial: "Выдача триала", revoke: "Отзыв подписки", refund_marked: "Отметка возврата" };
+    $("#fin-audit-tbody").innerHTML = (finData.audit_log || []).map((a) => `
+      <tr><td>${esc((a.created_at || "").replace("T", " ").slice(0, 16))}</td><td>${esc(ACTION_LABELS[a.action] || a.action)}</td><td><code>${esc(a.target_id)}</code></td><td>${esc(a.detail || "—")}</td></tr>`).join("")
+      || '<tr><td colspan="4" class="admin-note">Журнал пуст.</td></tr>';
+  } catch (e) { setMsg($("#frf-msg"), "Ошибка загрузки: " + e.message, false); }
+}
+$("#fin-product").addEventListener("change", finRenderSubs);
+$("#fin-status").addEventListener("change", finRenderSubs);
+$("#fin-search").addEventListener("input", finRenderSubs);
+
+$("#frf-submit").addEventListener("click", async () => {
+  const pid = $("#frf-payment").value.trim();
+  if (!pid) { setMsg($("#frf-msg"), "Укажите Платёж ID", false); return; }
+  try {
+    const d = await api("/admin/api/finance/mark-refund", {
+      method: "POST",
+      body: JSON.stringify({ payment_id: pid, note: $("#frf-note").value }),
+    });
+    setMsg($("#frf-msg"), d.ok ? `Отмечено: ${d.payment_id} (${d.amount} ₽)` : (d.error || "Ошибка"), d.ok);
+    if (d.ok) { $("#frf-payment").value = ""; $("#frf-note").value = ""; loadFinance(); }
+  } catch (e) { setMsg($("#frf-msg"), "Ошибка: " + e.message, false); }
+});
 
 // ─── Таб 2: Товары ───────────────────────────────────────────────────────
 let productsCache = [];

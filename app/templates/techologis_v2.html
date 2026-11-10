@@ -13,8 +13,9 @@
       <div class="panel" style="background:var(--site-surface);border:1px solid var(--site-border);border-radius:12px;padding:1.25rem;max-width:720px;margin:0 auto">
         <h2 style="margin:0 0 0.5rem;color:var(--site-heading)">💳 Управление картами</h2>
         <p class="muted-site" style="margin:0 0 1rem">Сохранённые карты для подписок АЛТ. Отвязка прекращает автоплатежи — подписка действует до конца оплаченного периода.</p>
+        <div id="cards-subs" style="margin-bottom:0.75rem"></div>
         <div id="cards-list">Загрузка…</div>
-        <p class="muted-site" style="margin:0.75rem 0 0;font-size:0.82rem">Ссылка персональная и действует 24 часа. Вопросы — <a class="link" href="/request/">форма «Заявка — обращение»</a>.</p>
+        <p class="muted-site" style="margin:0.75rem 0 0;font-size:0.82rem">Ссылка персональная и действует 24 часа. 📄 <a class="link" href="/legal/privacy/" target="_blank" rel="noopener">Правила и возвраты</a> · <a class="link" href="/request/">форма «Заявка — обращение»</a></p>
       </div>
     </div>
   </section>
@@ -741,6 +742,13 @@ document.getElementById("rvs-send")?.addEventListener("click", async () => {
       if (!r.ok || !d.ok) {
         list.innerHTML = "<p class='muted-site'>Ссылка недействительна или истекла. Запросите новую в боте.</p>";
         return;
+      }
+      const subsBox = document.getElementById("cards-subs");
+      if (subsBox && Array.isArray(d.subscriptions) && d.subscriptions.length) {
+        subsBox.innerHTML = "<strong>Активные подписки:</strong><br/>" + d.subscriptions.map((sub) => {
+          const mark = sub.status === "active" ? "✅" : (sub.status === "trial" ? "🎁" : "—");
+          return `${mark} ${esc(sub.product_name)} — до ${esc(sub.expires_at || "—")}`;
+        }).join("<br/>");
       }
       if (!d.cards.length) {
         list.innerHTML = "<p class='muted-site'>Сохранённых карт нет — отвязывать нечего.</p>";

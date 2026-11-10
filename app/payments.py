@@ -546,3 +546,47 @@ def verify_webhook_signature(
         hashlib.sha256,
     ).hexdigest()
     return hmac.compare_digest(expected, signature)
+
+# ─── Audit log финансовых действий (ТЗ Алика 10.11 §3) ────────────────────
+
+def _audit_connect() -> sqlite3.Connection:
+    db = sqlite3.connect(str(config.DATA_DIR / "payments.db"))
+    db.row_factory = sqlite3.Row
+    db.execute(
+        """CREATE TABLE IF NOT EXISTS admin_audit_log (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            action TEXT NOT NULL,
+            target_type TEXT NOT NULL,
+            target_id TEXT NOT NULL,
+            detail TEXT DEFAULT '',
+            admin_ip TEXT DEFAULT '',
+            created_at TEXT NOT NULL DEFAULT (datetime('now'))
+        )"""
+    )
+    return db
+
+
+def log_admin_action(action: str, target_type: str, target_id: str,
+                     detail: str = "", admin_ip: str = "") -> None:
+    """Журнал финансовых действий (unbind_card / grant_trial / revoke /
+    refund_marked). Никогда не ломает основной сценарий."""
+    try:
+        with closing(_audit_connect()) as db:
+            db.execute(
+                "INSERT INTO admin_audit_log (action, target_type, target_id, detail, admin_ip)"
+                " VALUES (?, ?, ?, ?, ?)",
+                (action, target_type, target_id, detail, admin_ip),
+            )
+            db.commit()
+    except Exception:
+        pass
+
+
+def list_audit_log(limit: int = 50) -> list[dict[str, Any]]:
+    with closing(_audit_connect()) as db:
+        rows = db.execute(
+            "SELECT id, action, target_type, target_id, detail, admin_ip, created_at"
+            " FROM admin_audit_log ORDER BY id DESC LIMIT ?",
+            (int(limit),),
+        ).fetchall()
+    return [dict(r) for r in rows]
