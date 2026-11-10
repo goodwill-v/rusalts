@@ -66,6 +66,8 @@ def validate(code: str, product_id: str, price_rub: int) -> dict[str, Any] | Non
     if row["valid_until"]:
         try:
             until = datetime.fromisoformat(row["valid_until"])
+            if until.tzinfo is None:
+                until = until.replace(tzinfo=timezone.utc)  # дата из админки без пояса
             if datetime.now(timezone.utc) > until:
                 return {"error": "Срок действия промокода истёк"}
         except ValueError:
