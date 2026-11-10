@@ -253,6 +253,7 @@
   margin: 0 0 0.75rem;
   line-height: 1.5;
   flex: 1;
+  white-space: pre-line;
 }
 
 /* Мета-информация */
