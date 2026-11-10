@@ -23,8 +23,8 @@ VISIBLE_STATUSES = {"available", "free", "coming", "inquiry", "beta", "dev"}
 ALL_STATUSES = VISIBLE_STATUSES | {"draft", "archived"}
 
 _FIELDS = (
-    "id", "name", "description", "price_rub", "period_days", "trial_days",
-    "category", "platform", "bot_url", "detail_url", "icon", "status",
+    "id", "name", "description", "description_short", "price_rub", "period_days",
+    "trial_days", "category", "platform", "bot_url", "detail_url", "icon", "status",
     "sort_order", "features", "max_url", "tg_url", "vk_url", "detail_custom",
 )
 
@@ -37,6 +37,7 @@ def _connect() -> sqlite3.Connection:
             id TEXT PRIMARY KEY,
             name TEXT NOT NULL,
             description TEXT NOT NULL DEFAULT '',
+            description_short TEXT NOT NULL DEFAULT '',
             price_rub INTEGER NOT NULL DEFAULT 0,
             period_days INTEGER NOT NULL DEFAULT 30,
             trial_days INTEGER NOT NULL DEFAULT 0,
@@ -58,6 +59,7 @@ def _connect() -> sqlite3.Connection:
     # миграции для БД, созданных до Этапа C
     cols = {r[1] for r in db.execute("PRAGMA table_info(products)").fetchall()}
     for name, ddl in (
+        ("description_short", "ALTER TABLE products ADD COLUMN description_short TEXT NOT NULL DEFAULT ''"),
         ("features", "ALTER TABLE products ADD COLUMN features TEXT NOT NULL DEFAULT ''"),
         ("max_url", "ALTER TABLE products ADD COLUMN max_url TEXT NOT NULL DEFAULT ''"),
         ("tg_url", "ALTER TABLE products ADD COLUMN tg_url TEXT NOT NULL DEFAULT ''"),
@@ -102,6 +104,7 @@ def upsert_product(data: dict[str, Any]) -> dict[str, Any]:
         "id": pid,
         "name": name,
         "description": str(data.get("description") or "").strip(),
+        "description_short": str(data.get("description_short") or "").strip(),
         "price_rub": max(0, int(data.get("price_rub") or 0)),
         "period_days": max(0, int(data.get("period_days") or 0)),
         "trial_days": max(0, int(data.get("trial_days") or 0)),

@@ -116,7 +116,7 @@
 
             <h3 class="prod-card__title">{{ p.name }}</h3>
             {% set more_url = p.detail_url or ('/techologis/p/' ~ p.id ~ '/') %}
-            <p class="prod-card__desc">{{ p.description | safe }} <a class="prod-more-link" href="{{ more_url }}">ПОДРОБНЕЕ</a></p>
+            <p class="prod-card__desc">{{ (p.description_short or p.description) | safe }} <a class="prod-more-link" href="{{ more_url }}">ПОДРОБНЕЕ</a></p>
 
             <div class="prod-card__meta">
               {% if p.platform %}
