@@ -987,7 +987,38 @@ async def api_payment_methods(customer_id: str, exp: str = "", sig: str = ""):
             "exp": exp,
             "sig": sig,
         })
-    return JSONResponse({"ok": True, "customer_id": cid, "cards": cards})
+
+    # Подписки клиента (ТЗ Алика 10.11 §1.2): последняя запись по продукту
+    with closing(_pay_conn()) as db:
+        srows = db.execute(
+            """SELECT product_id, status, plan, expires_at
+               FROM subscriptions s
+               WHERE customer_id = ?
+                 AND id = (SELECT MAX(id) FROM subscriptions s2
+                           WHERE s2.customer_id = s.customer_id
+                             AND s2.product_id = s.product_id)
+               ORDER BY expires_at DESC""",
+            (cid,),
+        ).fetchall()
+    from app.products_store import catalog
+
+    names = {p["id"]: p["name"] for p in catalog()}
+    subscriptions = []
+    for r in srows:
+        subscriptions.append({
+            "product_id": r["product_id"],
+            "product_name": names.get(r["product_id"], r["product_id"]),
+            "status": r["status"],
+            "plan": r["plan"] or "",
+            "expires_at": (r["expires_at"] or "")[:10],
+        })
+
+    return JSONResponse({
+        "ok": True,
+        "customer_id": cid,
+        "cards": cards,
+        "subscriptions": subscriptions,
+    })
 
 
 @router.post("/api/payment-method/delete")
@@ -1012,14 +1043,25 @@ async def api_payment_method_delete(request: Request):
     if not pm_id:
         return JSONResponse({"ok": True, "removed": False})  # карты и так нет
 
+    # Мета карты для журнала (до отвязки)
+    from contextlib import closing
+    from app.payments import _connect as _pay_conn
+
+    _label = ""
+    with closing(_pay_conn()) as db:
+        row = db.execute(
+            "SELECT pm_brand, pm_last4 FROM payments WHERE customer_id = ? AND product_id = ?"
+            " AND payment_method_id = ? ORDER BY id DESC LIMIT 1",
+            (customer_id, product_id, pm_id),
+        ).fetchone()
+        if row:
+            _label = f"{(row['pm_brand'] or 'карта').capitalize()} ****{row['pm_last4'] or '????'}"
+
     if not config.IS_YOOKASSA_SANDBOX:
         try:
             await delete_payment_method(pm_id)
         except Exception as exc:
             return JSONResponse({"error": str(exc)}, status_code=500)
-
-    from contextlib import closing
-    from app.payments import _connect as _pay_conn
 
     with closing(_pay_conn()) as db:
         db.execute(
@@ -1028,4 +1070,10 @@ async def api_payment_method_delete(request: Request):
             (customer_id, product_id, pm_id),
         )
         db.commit()
+
+    from app.payments import log_admin_action
+    log_admin_action(
+        "unbind_card", "payment_method", f"{customer_id}/{product_id}",
+        detail=_label, admin_ip=request.client.host if request.client else "",
+    )
     return JSONResponse({"ok": True, "removed": True})

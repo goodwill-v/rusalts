@@ -256,6 +256,12 @@ async def api_activate_trial(
         subscription_id=0,
         period_days=days,
     )
+    from app.payments import log_admin_action
+    log_admin_action(
+        "grant_trial", "subscription", f"{customer_id}/{pid}",
+        detail=f"{days} дн., {format_token_allowance(tokens)}",
+        admin_ip=request.client.host if request.client else "",
+    )
     return JSONResponse(
         {
             "ok": True,
@@ -697,3 +703,164 @@ async def api_funnel(_user: str = Depends(_require_admin_auth)) -> JSONResponse:
         ],
         "generated_at": now.replace(microsecond=0).isoformat(),
     })
+
+
+@router.get("/admin/api/finance/overview")
+async def api_finance_overview(_user: str = Depends(_require_admin_auth)) -> JSONResponse:
+    """Финансовый дашборд (ТЗ Алика 10.11 §2): доходы, подписки, план,
+    возвраты, таблица подписчиков с картами и audit log."""
+    from datetime import datetime, timedelta, timezone
+
+    from app.payments import _connect as _pay_conn, list_audit_log
+    from app.products_store import catalog
+
+    now = datetime.now(timezone.utc)
+    m30 = (now - timedelta(days=30)).isoformat()
+    m60 = (now - timedelta(days=60)).isoformat()
+    today = now.date().isoformat()
+
+    names = {p["id"]: p["name"] for p in catalog(include_hidden=True)}
+
+    db = _pay_conn()
+    try:
+        rev30 = db.execute(
+            "SELECT COALESCE(SUM(amount_rub),0) AS s, COUNT(*) AS n, COALESCE(AVG(amount_rub),0) AS a"
+            " FROM payments WHERE status='succeeded' AND created_at >= ?", (m30,)
+        ).fetchone()
+        rev_prev = db.execute(
+            "SELECT COALESCE(SUM(amount_rub),0) AS s FROM payments"
+            " WHERE status='succeeded' AND created_at >= ? AND created_at < ?", (m60, m30)
+        ).fetchone()
+        refunds30 = db.execute(
+            "SELECT COALESCE(SUM(amount_rub),0) AS s FROM payments"
+            " WHERE status='refunded' AND updated_at >= ?", (m30,)
+        ).fetchone()
+        # Подписки: последняя запись на пару клиент+продукт
+        subs = db.execute(
+            """SELECT customer_id, product_id, status, plan, expires_at, started_at
+               FROM subscriptions s
+               WHERE id = (SELECT MAX(id) FROM subscriptions s2
+                           WHERE s2.customer_id = s.customer_id
+                             AND s2.product_id = s.product_id)
+               ORDER BY expires_at DESC LIMIT 300""",
+        ).fetchall()
+
+        def _last_payment(cid, pid):
+            return db.execute(
+                """SELECT yookassa_id, amount_rub, pm_brand, pm_last4, payment_method_id, created_at
+                   FROM payments WHERE customer_id = ? AND product_id = ? AND status = 'succeeded'
+                   ORDER BY id DESC LIMIT 1""",
+                (cid, pid),
+            ).fetchone()
+
+        rows = []
+        by_product = {}
+        active = expiring_today = expired = 0
+        for s in subs:
+            pid = s["product_id"]
+            st = s["status"]
+            exp = s["expires_at"] or ""
+            is_active = st in ("active", "trial") and (not exp or exp > now.isoformat())
+            if is_active:
+                active += 1
+                if exp[:10] == today:
+                    expiring_today += 1
+            elif exp and exp <= now.isoformat():
+                expired += 1
+            lp = _last_payment(s["customer_id"], pid)
+            amount = lp["amount_rub"] if lp else 0
+            if is_active:
+                bp = by_product.setdefault(pid, {"active": 0, "revenue_month": 0, "refunds": 0})
+                bp["active"] += 1
+                bp["revenue_month"] += amount or 0
+            rows.append({
+                "customer_id": s["customer_id"],
+                "product_id": pid,
+                "product_name": names.get(pid, pid),
+                "status": st,
+                "plan": s["plan"] or "",
+                "amount_rub": amount,
+                "card_label": (f"{(lp['pm_brand'] or '').capitalize()} ••{lp['pm_last4']}" if lp and lp["pm_last4"] else ""),
+                "payment_id": lp["yookassa_id"] if lp else "",
+                "expires_at": exp[:10],
+                "created_at": (s["started_at"] or "")[:10],
+                "auto_renew": bool(lp and lp["payment_method_id"]),
+            })
+
+        refunds_by_product = {}
+        for r in db.execute(
+            "SELECT product_id, COALESCE(SUM(amount_rub),0) AS s FROM payments"
+            " WHERE status='refunded' AND updated_at >= ? GROUP BY product_id", (m30,)
+        ).fetchall():
+            refunds_by_product[r["product_id"]] = r["s"]
+
+        by_product_list = []
+        for pid, bp in sorted(by_product.items(), key=lambda kv: -kv[1]["revenue_month"]):
+            by_product_list.append({
+                "product_id": pid,
+                "product_name": names.get(pid, pid),
+                **bp,
+                "refunds": refunds_by_product.get(pid, 0),
+            })
+    finally:
+        db.close()
+
+    plan = int(getattr(config, "MONTH_REVENUE_PLAN_RUB", 0) or 15000)
+    revenue = rev30["s"] or 0
+    return JSONResponse({
+        "ok": True,
+        "stats": {
+            "total_revenue_month": revenue,
+            "revenue_prev_month": rev_prev["s"] or 0,
+            "active_subscriptions": active,
+            "expiring_today": expiring_today,
+            "expired": expired,
+            "total_refunds_month": refunds30["s"] or 0,
+            "avg_cheque": round(rev30["a"] or 0),
+            "payments_count_month": rev30["n"],
+            "month_plan": plan,
+            "month_plan_pct": round(revenue / plan * 100) if plan else 0,
+        },
+        "by_product": by_product_list,
+        "subscriptions": rows,
+        "audit_log": list_audit_log(50),
+    })
+
+
+@router.post("/admin/api/finance/mark-refund")
+async def api_finance_mark_refund(request: Request, _user: str = Depends(_require_admin_auth)) -> JSONResponse:
+    """Отметить возврат вручную (деньги возвращаются в ЛК ЮKassa —
+    здесь только фиксация статуса и запись в audit log, §0/§3.3 ТЗ)."""
+    try:
+        body = await request.json()
+    except Exception:
+        return JSONResponse({"ok": False, "error": "invalid JSON"}, status_code=400)
+    payment_id = str(body.get("payment_id") or "").strip()
+    note = str(body.get("note") or "").strip()[:200]
+    if not payment_id:
+        return JSONResponse({"ok": False, "error": "payment_id обязателен"}, status_code=400)
+
+    from app.payments import _connect as _pay_conn, log_admin_action
+
+    with closing(_pay_conn()) as db:
+        row = db.execute(
+            "SELECT id, yookassa_id, amount_rub, product_id, customer_id FROM payments"
+            " WHERE yookassa_id = ? OR id = ?",
+            (payment_id, payment_id if str(payment_id).isdigit() else -1),
+        ).fetchone()
+        if not row:
+            return JSONResponse({"ok": False, "error": "платёж не найден"}, status_code=404)
+        amount = body.get("amount")
+        amount = int(amount) if amount else row["amount_rub"]
+        db.execute(
+            "UPDATE payments SET status='refunded', updated_at=datetime('now') WHERE id = ?",
+            (row["id"],),
+        )
+        db.commit()
+
+    log_admin_action(
+        "refund_marked", "payment", row["yookassa_id"],
+        detail=f"{amount} ₽, {note or 'возврат через ЛК ЮKassa'}",
+        admin_ip=request.client.host if request.client else "",
+    )
+    return JSONResponse({"ok": True, "payment_id": row["yookassa_id"], "amount": amount})
