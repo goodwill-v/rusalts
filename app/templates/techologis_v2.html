@@ -470,7 +470,7 @@
       <span id="modal-amount"></span>
     </div>
     <div id="modal-customer-field" class="modal__field">
-      <label for="modal-customer">Получите в боте ID. МАКС: /pay  Telegram: /id — для активации подписки:</label>
+      <label for="modal-customer">Получите в боте ID. МАКС: /status  Telegram: /id — для активации подписки:</label>
       <input id="modal-customer" type="text" placeholder="вставьте ID Telegram/МАКС" />
     </div>
     <div class="modal__field">
@@ -643,7 +643,7 @@ async function startPayment(productId, price) {
   const btn = document.getElementById('modal-pay-btn');
   const cid = document.getElementById('modal-customer').value.trim();
   if (!cid) {
-    document.getElementById('modal-desc').textContent = '❌ Укажите Telegram ID — напишите боту /pay или введите ID вручную';
+    document.getElementById('modal-desc').textContent = '❌ Получите ID в боте: МАКС — /status, Telegram — /id, и вставьте в поле';
     btn.textContent = 'Перейти к оплате';
     btn.disabled = false;
     return;
