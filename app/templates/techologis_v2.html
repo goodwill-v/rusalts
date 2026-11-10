@@ -116,7 +116,7 @@
 
             <h3 class="prod-card__title">{{ p.name }}</h3>
             {% set more_url = p.detail_url or ('/techologis/p/' ~ p.id ~ '/') %}
-            <p class="prod-card__desc">{{ p.description }} <a class="prod-more-link" href="{{ more_url }}">ПОДРОБНЕЕ</a></p>
+            <p class="prod-card__desc">{{ p.description | safe }} <a class="prod-more-link" href="{{ more_url }}">ПОДРОБНЕЕ</a></p>
 
             <div class="prod-card__meta">
               {% if p.platform %}
@@ -595,7 +595,7 @@ async function openPayment(productId, price) {
   const prod = PRODUCTS.find(p => p.id === productId);
   if (!prod) return;
   document.getElementById('modal-title').textContent = prod.name;
-  document.getElementById('modal-desc').textContent = prod.description;
+  document.getElementById('modal-desc').textContent = String(prod.description || '').replace(/<[^>]*>/g, '');
   const periodLabel = (prod.period_days && prod.period_days !== 30) ? '/' + prod.period_days + ' дн.' : (prod.period_days === 30 ? '/мес' : ' / разово');
   document.getElementById('modal-amount').textContent = price + ' ₽' + periodLabel;
   window._payPeriodLabel = periodLabel || '';
