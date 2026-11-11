@@ -69,7 +69,7 @@ async def approve_publication_by_id(
     site_published = False
     vk_published = False
     vk_skipped_empty = False
-    if publish_site and not it.site_published_at_utc:
+    if publish_site and not it.site_published_at_utc and site_c.strip():
         pub_at, url_path = publish_to_site(it)
         update_item(publication_id, site_published_at_utc=pub_at, site_url=url_path, last_publish_error=None)
         site_published = True
