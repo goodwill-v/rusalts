@@ -13,6 +13,7 @@ import ipaddress
 import json
 import os
 import re
+import subprocess
 import sys
 import threading
 import time
@@ -196,6 +197,40 @@ def send_menu(chat_id, text, keyboard=None):
             return resp.status == 200
     except Exception as exc:
         print("[VeZhPom] send_menu error:", exc, flush=True)
+        return False
+
+
+def send_to_user(user_id, text):
+    """Отправить сообщение пользователю MAX по user_id (диалог, не группа)."""
+    url = API_URL + "/messages?user_id=" + str(user_id)
+    payload = json.dumps({"text": text}).encode("utf-8")
+    req = urllib.request.Request(
+        url,
+        data=payload,
+        headers={"Authorization": BOT_TOKEN, "Content-Type": "application/json"},
+    )
+    try:
+        with urllib.request.urlopen(req, timeout=15) as resp:
+            return resp.status == 200
+    except Exception as exc:
+        print("[VeZhPom] send_to_user error:", exc, flush=True)
+        return False
+
+
+def send_menu_to_user(user_id, text, keyboard=None):
+    """Отправить сообщение с кнопками пользователю MAX по user_id."""
+    url = API_URL + "/messages?user_id=" + str(user_id)
+    payload = json.dumps({"text": text, "attachments": keyboard or main_menu_keyboard()}).encode("utf-8")
+    req = urllib.request.Request(
+        url,
+        data=payload,
+        headers={"Authorization": BOT_TOKEN, "Content-Type": "application/json"},
+    )
+    try:
+        with urllib.request.urlopen(req, timeout=15) as resp:
+            return resp.status == 200
+    except Exception as exc:
+        print("[VeZhPom] send_menu_to_user error:", exc, flush=True)
         return False
 
 
@@ -1024,6 +1059,27 @@ def handle_command(text, chat_id):
         db.cancel_subscription(chat_id)
         send(chat_id, "Автоплатежи отключены, карта отвязана. Подписка действует до конца оплаченного периода.")
         return
+    if low in ("!skv", "/skv"):
+        # Пульт контроля ОКО — служебная команда, только владелец сервиса
+        # (как /refund: не показываем диагностику сервера посторонним)
+        if chat_id != CHAT_ID:
+            send(chat_id, "Команда доступна только владельцу сервиса.")
+            return
+        send(chat_id, "🔍 Запускаю диагностику СКВ...")
+        try:
+            result = subprocess.run(
+                ["/bin/bash", "/opt/skv/skv_healthcheck.sh", "--check"],
+                capture_output=True, text=True, timeout=60
+            )
+            output = result.stdout + result.stderr
+            if len(output) > 1500:
+                output = output[:1500] + "\n... (сокращено)"
+            send(chat_id, "```\n" + output + "\n```")
+        except subprocess.TimeoutExpired:
+            send(chat_id, "⏱ СКВ не ответил за 60 секунд")
+        except Exception as exc:
+            send(chat_id, "❌ Ошибка запуска СКВ: " + str(exc)[:200])
+        return
     if low in ("/возврат", "/возврат_средств", "/refundme"):
         _user_refund(chat_id)
         return
@@ -1199,6 +1255,42 @@ class Handler(BaseHTTPRequestHandler):
             path = self.path.split("?")[0].rstrip("/")
             if path == "/yookassa":
                 handle_yookassa_webhook(data)
+            elif path == "/sendto":
+                # Внутренний эндпоинт: отправка сообщения пользователю MAX по user_id
+                # Используется СКВ и другими сервисами (localhost, auth через WEBHOOK_SECRET)
+                auth = self.headers.get("X-Send-Auth", "")
+                if WEBHOOK_SECRET and auth != WEBHOOK_SECRET:
+                    print("[VeZhPom] /sendto rejected: bad auth", flush=True)
+                    self.send_response(403)
+                else:
+                    uid = data.get("user_id") or data.get("userId")
+                    text = data.get("text", "")
+                    menu = data.get("menu", False)
+                    if uid and text:
+                        ok = send_menu_to_user(int(uid), text) if menu else send_to_user(int(uid), text)
+                        self.send_response(200 if ok else 500)
+                    else:
+                        self.send_response(400)
+                self.end_headers()
+                return
+            elif path == "/sendchat":
+                # Внутренний эндпоинт: отправка сообщения в чат MAX по chat_id
+                # Используется СКВ (не нужен отдельный токен бота)
+                auth = self.headers.get("X-Send-Auth", "")
+                if WEBHOOK_SECRET and auth != WEBHOOK_SECRET:
+                    print("[VeZhPom] /sendchat rejected: bad auth", flush=True)
+                    self.send_response(403)
+                else:
+                    cid = data.get("chat_id") or data.get("chatId")
+                    text = data.get("text", "")
+                    menu = data.get("menu", False)
+                    if cid and text:
+                        ok = send_menu(int(cid), text) if menu else send(int(cid), text)
+                        self.send_response(200 if ok else 500)
+                    else:
+                        self.send_response(400)
+                self.end_headers()
+                return
             elif not WEBHOOK_SECRET or path == "/kuma/" + WEBHOOK_SECRET:
                 handle_monitor(data)
             else:
