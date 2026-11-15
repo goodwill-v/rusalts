@@ -635,7 +635,10 @@ async def api_subscription_trial_start(request: Request):
         if not pl:
             return JSONResponse({"error": f"Неизвестный план: {plan_code}"}, status_code=400)
     else:
-        pl = plans[0]
+        # Без явного плана триал = СТАРШИЙ тариф продукта (решение Шефа:
+        # «триал = все опции старшего плана»; для ВежПома — «Бизнес»,
+        # для Купца — «Маркетинг»). Веха для гейтинга ВежПом-агента.
+        pl = max(plans, key=lambda x: (x["price_rub"], x["period_days"]))
 
     from app.payments import start_trial_subscription
     res = start_trial_subscription(

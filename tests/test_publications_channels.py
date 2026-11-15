@@ -25,6 +25,12 @@ def client(tmp_path, monkeypatch):
     data.mkdir()
     monkeypatch.setattr(config, "DATA_DIR", data)
     # пути, прибинженные при первом импорте модулей, изолируем явно
+    # site_settings._PATH — обязательно: иначе корпоративный тест пишет
+    # auto_publish=true в реальный файл репо и сабмит следующих тестов
+    # автопубликует до галочек (инцидент 10–15.11)
+    from app import site_settings as ss
+    (data / "content").mkdir(parents=True, exist_ok=True)
+    monkeypatch.setattr(ss, "_PATH", data / "content" / "site_settings.json")
     # контентные каталоги прибинжены в config при импорте — изолируем
     import pathlib
     for attr in ("CONTENT_ITEMS_DIR", "CONTENT_ARCHIVE_DIR", "CONTENT_PUBLISHED_DIR",
