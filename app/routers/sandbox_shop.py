@@ -125,12 +125,16 @@ async def product_generated_page(request: Request, pid: str):
     trial_note = (
         "нажмите — бот включает максимальный тариф «Маркетинг» на 7 дней."
         if pid == "kupec"
+        else "Нажмите — бот включает максимальный тариф на 7 дней."
+        if pid == "vezhpom"
         else "нажмите → бот включит триал сам, без оплаты и без ввода ID"
     )
     features_title = (
-        "Вы получаете на тарифах" if pid == "kupec" else "Что вы получаете"
+        "Вы получаете на тарифах"
+        if pid in ("kupec", "vezhpom")
+        else "Что вы получаете"
     )
-    features_bold_names = pid in ("kupec", "neyrosotrudnik")
+    features_bold_names = pid in ("kupec", "neyrosotrudnik", "vezhpom")
 
     return templates.TemplateResponse(
         request,
