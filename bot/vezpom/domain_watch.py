@@ -391,16 +391,17 @@ def format_domain_status(domain, expiry, days, not_found=False):
 
 # ---- Анти-шум: журнал + предупреждения + решение о сообщении ----
 
-def sync_warning(chat_id, domain, expiry):
+def sync_warning(chat_id, domain, expiry, today=None):
     """Обновить предупреждение по известной дате (без отправки сообщений).
 
+    today — для детерминизма тестов/обхода (None = реальная дата).
     Держим due_ts актуальным всегда: прыжок срока вперёд > 60 сут (продление)
     сбрасывает last_level в 99 — пороги нового цикла снова активны.
     Если срок далеко (> 30 дн.) — предупреждение закрываем (в светофоре шума
     не будет), но из-за актуального due_ts продление всё равно распознается.
     note="" — метка «не найден/неизвестно» снята: срок получен.
     """
-    days = days_left(expiry)
+    days = days_left(expiry, today)
     db.upsert_warning(chat_id, "domain", domain, days=days, note="")
     if classify_domain(days) is None:
         db.resolve_warning(chat_id, "domain", domain)
@@ -449,7 +450,7 @@ def process_expiry(chat_id, domain, expiry, send_fn, msk_hour, today=None,
     days = days_left(expiry, today)
     info = classify_domain(days)
     if info is None:
-        sync_warning(chat_id, domain, expiry)
+        sync_warning(chat_id, domain, expiry, today=today)
         return "ok"
     level = info["level"]
     prev = db.get_warning(chat_id, "domain", domain)
