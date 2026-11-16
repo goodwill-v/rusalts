@@ -1,0 +1,86 @@
+{% extends "base.html" %}
+{% block extra_head %}
+<style>
+  .ch { max-width: 980px; margin: 0 auto; padding: 2rem 1rem 4rem; }
+  .ch h1 { font-size: 2rem; color: var(--site-heading); margin: 0 0 0.5rem; }
+  .ch .lead { font-size: 1.08rem; color: var(--site-text); margin: 0 0 1.75rem; }
+  .ch h2.sec { font-size: 1.35rem; color: var(--site-heading); margin: 2rem 0 0.6rem; }
+  .ch .sec-body { line-height: 1.6; color: var(--site-text); }
+  .ch .sec-body ul { margin: 0.4rem 0 0; padding-left: 1.3rem; }
+  .ch .sec-body li { margin-bottom: 0.4rem; }
+  .ch-grid { display: grid; gap: 0.9rem; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); }
+  .ch-card { background: var(--site-surface); border: 1px solid var(--site-border); border-radius: 12px; padding: 1rem 1.15rem; display: flex; gap: 0.8rem; align-items: flex-start; }
+  .ch-card.inactive { opacity: 0.55; }
+  .ch-card .ic { font-size: 1.5rem; line-height: 1.2; }
+  .ch-card .nm { font-weight: 700; color: var(--site-heading); }
+  .ch-card .ds { font-size: 0.92rem; color: var(--site-text); margin-top: 0.15rem; }
+  .ch-card a { font-size: 0.88rem; }
+  .cd-block { margin-top: 2rem; background: linear-gradient(45deg, rgba(46,204,143,0.10), rgba(107,182,255,0.10)); border: 1px solid var(--site-border); border-radius: 12px; padding: 1.3rem 1.4rem; }
+  .cd-block h2 { margin: 0 0 0.4rem; font-size: 1.25rem; color: var(--site-heading); }
+  .cd-block p { margin: 0 0 0.9rem; color: var(--site-text); line-height: 1.55; }
+  .cd-block a.btn { display: inline-block; background: var(--site-accent, #1a5c8a); color: #fff; padding: 0.7rem 1.4rem; border-radius: 8px; text-decoration: none; font-weight: 600; }
+  .ch-cta { margin-top: 2rem; background: var(--site-surface); border: 1px solid var(--site-border); border-radius: 12px; padding: 1.3rem 1.4rem; }
+  .ch-cta h2 { margin: 0 0 0.4rem; font-size: 1.25rem; color: var(--site-heading); }
+  .ch-cta p { margin: 0 0 0.9rem; color: var(--site-text); }
+  .ch-cta a.btn { display: inline-block; background: var(--site-accent, #1a5c8a); color: #fff; padding: 0.7rem 1.4rem; border-radius: 8px; text-decoration: none; font-weight: 600; }
+</style>
+{% endblock %}
+{% block body %}
+{% set dzen_url = content_block('channels', 'dzen_url', '') %}
+<main class="ch">
+  <h1>{{ content_block('channels', 'h1', 'Каналы') }}</h1>
+  <p class="lead">{{ content_block('channels', 'lead', 'Здесь мы живём и разговариваем. Заходите — будет понятно и по-домашнему.') }}</p>
+
+  <h2 class="sec">{{ content_block('channels', 'dir_title', 'Где нас читать') }}</h2>
+  {% set ch_cards = [
+    ('dzen', '🟠', 'Дзен', 'Лонгриды и разборы', ''),
+    ('vk', '🔵', 'ВКонтакте «Альтернатива»', 'Сообщество, анонсы, обсуждения', 'https://vk.com/alternat777'),
+    ('max', '🟣', 'МАКС-канал «AI для Дела»', 'Кейсы и демо ботов', ''),
+    ('site', '🏠', 'Сайт rusalts.ru', 'Хаб: витрина, правовая база, эксперт', '/'),
+    ('vc', '🟩', 'VC.ru', 'Деловые версии материалов', ''),
+    ('pikabu', '🟧', 'Пикабу', 'Лёгкие версии, с юмором', ''),
+    ('wikiclaw', '📚', 'WikiClaw', 'Образование, техническая аудитория', ''),
+  ] %}
+  <div class="ch-grid">
+    {% for key, ic, def_name, def_desc, def_url in ch_cards %}
+    {% set url = content_block('channels', key ~ '_url', def_url) %}
+    <div class="ch-card{% if not url %} inactive{% endif %}">
+      <span class="ic">{{ ic }}</span>
+      <span>
+        <span class="nm">{{ content_block('channels', key ~ '_title', def_name) }}</span>
+        <div class="ds">{{ content_block('channels', key ~ '_desc', def_desc) }}</div>
+        {% if url %}<a href="{{ url }}" target="_blank" rel="noopener">открыть →</a>{% else %}<span class="ds" style="opacity:0.7">скоро</span>{% endif %}
+      </span>
+    </div>
+    {% endfor %}
+  </div>
+
+  <h2 class="sec">{{ content_block('channels', 'posts_title', 'Свежие публикации') }}</h2>
+  <div class="sec-body">
+    <ul>
+      <li>Предисловие Шефа — как мы решили строить систему с ИИ-агентами</li>
+      <li>Очерк Алик — «Как мы строили систему»</li>
+      <li>Очерк Веж — «Как я приручил бота-сторожа» (ВежПом)</li>
+      <li>Очерк Куп — «Как я научил робота не верить скидкам» (Купец)</li>
+      <li>Очерк Админ — «Как я навёл порядок в витрине»</li>
+      <li>Очерк Кор — «Как я воспитывал команду агентов»</li>
+    </ul>
+  </div>
+
+  <div class="cd-block">
+    <h2>{{ content_block('channels', 'cd_title', 'Мастерская цифрового уюта: Новосёлы ЦД') }}</h2>
+    <p>{{ content_block('channels', 'cd_text', 'Цифровой дом: азбука для новосёлов. Дом в три этажа — устройство, сети, нейросети. Занятие — 20–25 минут, одна чашка чая: загадка, метафора, история, практика, вывод.') }}</p>
+    {% set cd_href = content_block('channels', 'cd_btn_url', '') or dzen_url %}
+    {% if cd_href %}<a class="btn" href="{{ cd_href }}" target="_blank" rel="noopener">{{ content_block('channels', 'cd_btn_text', 'Заглянуть в мастерскую') }}</a>{% endif %}
+  </div>
+
+  <h2 class="sec">{{ content_block('channels', 'what_title', 'Что мы делаем с каналами') }}</h2>
+  <div class="sec-body">{{ content_block('channels', 'what_text', '') }}</div>
+
+  <div class="ch-cta">
+    <h2>{{ content_block('channels', 'cta_title', 'Нужен бот в вашем канале?') }}</h2>
+    <p>{{ content_block('channels', 'cta_text', '') }}</p>
+    <a class="btn" href="{{ content_block('channels', 'cta_btn_url', '/request/') }}">{{ content_block('channels', 'cta_btn_text', 'Оставить заявку') }}</a>
+  </div>
+</main>
+{% endblock %}
