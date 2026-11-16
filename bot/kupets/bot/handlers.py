@@ -46,7 +46,7 @@ from engine.query_guard import is_smalltalk
 from models.result import SearchFilters, SearchResponse
 from services import anticlone, compare, gift, quotas, report as report_svc, sqlite_store
 from services.mailer import ErrorReport, send_error_report, smtp_configured
-from services.vision_prices import (
+from parser.vision_prices import (
     fairness_verdicts,
     run_vision_cards,
     should_prices_caption,
