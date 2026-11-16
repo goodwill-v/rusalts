@@ -1,0 +1,8 @@
+[Unit]
+Description=Watch zcode-server status.json for port changes
+
+[Path]
+PathModified=/root/.zcode/server/run/status.json
+
+[Install]
+WantedBy=multi-user.target
