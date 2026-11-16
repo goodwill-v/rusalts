@@ -624,3 +624,83 @@ def test_explainer_class_structure():
         n.name for n in tree.body if isinstance(n, (_ast.FunctionDef, _ast.AsyncFunctionDef))
     }
     assert mod_funcs == {"_strip_reasoning_echo"}  # хелпер — только он на уровне модуляassert callable(_strip_reasoning_echo)
+
+
+# ─── Зрение для цен: парсинг JSON, честность скидок (16.11) ──────────
+
+
+def test_parse_cards_json_plain_and_fenced():
+    from parser.vision_prices import parse_cards_json
+
+    good = '[{"name":"Толстовка","brand":"SKUFOWEAR","price":2541,"old_price":25000,"discount_pct":89,"rating":4.9,"reviews":1868}]'
+    assert parse_cards_json(good)[0]["price"] == 2541.0
+    fenced = f"Вот карточки:\n```json\n{good}\n```\nГотово"
+    assert parse_cards_json(fenced)[0]["brand"] == "SKUFOWEAR"
+    assert parse_cards_json("") == []
+    assert parse_cards_json("модель промолчала") == []
+
+
+def test_parse_cards_json_dirty_numbers():
+    from parser.vision_prices import parse_cards_json
+
+    dirty = "[{'name':'Худи','price':'1 920','old_price':null,'discount_pct':'-69%','rating':'4,9','reviews':'746'}]"
+    card = parse_cards_json(dirty)[0]
+    assert card["price"] == 1920.0
+    assert card["old_price"] is None
+    assert card["rating"] == 4.9
+    assert card["reviews"] == 746
+
+
+def test_fairness_legend_discount_is_danger():
+    from parser.vision_prices import fairness_verdicts
+
+    cards = [
+        {"name": "Легенда", "brand": "X", "price": 1035.0, "old_price": 36990.0,
+         "discount_pct": 97, "rating": 4.9, "reviews": 10327},
+        {"name": "Норм", "brand": "Y", "price": 1200.0, "old_price": 1500.0,
+         "discount_pct": 20, "rating": 4.8, "reviews": 300},
+    ]
+    verdicts = fairness_verdicts(cards)
+    assert verdicts[0]["level"] == "danger"   # 1035/36990 ≈ 3% — легенда
+    assert verdicts[1]["level"] == "ok"
+
+
+def test_fairness_cheap_vs_median():
+    from parser.vision_prices import fairness_verdicts
+
+    cards = [
+        {"name": "Дешёвый", "brand": "", "price": 400.0, "old_price": None,
+         "discount_pct": None, "rating": None, "reviews": 0},
+        {"name": "Средний", "brand": "", "price": 1100.0, "old_price": None,
+         "discount_pct": None, "rating": 4.6, "reviews": 900},
+        {"name": "Ещё", "brand": "", "price": 1250.0, "old_price": None,
+         "discount_pct": None, "rating": 4.6, "reviews": 120},
+    ]
+    v = fairness_verdicts(cards)
+    assert v[0]["level"] == "warn" and "дешевле медианы" in v[0]["reasons"][0]
+    assert v[1]["level"] == "ok"
+    assert any("отзывы подтверждены" in r for r in v[2]["reasons"])
+
+
+def test_price_cards_message_format():
+    from bot.messages import price_cards_message
+    from parser.vision_prices import fairness_verdicts
+
+    cards = [
+        {"name": "Толстовка SKUFOWEAR", "brand": "SKUFOWEAR", "price": 2541.0,
+         "old_price": 25000.0, "discount_pct": 89, "rating": 4.9, "reviews": 1868},
+    ]
+    text = price_cards_message(cards, fairness_verdicts(cards))
+    assert "Цены со снимка" in text
+    assert f"2\u202f541 ₽" in text
+    assert "скидка-легенда" in text  # 1 карточка — без медианы
+
+
+def test_should_prices_caption():
+    from parser.vision_prices import should_prices_caption
+
+    assert should_prices_caption("цены")
+    assert should_prices_caption("скан выдачи")
+    assert should_prices_caption("сколько стоит такое?")
+    assert not should_prices_caption("похожий товар")
+    assert not should_prices_caption(None)
