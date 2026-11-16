@@ -20,6 +20,7 @@ from bot.messages import (
     format_product_detail,
     format_reject_details,
     format_results,
+    price_cards_message,
     id_message,
     check_result_message,
     compare_result_message,
@@ -45,6 +46,11 @@ from engine.query_guard import is_smalltalk
 from models.result import SearchFilters, SearchResponse
 from services import anticlone, compare, gift, quotas, report as report_svc, sqlite_store
 from services.mailer import ErrorReport, send_error_report, smtp_configured
+from services.vision_prices import (
+    fairness_verdicts,
+    run_vision_cards,
+    should_prices_caption,
+)
 from services.search_pipeline import SearchPipeline
 from config import Config
 from utils import get_logger
@@ -475,6 +481,26 @@ async def on_photo(message: Message, state: FSMContext) -> None:
         )
     except Exception:
         await progress.edit_text(f"🔎 По фото ищу: {query}")
+
+    # Подпись «цены»/«скан» на снимке → чтение карточек с ценами (зрение)
+    caption_text = (message.caption or "").strip()
+    if caption_text and should_prices_caption(caption_text):
+        # V1: доступно всем — wow-демо и главный источник цен Ozon;
+        # себестоимость вызова копеечная (RouterAI vision ~1 вызов на снимок)
+        await progress.edit_text("💰 Читаю цены со снимка…")
+        try:
+            cards = await run_vision_cards(image_bytes)
+            verdicts = fairness_verdicts(cards)
+            await progress.edit_text(
+                price_cards_message(cards, verdicts), parse_mode="Markdown"
+            )
+        except Exception as exc:
+            logger.exception("vision_prices_failed", extra={"error": str(exc)})
+            await progress.edit_text(
+                "⚠️ Не удалось разобрать снимок — пришлите более чёткий "
+                "скриншот или попробуйте позже."
+            )
+        return
 
     # Подпись «сводка»/«отчёт» на снимке → анализ ниши вместо обычного поиска
     caption = (message.caption or "").strip()
