@@ -88,7 +88,13 @@
 
       <div class="pd__panel">
         <h2>Стоимость</h2>
-        {% if p.status == "free" or p.price_rub == 0 %}
+        {% if p.status == "inquiry" %}
+        <div class="pd__price">—</div>
+        <div class="pd__period">Стоимость — по запросу</div>
+        <div class="pd__actions">
+          <a class="btn-buy btn-buy--secondary btn-buy--large" href="/#contacts">Запросить →</a>
+        </div>
+        {% elif p.status == "free" or p.price_rub == 0 %}
         <div class="pd__price">0 ₽</div>
         <div class="pd__period">доступен без подписки</div>
         <div class="pd__actions">
