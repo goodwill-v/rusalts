@@ -675,6 +675,14 @@ async def handle_content_corporate_draft(*, payload: dict) -> None:
     """Корпоративный черновик: творческая обработка под каналы; опционально сразу публикация."""
     pub_id = str(payload.get("publication_id") or "").strip()
     auto_publish = bool(payload.get("auto_publish"))
+    if not auto_publish:
+        # Тумблер «Режим публикаций» (site_settings) — авторитетный источник:
+        # если включён в админке, черновик публикуется даже без флага в задании
+        try:
+            from app import site_settings
+            auto_publish = site_settings.get_auto_publish()
+        except Exception:
+            auto_publish = False
     ok, err = await refine_corporate_item_by_id(pub_id)
     if not ok:
         json_log({"type": "content_corporate_draft_fail", "publication_id": pub_id, "error": err})

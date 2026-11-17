@@ -73,10 +73,18 @@ def _site_page(
 
 @router.get("/laws/", response_class=HTMLResponse)
 async def laws(request: Request) -> HTMLResponse:
-    return _site_page(
+    """Правовая база (ТЗ Алика): контент-блоки laws, редактируются в админке."""
+    from app.templating import templates as _t
+
+    return _t.TemplateResponse(
         request,
-        h1="Правовая база",
-        description="Публичная страница: правовые материалы и ссылки на законы.",
+        "laws.html",
+        {
+            "vk_app_id": config.VK_APP_ID or None,
+            "is_widget": False,
+            "layout_class": "layout-site",
+            "page_title": "Правовая база — АЛТ",
+        },
     )
 
 
@@ -334,10 +342,18 @@ async def segment_landing(request: Request, segment: str) -> HTMLResponse:
 
 @router.get("/channels/", response_class=HTMLResponse)
 async def channels(request: Request) -> HTMLResponse:
-    return _site_page(
+    """Каналы (ТЗ Алика): контент-блоки channels, редактируются в админке."""
+    from app.templating import templates as _t
+
+    return _t.TemplateResponse(
         request,
-        h1="Каналы",
-        description="Публичная страница: взаимодействие с мессенджерами и соцсетями.",
+        "channels.html",
+        {
+            "vk_app_id": config.VK_APP_ID or None,
+            "is_widget": False,
+            "layout_class": "layout-site",
+            "page_title": "Каналы — АЛТ",
+        },
     )
 
 

@@ -289,6 +289,52 @@ def report_usage_message() -> str:
     )
 
 
+def price_cards_message(cards: list[dict], verdicts: list[dict]) -> str:
+    """Чтение цен со скрина выдачи (ТЗ зрение-цены): карточки + честность скидок."""
+    if not cards:
+        return (
+            "😔 Не смог разобрать карточки на снимке. Пришлите более крупный "
+            "скриншот (чтобы цены были видны) — попробую ещё раз."
+        )
+    mp_med = None
+    prices = [v["card"]["price"] for v in verdicts if v["card"].get("price", 0) > 0]
+    if len(prices) >= 2:
+        prices.sort()
+        import statistics as _st
+        mp_med = _st.median(prices)
+    icon = {"ok": "✅", "warn": "🟡", "danger": "🔴"}
+    lines = [
+        f"🔍 *Цены со снимка* — карточек: {len(cards)}",
+        "",
+    ]
+    for v in verdicts:
+        c = v["card"]
+        from utils import format_price
+        price = format_price(c["price"]) if c.get("price") else "—"
+        was = (
+            f" ~~{format_price(c['old_price'])}~~"
+            if c.get("old_price") else ""
+        )
+        disc = f" −{int(c['discount_pct'])}%" if c.get("discount_pct") else ""
+        rating = f"{c['rating']}★ ({c['reviews']} отз.)" if c.get("rating") else "—"
+        brand = _md(c["brand"]) if c.get("brand") else ""
+        name = _md(c["name"][:46])
+        prefix = (f"{brand}: " if brand else "")
+        lines.append(
+            f"{icon[v['level']]} {prefix}*{name}*\n"
+            f"   💰 {price}{was}{disc} · {rating}"
+        )
+        for r in v["reasons"][:2]:
+            lines.append(f"   · {_md(r)}")
+    if mp_med:
+        lines.append("")
+        from utils import format_price as _fp
+        lines.append(f"📐 Медиана выдачи: *{_fp(mp_med)}*")
+    lines.append("")
+    lines.append("_Распознано с картинки — проверяйте по ссылкам перед оплатой._")
+    return "\n".join(lines)
+
+
 def watch_usage_message() -> str:
     return (
         "Укажите, за чем следить: /watch <запрос>\n"

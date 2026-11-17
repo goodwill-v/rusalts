@@ -13,6 +13,7 @@ import ipaddress
 import json
 import os
 import re
+import subprocess
 import sys
 import threading
 import time
@@ -42,11 +43,23 @@ PUSH_PUBLIC_URL = os.environ.get("VEZPOM_PUSH_URL", "https://rusalts.ru/kuma-pus
 if not BOT_TOKEN or not CHAT_ID:
     sys.exit("ERROR: BOT_TOKEN and CHAT_ID must be set (see .env.example)")
 
-# chat_id -> True: bot is waiting for the user to type a target URL/IP
-awaiting_target = {}
+# Двухшаговый сценарий: chat_id -> режим ожидания адреса
+# ('monitor'|'monitor_off'|'domain'|'domain_off'|'link'|'scan').
+# Команда без аргумента включает режим; следующее сообщение пользователя
+# (обычно адрес из буфера) уходит в соответствующий поток.
+awaiting_mode = {}
 # chat_id -> True: bot is waiting for the user to type a domain (PR-5)
-awaiting_domain = {}
 AWAIT_LOCK = threading.Lock()
+
+
+def _set_awaiting(chat_id, mode):
+    with AWAIT_LOCK:
+        awaiting_mode[chat_id] = mode
+
+
+def _pop_awaiting(chat_id):
+    with AWAIT_LOCK:
+        return awaiting_mode.pop(chat_id, None)
 
 CHAT_RE = re.compile(r"chat(\d+)")
 
@@ -150,11 +163,15 @@ def main_menu_keyboard():
                     {"type": "link", "text": "🛍 Витрина", "url": "https://rusalts.ru/techologis/"},
                 ],
                 [
-                    {"type": "callback", "text": "📊 Статус", "payload": "menu:status"},
+                    {"type": "callback", "text": "🌐 Домены", "payload": "menu:domains"},
                     {"type": "callback", "text": "💾 Бэкапы", "payload": "menu:backup"},
                 ],
                 [
-                    {"type": "callback", "text": "🌐 Домены", "payload": "menu:domains"},
+                    {"type": "callback", "text": "📋 Журнал", "payload": "menu:history"},
+                    {"type": "callback", "text": "🔎 Диагностика", "payload": "menu:scan"},
+                ],
+                [
+                    {"type": "callback", "text": "📊 Статус", "payload": "menu:status"},
                     {"type": "callback", "text": "❌ Отмена", "payload": "menu:cancel"},
                 ],
                 [
@@ -166,10 +183,10 @@ def main_menu_keyboard():
     }]
 
 
-def send_menu(chat_id, text):
-    """Отправить сообщение с кнопками меню."""
+def send_menu(chat_id, text, keyboard=None):
+    """Отправить сообщение с кнопками (по умолчанию — главное меню)."""
     url = API_URL + "/messages?chat_id=" + str(chat_id)
-    payload = json.dumps({"text": text, "attachments": main_menu_keyboard()}).encode("utf-8")
+    payload = json.dumps({"text": text, "attachments": keyboard or main_menu_keyboard()}).encode("utf-8")
     req = urllib.request.Request(
         url,
         data=payload,
@@ -180,6 +197,40 @@ def send_menu(chat_id, text):
             return resp.status == 200
     except Exception as exc:
         print("[VeZhPom] send_menu error:", exc, flush=True)
+        return False
+
+
+def send_to_user(user_id, text):
+    """Отправить сообщение пользователю MAX по user_id (диалог, не группа)."""
+    url = API_URL + "/messages?user_id=" + str(user_id)
+    payload = json.dumps({"text": text}).encode("utf-8")
+    req = urllib.request.Request(
+        url,
+        data=payload,
+        headers={"Authorization": BOT_TOKEN, "Content-Type": "application/json"},
+    )
+    try:
+        with urllib.request.urlopen(req, timeout=15) as resp:
+            return resp.status == 200
+    except Exception as exc:
+        print("[VeZhPom] send_to_user error:", exc, flush=True)
+        return False
+
+
+def send_menu_to_user(user_id, text, keyboard=None):
+    """Отправить сообщение с кнопками пользователю MAX по user_id."""
+    url = API_URL + "/messages?user_id=" + str(user_id)
+    payload = json.dumps({"text": text, "attachments": keyboard or main_menu_keyboard()}).encode("utf-8")
+    req = urllib.request.Request(
+        url,
+        data=payload,
+        headers={"Authorization": BOT_TOKEN, "Content-Type": "application/json"},
+    )
+    try:
+        with urllib.request.urlopen(req, timeout=15) as resp:
+            return resp.status == 200
+    except Exception as exc:
+        print("[VeZhPom] send_menu_to_user error:", exc, flush=True)
         return False
 
 
@@ -284,6 +335,9 @@ def _record_event(result, chat_id, data):
     kuma_id = monitor.get("id")
     name = monitor.get("name") or result.get("name") or ""
     target = result.get("target") or monitor.get("url") or ""
+    # ping-мониторы: у Kuma url = "https://" (мусор в журнале) — пишем hostname
+    if monitor.get("type") == "ping" and monitor.get("hostname"):
+        target = monitor["hostname"]
     kind, st = result.get("kind"), result.get("status")
     now = int(time.time())
     detail = result.get("detail") or result.get("message") or ""
@@ -438,12 +492,18 @@ def _user_refund(chat_id):
 
 
 def normalize_target(raw):
-    """Normalize user input to an http(s) URL or None if invalid."""
+    """Normalize user input to an http(s) URL or None if invalid.
+
+    Принимает IDN-домены (кириллица: лидерыпромышленности.рф), в том числе
+    короткую форму без схемы. Домен без схемы → https://, IP без схемы →
+    http:// (к IP по https с самоподписанным сертификатом не ходим).
+    """
     t = (raw or "").strip()
     if not t:
         return None
-    if "://" not in t:
-        t = "http://" + t
+    host_only = "://" not in t
+    if host_only:
+        t = "https://" + t
     parsed = urllib.parse.urlparse(t)
     host = parsed.hostname or ""
     if not host:
@@ -451,12 +511,20 @@ def normalize_target(raw):
     # IP address (IPv4/IPv6)
     try:
         ipaddress.ip_address(host)
+        if host_only:
+            t = "http://" + t.split("://", 1)[1]  # IP без схемы → http://
         return t
     except ValueError:
         pass
-    # Domain: latin letters, digits, dots, hyphens; must contain a dot
-    if not re.match(r"^[a-zA-Z0-9.-]+$", host):
+    # Domain: буквы/цифры/точки/дефисы, включая IDN (кириллица и др.);
+    # должен быть хотя бы один разделитель-«.»
+    if not re.match(r"^[a-zA-Z0-9а-яё.\-]+$", host, re.IGNORECASE):
         return None
+    # имя хоста — в нижнем регистре (путь/запрос не трогаем)
+    if not host_only and parsed.netloc != parsed.netloc.lower():
+        t = urllib.parse.urlunparse((parsed.scheme, parsed.netloc.lower(),
+                                     parsed.path, parsed.params,
+                                     parsed.query, parsed.fragment))
     if "." not in host:
         return None
     return t
@@ -854,41 +922,58 @@ def handle_command(text, chat_id):
     if cmd == "/":
         send_menu(chat_id, "Меню ВежПом — выберите действие кнопками или введите команду:")
         return
-    # Режим ожидания цели мониторинга: любое не-командное сообщение — это URL/IP
-    with AWAIT_LOCK:
-        waiting = awaiting_target.get(chat_id, False)
-    if waiting and not cmd.startswith("/"):
-        with AWAIT_LOCK:
-            awaiting_target[chat_id] = False
-        _add_monitor_flow(chat_id, cmd)
-        return
-    # Режим ожидания домена (PR-5): не-командное сообщение — это домен
-    with AWAIT_LOCK:
-        waiting_domain = awaiting_domain.get(chat_id, False)
-    if waiting_domain and not cmd.startswith("/"):
-        with AWAIT_LOCK:
-            awaiting_domain[chat_id] = False
-        _add_domain_flow(chat_id, cmd)
-        return
+    # Двухшаговый сценарий: не-командное сообщение в режиме ожидания — это адрес
+    mode = _pop_awaiting(chat_id)
+    if mode and not cmd.startswith("/"):
+        flow = {
+            "monitor": _add_monitor_flow,
+            "monitor_off": _remove_monitor_flow,
+            "domain": _add_domain_flow,
+            "domain_off": _remove_domain_flow,
+            "link": _link_flow,
+            "scan": _scan_flow,
+        }.get(mode)
+        if flow:
+            flow(chat_id, cmd)
+            return
     low = cmd.lower()
     if low == "/refund" or low.startswith("/refund "):
         _handle_refund(chat_id, cmd.split()[1:])
         return
     if low in ("/link", "/ссылка") or low.startswith("/link ") or low.startswith("/ссылка "):
-        _link_flow(chat_id, cmd.split(None, 1)[1] if len(cmd.split()) > 1 else "")
+        arg = cmd.split(None, 1)[1] if len(cmd.split()) > 1 else ""
+        if arg:
+            _link_flow(chat_id, arg)
+        else:
+            _set_awaiting(chat_id, "link")
+            send(chat_id, "Пришлите ссылку следующим сообщением (обычно она уже в буфере) — проверю на фишинг и вредоносное.")
         return
     if low in ("/scan", "/аудит") or low.startswith("/scan ") or low.startswith("/аудит "):
-        _scan_flow(chat_id, cmd.split(None, 1)[1] if len(cmd.split()) > 1 else "")
+        arg = cmd.split(None, 1)[1] if len(cmd.split()) > 1 else ""
+        if arg:
+            _scan_flow(chat_id, arg)
+        else:
+            _set_awaiting(chat_id, "scan")
+            send(chat_id, "Пришлите адрес СВОЕГО сайта или IP следующим сообщением (обычно он в буфере) — сделаю диагностику безопасности.")
         return
     if low == "/monitor_off" or low.startswith("/monitor_off ") or low in ("/отключить_мониторинг",) or low.startswith("/отключить_мониторинг "):
-        _remove_monitor_flow(chat_id, cmd.split(None, 1)[1] if len(cmd.split()) > 1 else "")
+        arg = cmd.split(None, 1)[1] if len(cmd.split()) > 1 else ""
+        if arg:
+            _remove_monitor_flow(chat_id, arg)
+        else:
+            monitors = [m for m in db.list_monitors(chat_id) if m["target"] != "backup"]
+            lines = ["Под контролем:"]
+            for m in monitors:
+                lines.append(" • " + m["target"])
+            lines.append("Пришлите адрес того, что снять с контроля (обычно он в буфере).")
+            _set_awaiting(chat_id, "monitor_off")
+            send(chat_id, "\n".join(lines))
         return
     if low == "/backup_off" or low in ("/бэкап_выкл",):
         _backup_off_flow(chat_id)
         return
     if low in ("/monitor", "/monitor_on", "/настройка", "/настройка_мониторинга"):
-        with AWAIT_LOCK:
-            awaiting_target[chat_id] = True
+        _set_awaiting(chat_id, "monitor")
         send(chat_id, "Введите URL сайта или IP сервера для мониторинга. Примеры: https://example.com, example.com, 192.168.1.10\n\nДля https-сайтов сразу включу и контроль срока SSL-сертификата.")
         return
     if low == "/backup":
@@ -899,8 +984,7 @@ def handle_command(text, chat_id):
         if len(parts) > 1:
             _add_domain_flow(chat_id, " ".join(parts[1:]))
         else:
-            with AWAIT_LOCK:
-                awaiting_domain[chat_id] = True
+            _set_awaiting(chat_id, "domain")
             send(chat_id, "Введите домен, чтобы я следил за сроком его регистрации. Примеры: company.ru, магазин.рф\n\nПредупрежу заранее: за 30, 14, 7 и 1 день. Список: /domains")
         return
     if low in ("/domains", "/домены"):
@@ -911,7 +995,13 @@ def handle_command(text, chat_id):
         if len(parts) > 1:
             _remove_domain_flow(chat_id, " ".join(parts[1:]))
         else:
-            send(chat_id, "Формат: /domain_off <домен>. Список: /domains")
+            domains = db.list_domains(chat_id)
+            lines = ["Домены под контролем:"]
+            for d in domains:
+                lines.append(" • " + d["domain"])
+            lines.append("Пришлите домен, который снять с контроля (обычно он в буфере).")
+            _set_awaiting(chat_id, "domain_off")
+            send(chat_id, "\n".join(lines))
         return
     if low == "/digest":
         text = digest.build_traffic_light(chat_id)
@@ -952,6 +1042,13 @@ def handle_command(text, chat_id):
         if payment_url:
             send(chat_id, "Ссылка на оплату %s: " % _tariff_price_text() + payment_url)
             send(chat_id, "После оплаты нажмите «Статус» — подписка активируется автоматически.")
+        cards_url = ""
+        try:
+            cards_url = vitrina.get_cards_link(chat_id)
+        except Exception:
+            cards_url = ""
+        if cards_url:
+            send(chat_id, "💳 Сохранённая карта и отвязка: " + cards_url + "\n(ссылка действует 24 часа; отвязка прекращает автоплатежи)")
         return
     if low == "/status":
         send(chat_id, _status_text(chat_id))
@@ -965,6 +1062,27 @@ def handle_command(text, chat_id):
         db.cancel_subscription(chat_id)
         send(chat_id, "Автоплатежи отключены, карта отвязана. Подписка действует до конца оплаченного периода.")
         return
+    if low in ("!skv", "/skv"):
+        # Пульт контроля ОКО — служебная команда, только владелец сервиса
+        # (как /refund: не показываем диагностику сервера посторонним)
+        if chat_id != CHAT_ID:
+            send(chat_id, "Команда доступна только владельцу сервиса.")
+            return
+        send(chat_id, "🔍 Запускаю диагностику СКВ...")
+        try:
+            result = subprocess.run(
+                ["/bin/bash", "/opt/skv/skv_healthcheck.sh", "--check"],
+                capture_output=True, text=True, timeout=60
+            )
+            output = result.stdout + result.stderr
+            if len(output) > 1500:
+                output = output[:1500] + "\n... (сокращено)"
+            send(chat_id, "```\n" + output + "\n```")
+        except subprocess.TimeoutExpired:
+            send(chat_id, "⏱ СКВ не ответил за 60 секунд")
+        except Exception as exc:
+            send(chat_id, "❌ Ошибка запуска СКВ: " + str(exc)[:200])
+        return
     if low in ("/возврат", "/возврат_средств", "/refundme"):
         _user_refund(chat_id)
         return
@@ -976,7 +1094,20 @@ def handle_command(text, chat_id):
         return
     if low in ("/rules", "/offer", "/oferta"):
         price, trial, _period = _tariff()
-        send(chat_id, "ВежПом: подписка %s, пробный период %d дн. Возврат в течение 14 дней с оплаты (полный или пропорциональный), если услуга не оказывалась. Отключить автоплатежи и отвязать карту: /cancel. Полный текст оферты и политики возвратов: https://rusalts.ru/oferta" % (_tariff_price_text(), trial))
+        pay_keyboard = [{
+            "type": "inline_keyboard",
+            "payload": {"buttons": [[
+                {"type": "callback", "text": "💳 Оплатить подписку", "payload": "menu:pay"},
+            ]]}
+        }]
+        send_menu(chat_id,
+                  "ВежПом: подписка %s, пробный период %d дн.\n"
+                  "💳 Оплатить подписку: https://rusalts.ru/techologis/p/vezhpom/ — или командой /pay.\n"
+                  "Возврат в течение 14 дней с оплаты (полный или пропорциональный), если услуга не оказывалась.\n"
+                  "Отключить автоплатежи и отвязать карту: /cancel.\n"
+                  "Полный текст оферты и политики возвратов: https://rusalts.ru/oferta"
+                  % (_tariff_price_text(), trial),
+                  keyboard=pay_keyboard)
         return
     # Любой другой не-командный текст (приветствие, вопрос и т.п.) — показать меню с кнопками.
     # Важно: событие bot_started приходит только при ПЕРВОМ запуске бота, у существующих
@@ -992,8 +1123,7 @@ def handle_callback(chat_id, callback_id, payload):
     """Обработка нажатия кнопок меню (message_callback)."""
     action = (payload or "").lower()
     if action == "menu:monitor":
-        with AWAIT_LOCK:
-            awaiting_target[chat_id] = True
+        _set_awaiting(chat_id, "monitor")
         answer_callback(
             callback_id,
             notification="Введите URL или IP",
@@ -1005,6 +1135,12 @@ def handle_callback(chat_id, callback_id, payload):
     elif action == "menu:backup":
         answer_callback(callback_id, notification="Бэкапы")
         _add_backup_flow(chat_id)
+    elif action == "menu:history":
+        answer_callback(callback_id, notification="Журнал")
+        handle_command("/history", chat_id)
+    elif action == "menu:scan":
+        answer_callback(callback_id, notification="Диагностика")
+        handle_command("/scan", chat_id)
     elif action == "menu:domains":
         answer_callback(callback_id, notification="Домены")
         send(chat_id,
@@ -1122,6 +1258,42 @@ class Handler(BaseHTTPRequestHandler):
             path = self.path.split("?")[0].rstrip("/")
             if path == "/yookassa":
                 handle_yookassa_webhook(data)
+            elif path == "/sendto":
+                # Внутренний эндпоинт: отправка сообщения пользователю MAX по user_id
+                # Используется СКВ и другими сервисами (localhost, auth через WEBHOOK_SECRET)
+                auth = self.headers.get("X-Send-Auth", "")
+                if WEBHOOK_SECRET and auth != WEBHOOK_SECRET:
+                    print("[VeZhPom] /sendto rejected: bad auth", flush=True)
+                    self.send_response(403)
+                else:
+                    uid = data.get("user_id") or data.get("userId")
+                    text = data.get("text", "")
+                    menu = data.get("menu", False)
+                    if uid and text:
+                        ok = send_menu_to_user(int(uid), text) if menu else send_to_user(int(uid), text)
+                        self.send_response(200 if ok else 500)
+                    else:
+                        self.send_response(400)
+                self.end_headers()
+                return
+            elif path == "/sendchat":
+                # Внутренний эндпоинт: отправка сообщения в чат MAX по chat_id
+                # Используется СКВ (не нужен отдельный токен бота)
+                auth = self.headers.get("X-Send-Auth", "")
+                if WEBHOOK_SECRET and auth != WEBHOOK_SECRET:
+                    print("[VeZhPom] /sendchat rejected: bad auth", flush=True)
+                    self.send_response(403)
+                else:
+                    cid = data.get("chat_id") or data.get("chatId")
+                    text = data.get("text", "")
+                    menu = data.get("menu", False)
+                    if cid and text:
+                        ok = send_menu(int(cid), text) if menu else send(int(cid), text)
+                        self.send_response(200 if ok else 500)
+                    else:
+                        self.send_response(400)
+                self.end_headers()
+                return
             elif not WEBHOOK_SECRET or path == "/kuma/" + WEBHOOK_SECRET:
                 handle_monitor(data)
             else:

@@ -1,0 +1,6 @@
+[Unit]
+Description=Sync zcode-server dynamic port to nginx bridge
+
+[Service]
+Type=oneshot
+ExecStart=/opt/alt_docs/ALT_ZAI_devops/zcode_port_sync.sh

@@ -66,6 +66,43 @@ async def _start_followup_loop() -> None:
         pass
     app.state.followup_task = asyncio.create_task(_followup_loop())
     app.state.consistency_task = asyncio.create_task(_consistency_loop())
+    app.state.payments_reconcile_task = asyncio.create_task(_payments_reconcile_loop())
+
+
+async def _payments_reconcile_loop() -> None:
+    """Сверка платежей с ЮKassa каждые 10 мин: если уведомление (webhook)
+    не дошло — сами подтягиваем succeeded/canceled по pending-записям
+    за 48 ч (инцидент 09.11: платёж оплачен в ЮKassa, у нас pending).
+    В sandbox-режиме не работает (ЮKassa не дёргаем)."""
+    if config.IS_YOOKASSA_SANDBOX:
+        return
+    while True:
+        await asyncio.sleep(5)  # первый прогон почти сразу после старта
+        try:
+            from app.payments import get_payment, list_stale_pending, update_payment_status
+            from app.routers.sandbox_shop import process_succeeded_payment
+
+            rows = list_stale_pending(hours=48)
+            for r in rows:
+                try:
+                    real = await get_payment(r["yookassa_id"])
+                except Exception:
+                    continue
+                st = (real or {}).get("status")
+                if st == "succeeded":
+                    try:
+                        await process_succeeded_payment(r["yookassa_id"], real)
+                        _followup_logger.info("payments_reconcile: %s → succeeded", r["yookassa_id"])
+                    except Exception as e:
+                        _followup_logger.warning("payments_reconcile activate error: %s", e)
+                elif st == "canceled":
+                    try:
+                        update_payment_status(r["yookassa_id"], "canceled")
+                    except Exception:
+                        pass
+        except Exception as e:  # цикл не должен умирать
+            _followup_logger.warning("payments reconcile error: %s", e)
+            await asyncio.sleep(600)
 
 
 async def _consistency_loop() -> None:

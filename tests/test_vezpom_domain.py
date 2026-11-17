@@ -14,6 +14,7 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 sys.path.insert(0, str(ROOT / "bot" / "vezpom"))
 
+import pytest  # noqa: E402
 import db as vezdb  # noqa: E402
 import digest as vzdigest  # noqa: E402
 import domain_watch as dw  # noqa: E402
@@ -21,6 +22,20 @@ import vezlogic  # noqa: E402
 
 
 TODAY = date(2026, 11, 4)
+
+
+@pytest.fixture(autouse=True)
+def _no_live_network(monkeypatch):
+    """Живой сети в тестах быть не должно (приказ Кора 15.11).
+
+    Любой сетевой вызов domain_watch — громкое падение с пояснением.
+    Тесты сети работают на canned-данных (fixture-строки RDAP/WHOIS).
+    """
+    def _blocked(*_a, **_k):
+        raise AssertionError("живая сеть в тесте запрещена — замокай fetch/lookup")
+    monkeypatch.setattr(dw, "_fetch_rdap", _blocked)
+    monkeypatch.setattr(dw, "_fetch_whois", _blocked)
+    monkeypatch.setattr(dw, "_iana_whois_server", _blocked)
 
 
 def _tmp_db(tmp_path, monkeypatch):
@@ -237,6 +252,9 @@ def test_format_domain_status_icons():
 
 def test_process_expiry_threshold_dedup(tmp_path, monkeypatch):
     _tmp_db(tmp_path, monkeypatch)
+    monkeypatch.setattr(dw, "_fetch_rdap", lambda *a, **k: (None, False))
+    monkeypatch.setattr(dw, "_fetch_whois", lambda *a, **k: "")
+    monkeypatch.setattr(dw, "_iana_whois_server", lambda *a, **k: None)
     vezdb.create_user(1)
     vezdb.add_domain(1, "company.ru")
     out = Collector()
@@ -433,6 +451,9 @@ def test_process_expiry_not_found_once(tmp_path, monkeypatch):
 
 def test_process_expiry_recovers_after_not_found(tmp_path, monkeypatch):
     _tmp_db(tmp_path, monkeypatch)
+    monkeypatch.setattr(dw, "_fetch_rdap", lambda *a, **k: (None, False))
+    monkeypatch.setattr(dw, "_fetch_whois", lambda *a, **k: "")
+    monkeypatch.setattr(dw, "_iana_whois_server", lambda *a, **k: None)
     out = []
     dw.process_expiry(1, "company.ru", None, lambda cid, t: out.append(t), 12,
                       today=TODAY, status=dw.EXPIRY_NOT_FOUND)

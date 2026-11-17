@@ -140,6 +140,32 @@ def _session_public(s: dict) -> dict:
 
 # ── Страницы и вход ──────────────────────────────────────────────────────────
 
+_STATIC_DIR = Path(__file__).resolve().parents[1] / "static"
+_CACHE_BUST_ASSETS = ("js/zcode_web.js", "css/zcode_web.css")
+_assets_v_cache: str | None = None
+
+
+def _assets_version() -> str:
+    """Хеш содержимого статиков /zcode → ?v= в шаблоне (кеш-бастер).
+
+    По образцу кеш-бастера app.js (PR #147: «мёртвые кнопки» после деплоя —
+    старый JS в кеше браузера). Версия = хеш СОДЕРЖИМОГО файлов, поэтому
+    при каждом деплое с изменением JS/CSS URL статики меняется сам —
+    без ручного обновления даты в шаблоне. Без изменений — кеш живёт.
+    """
+    global _assets_v_cache
+    if _assets_v_cache:
+        return _assets_v_cache
+    digest = hashlib.sha1()
+    for rel in _CACHE_BUST_ASSETS:
+        try:
+            digest.update((_STATIC_DIR / rel).read_bytes())
+        except OSError:
+            pass
+    _assets_v_cache = digest.hexdigest()[:10]
+    return _assets_v_cache
+
+
 @router.get("/robots.txt", include_in_schema=False)
 async def robots_txt() -> Response:
     # ТЗ §2.1: /zcode закрыт от индексации.
@@ -153,8 +179,10 @@ async def zcode_page(request: Request):
         # Фича не настроена: не раскрываем существование маршрута.
         return _no_index(Response("Not Found", status_code=404, media_type="text/plain"))
     if not _is_authed(request):
-        return _no_index(templates.TemplateResponse(request, "zcode_login.html", {"error": ""}))
-    return _no_index(templates.TemplateResponse(request, "zcode.html", {}))
+        return _no_index(templates.TemplateResponse(
+            request, "zcode_login.html", {"error": "", "assets_v": _assets_version()}
+        ))
+    return _no_index(templates.TemplateResponse(request, "zcode.html", {"assets_v": _assets_version()}))
 
 
 @router.post("/zcode/login")

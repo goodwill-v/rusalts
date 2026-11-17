@@ -296,6 +296,13 @@ async def api_revoke_subscription(request: Request):
             )
         db.commit()
 
+    from app.payments import log_admin_action
+    log_admin_action(
+        "revoke", "subscription",
+        f"{customer_id or ''}/{product_id or ''}".strip("/") or str(balance_id),
+        detail=f"balance_id={balance_id}" if balance_id else "по клиенту и продукту",
+        admin_ip=request.client.host if request.client else "",
+    )
     return JSONResponse({"ok": True})
 
 

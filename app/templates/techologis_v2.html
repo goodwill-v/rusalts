@@ -6,6 +6,19 @@
 
 {% block body %}
 <main class="site-main">
+  <!-- Скрытый блок «Управление картами» (требование ЮKassa): появляется
+       только по подписанной ссылке из бота /techologis/?cards=…&exp=…&sig=… -->
+  <section id="cards-manage" class="showcase" style="display:none">
+    <div class="showcase__inner">
+      <div class="panel" style="background:var(--site-surface);border:1px solid var(--site-border);border-radius:12px;padding:1.25rem;max-width:720px;margin:0 auto">
+        <h2 style="margin:0 0 0.5rem;color:var(--site-heading)">💳 Управление картами</h2>
+        <p class="muted-site" style="margin:0 0 1rem">Сохранённые карты для подписок АЛТ. Отвязка прекращает автоплатежи — подписка действует до конца оплаченного периода.</p>
+        <div id="cards-subs" style="margin-bottom:0.75rem"></div>
+        <div id="cards-list">Загрузка…</div>
+        <p class="muted-site" style="margin:0.75rem 0 0;font-size:0.82rem">Ссылка персональная и действует 24 часа. 📄 <a class="link" href="/legal/privacy/" target="_blank" rel="noopener">Правила и возвраты</a> · <a class="link" href="/request/">форма «Заявка — обращение»</a></p>
+      </div>
+    </div>
+  </section>
   <section class="showcase">
     <div class="showcase__inner">
       <h1 class="showcase__title">{{ content_block('showcase', 'title', 'Продукты и услуги АЛТ') }}</h1>
@@ -103,7 +116,7 @@
 
             <h3 class="prod-card__title">{{ p.name }}</h3>
             {% set more_url = p.detail_url or ('/techologis/p/' ~ p.id ~ '/') %}
-            <p class="prod-card__desc">{{ p.description }} <a class="prod-more-link" href="{{ more_url }}">ПОДРОБНЕЕ</a></p>
+            <p class="prod-card__desc">{{ (p.description_short or p.description) | safe }} <a class="prod-more-link" href="{{ more_url }}">ПОДРОБНЕЕ</a></p>
 
             <div class="prod-card__meta">
               {% if p.platform %}
@@ -457,8 +470,8 @@
       <span id="modal-amount"></span>
     </div>
     <div id="modal-customer-field" class="modal__field">
-      <label for="modal-customer">Telegram/МАКС ID (для активации подписки):</label>
-      <input id="modal-customer" type="text" placeholder="напишите боту /pay или введите ID вручную" />
+      <label for="modal-customer">Получите в боте ID. МАКС: /status  Telegram: /id — для активации подписки:</label>
+      <input id="modal-customer" type="text" placeholder="вставьте ID Telegram/МАКС" />
     </div>
     <div class="modal__field">
       <label for="modal-promo">Промокод (если есть):</label>
@@ -582,7 +595,7 @@ async function openPayment(productId, price) {
   const prod = PRODUCTS.find(p => p.id === productId);
   if (!prod) return;
   document.getElementById('modal-title').textContent = prod.name;
-  document.getElementById('modal-desc').textContent = prod.description;
+  document.getElementById('modal-desc').textContent = String(prod.description || '').replace(/<[^>]*>/g, '');
   const periodLabel = (prod.period_days && prod.period_days !== 30) ? '/' + prod.period_days + ' дн.' : (prod.period_days === 30 ? '/мес' : ' / разово');
   document.getElementById('modal-amount').textContent = price + ' ₽' + periodLabel;
   window._payPeriodLabel = periodLabel || '';
@@ -630,7 +643,7 @@ async function startPayment(productId, price) {
   const btn = document.getElementById('modal-pay-btn');
   const cid = document.getElementById('modal-customer').value.trim();
   if (!cid) {
-    document.getElementById('modal-desc').textContent = '❌ Укажите Telegram ID — напишите боту /pay или введите ID вручную';
+    document.getElementById('modal-desc').textContent = '❌ Получите ID в боте: МАКС — /status, Telegram — /id, и вставьте в поле';
     btn.textContent = 'Перейти к оплате';
     btn.disabled = false;
     return;
@@ -705,5 +718,74 @@ document.getElementById("rvs-send")?.addEventListener("click", async () => {
     } else msg.textContent = data.error || "Не удалось отправить";
   } catch (e) { msg.textContent = "Ошибка соединения"; }
 });
+// ─── Управление картами (требование ЮKassa): скрытый блок по ссылке из бота ───
+(() => {
+  const q = new URLSearchParams(location.search);
+  const cid = q.get("cards");
+  const exp = q.get("exp");
+  const sig = q.get("sig");
+  if (!cid || !exp || !sig) return;
+  const section = document.getElementById("cards-manage");
+  const list = document.getElementById("cards-list");
+  if (!section || !list) return;
+  section.style.display = "block";
+  section.scrollIntoView({ behavior: "smooth", block: "start" });
+
+  const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({
+    "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;",
+  }[c]));
+
+  async function load() {
+    try {
+      const r = await fetch(`/api/payment-methods/${encodeURIComponent(cid)}?exp=${encodeURIComponent(exp)}&sig=${encodeURIComponent(sig)}`);
+      const d = await r.json();
+      if (!r.ok || !d.ok) {
+        list.innerHTML = "<p class='muted-site'>Ссылка недействительна или истекла. Запросите новую в боте.</p>";
+        return;
+      }
+      const subsBox = document.getElementById("cards-subs");
+      if (subsBox && Array.isArray(d.subscriptions) && d.subscriptions.length) {
+        subsBox.innerHTML = "<strong>Активные подписки:</strong><br/>" + d.subscriptions.map((sub) => {
+          const mark = sub.status === "active" ? "✅" : (sub.status === "trial" ? "🎁" : "—");
+          return `${mark} ${esc(sub.product_name)} — до ${esc(sub.expires_at || "—")}`;
+        }).join("<br/>");
+      }
+      if (!d.cards.length) {
+        list.innerHTML = "<p class='muted-site'>Сохранённых карт нет — отвязывать нечего.</p>";
+        return;
+      }
+      list.innerHTML = d.cards.map((c, i) => `
+        <div style="display:flex;align-items:center;gap:0.75rem;padding:0.6rem 0;border-bottom:1px solid var(--site-border)">
+          <span style="flex:1">💳 <strong>${esc(c.label)}</strong> · продукт <code>${esc(c.product_id)}</code> · с ${esc(c.saved_at)}</span>
+          <button data-unlink="${i}" style="font:inherit;font-size:0.88rem;padding:0.4rem 0.9rem;border-radius:8px;border:1px solid #dc2626;background:#fff;color:#dc2626;cursor:pointer">Отвязать</button>
+        </div>`).join("");
+      list.querySelectorAll("[data-unlink]").forEach((btn) => {
+        btn.addEventListener("click", async () => {
+          const c = d.cards[+btn.dataset.unlink];
+          if (!confirm(`Отвязать карту ${c.label} (продукт «${c.product_id}»)? Автоплатежи прекратятся.`)) return;
+          btn.disabled = true;
+          btn.textContent = "Отвязываю…";
+          try {
+            const r2 = await fetch("/api/payment-method/delete", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ customer_id: cid, product_id: c.product_id, exp, sig }),
+            });
+            const d2 = await r2.json();
+            if (r2.ok && d2.ok) {
+              await load();
+            } else {
+              btn.textContent = "Ошибка";
+              list.insertAdjacentHTML("beforeend", `<p class='muted-site'>Не удалось отвязать: ${esc(d2.error || "попробуйте позже")}</p>`);
+            }
+          } catch (e) { btn.textContent = "Ошибка сети"; }
+        });
+      });
+    } catch (e) {
+      list.innerHTML = "<p class='muted-site'>Ошибка соединения. Попробуйте позже.</p>";
+    }
+  }
+  load();
+})();
 </script>
 {% endblock %}

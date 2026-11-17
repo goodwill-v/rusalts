@@ -1,0 +1,94 @@
+{% extends "base.html" %}
+{% block extra_head %}
+<style>
+  .laws { max-width: 980px; margin: 0 auto; padding: 2rem 1rem 4rem; }
+  .laws h1 { font-size: 2rem; color: var(--site-heading); margin: 0 0 0.5rem; }
+  .laws .lead { font-size: 1.08rem; line-height: 1.6; color: var(--site-text); margin: 0 0 1.75rem; white-space: pre-line; }
+  .law-grid { display: grid; gap: 1rem; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); }
+  .law-card { background: var(--site-surface); border: 1px solid var(--site-border); border-radius: 12px; padding: 1.15rem 1.25rem; }
+  .law-card h2 { font-size: 1.08rem; color: var(--site-heading); margin: 0 0 0.5rem; }
+  .law-card p { margin: 0 0 0.6rem; line-height: 1.5; color: var(--site-text); white-space: pre-line; }
+  .law-card .more { font-size: 0.9rem; }
+  .laws h2.sec { font-size: 1.35rem; color: var(--site-heading); margin: 2rem 0 0.6rem; }
+  .laws .sec-body { line-height: 1.6; color: var(--site-text); white-space: pre-line; }
+  .laws .sec-body ul { margin: 0.4rem 0 0; padding-left: 1.3rem; }
+  .laws .sec-body li { margin-bottom: 0.4rem; white-space: normal; }
+  .laws .disclaimer { margin-top: 2rem; padding: 0.9rem 1.1rem; border-left: 4px solid #d9a13c; background: rgba(217,161,60,0.08); border-radius: 8px; font-size: 0.9rem; color: var(--site-text); }
+  .law-cta { margin-top: 2rem; background: linear-gradient(45deg, rgba(46,204,143,0.10), rgba(26,92,138,0.10)); border: 1px solid var(--site-border); border-radius: 12px; padding: 1.3rem 1.4rem; }
+  .law-cta h2 { margin: 0 0 0.4rem; font-size: 1.25rem; color: var(--site-heading); }
+  .law-cta p { margin: 0 0 0.9rem; color: var(--site-text); }
+  .law-cta a.btn { display: inline-block; background: var(--site-accent, #1a5c8a); color: #fff; padding: 0.7rem 1.4rem; border-radius: 8px; text-decoration: none; font-weight: 600; }
+</style>
+{% endblock %}
+{% block body %}
+{% set L = {
+  'lead': 'Соответствие 152-ФЗ, 168-ФЗ и 149-ФЗ — без штрафов и блокировок. Разбираем требования к сайтам, интерфейсам и работе с данными.',
+  'law152_title': '152-ФЗ «О персональных данных»',
+  'law152_text': 'Требования к сбору, хранению и обработке ПДн; права субъекта; уведомление РКН; штрафы за нарушения.',
+  'law152_link': '/legal/privacy/',
+  'law168_title': '168-ФЗ о государственном языке',
+  'law168_text': 'Требования к русскому языку в интерфейсах, наименованиях и рекламе.',
+  'law149_title': '149-ФЗ «Об информации…»',
+  'law149_text': 'Базовые правила распространения информации, доступа к сервисам и ответственности.',
+  'rkn_title': 'Роскомнадзор: уведомления и проверки',
+  'rkn_text': 'Уведомление о начале обработки ПДн, готовность к проверке, реестры и блокировки.',
+  'ai_title': 'Регулирование ИИ и цифровых сервисов',
+  'ai_text': 'Обзор требований к ИИ-сервисам: что уже действует и к чему готовиться.',
+  'topics_title': 'Что мы разбираем',
+  'samples_title': 'Образцы документов',
+  'sources_title': 'Официальные источники',
+  'cta_title': 'Проверить мой сайт на соответствие',
+  'cta_text': 'Разберём, что нужно исправить именно на вашем сайте.',
+  'cta_btn_text': 'Заказать правовой аудит',
+  'cta_btn_url': '/request/',
+} %}
+<main class="laws">
+  <h1>{{ content_block('laws', 'h1', 'Правовая база') }}</h1>
+  <p class="lead">{{ content_block('laws', 'lead', L['lead']) }}</p>
+
+  <div class="law-grid">
+    {% for key in ['law152', 'law168', 'law149', 'rkn', 'ai'] %}
+    <div class="law-card">
+      <h2>{{ content_block('laws', key ~ '_title', L[key ~ '_title']) }}</h2>
+      <p>{{ content_block('laws', key ~ '_text', L[key ~ '_text']) }}</p>
+      {% if L[key ~ '_link'] %}<a class="more link" href="{{ L[key ~ '_link'] }}">подробнее →</a>{% endif %}
+    </div>
+    {% endfor %}
+  </div>
+
+  <h2 class="sec">{{ content_block('laws', 'topics_title', L['topics_title']) }}</h2>
+  <div class="sec-body">
+    <ul>
+      <li>Какие данные собирает ваш сайт и что об этом должно быть написано</li>
+      <li>Уведомление в РКН — пошагово</li>
+      <li>Cookie-баннер: когда обязателен</li>
+      <li>Русский язык в интерфейсе: что проверяет надзор</li>
+      <li>Готовность ИИ-сервиса к новым требованиям</li>
+    </ul>
+  </div>
+
+  <h2 class="sec">{{ content_block('laws', 'samples_title', L['samples_title']) }}</h2>
+  <div class="sec-body">
+    Шаблоны (на юрпроверку) и наши готовые страницы:
+    <a class="link" href="/legal/privacy/">Политика ПДн</a>,
+    <a class="link" href="/legal/cookies/">Cookies</a>,
+    <a class="link" href="/legal/consent/">Согласие на обработку</a>,
+    <a class="link" href="/legal/subject-request/">Запрос субъекта</a>.
+    Критические документы — только ссылками на официальные источники.
+  </div>
+
+  <h2 class="sec">{{ content_block('laws', 'sources_title', L['sources_title']) }}</h2>
+  <div class="sec-body">
+    <a class="link" href="http://pravo.gov.ru/" target="_blank" rel="noopener">pravo.gov.ru</a> —
+    официальный интернет-портал правовой информации; портал и реестры Роскомнадзора.
+  </div>
+
+  <div class="law-cta">
+    <h2>{{ content_block('laws', 'cta_title', L['cta_title']) }}</h2>
+    <p>{{ content_block('laws', 'cta_text', L['cta_text']) }}</p>
+    <a class="btn" href="{{ content_block('laws', 'cta_btn_url', L['cta_btn_url']) }}">{{ content_block('laws', 'cta_btn_text', L['cta_btn_text']) }}</a>
+  </div>
+
+  <p class="disclaimer">⚖️ Материалы носят информационно-справочный характер и не являются юридической консультацией. Перед применением шаблонов и рекомендаций адаптируйте их под конкретного оператора и при необходимости сверьтесь с юристом.</p>
+</main>
+{% endblock %}

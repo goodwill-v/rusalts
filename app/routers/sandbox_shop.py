@@ -121,6 +121,21 @@ async def product_generated_page(request: Request, pid: str):
     # Подпись к resource_limit (kupec: слежки «Жду скидку», иначе — ресурсы)
     limit_label = "Слежек" if pid == "kupec" else "Лимит ресурсов"
 
+    # Подпись триала и заголовок опций — по продукту (Купец: 06.11, Шеф)
+    trial_note = (
+        "нажмите — бот включает максимальный тариф «Маркетинг» на 7 дней."
+        if pid == "kupec"
+        else "Нажмите — бот включает максимальный тариф на 7 дней."
+        if pid == "vezhpom"
+        else "нажмите → бот включит триал сам, без оплаты и без ввода ID"
+    )
+    features_title = (
+        "Вы получаете на тарифах"
+        if pid in ("kupec", "vezhpom")
+        else "Что вы получаете"
+    )
+    features_bold_names = pid in ("kupec", "neyrosotrudnik", "vezhpom")
+
     return templates.TemplateResponse(
         request,
         "product_detail.html",
@@ -136,6 +151,9 @@ async def product_generated_page(request: Request, pid: str):
             "limit_label": limit_label,
             "category_label": "услуга" if prod.get("category") == "service" else "продукт",
             "buyable": buyable,
+            "trial_note": trial_note,
+            "features_title": features_title,
+            "features_bold_names": features_bold_names,
         },
     )
 
@@ -353,54 +371,75 @@ async def payment_webhook(request: Request):
 
     if event_type == "payment.succeeded":
         payment_id = payment_obj.get("id", "")
-        # Перепроверяем фактический статус в ЮKassa (sandbox запрос = заглушка)
+        # Перепроверяем фактический статус в ЮKassa (sandbox запрос = заглушка;
+        # уведомления не подписаны — доверяем только перезапросу)
         try:
             real = await get_payment(payment_id)
         except Exception:
             real = payment_obj  # API недоступен — доверяем событию
         if real.get("status") != "succeeded":
             return JSONResponse({"ok": True})  # событие не подтвердилось — игнорируем
-
-        pm_id = (payment_obj.get("payment_method") or {}).get("id", "") or \
-            (real.get("payment_method") or {}).get("id", "")
-        update_payment_status(payment_id, "succeeded", payment_method_id=pm_id)
-        # Get stored payment record and activate subscription
-        rec = get_payment_record(payment_id)
-        if rec and rec["customer_id"] and rec["product_id"]:
-            # План из платежа (ТЗ tarify v2): allowance/period бёрём из плана, если есть
-            plan = (rec.get("plan") or "").strip()
-            allowance = None
-            period_days = None
-            if plan:
-                from app.tariffs_store import list_plans
-                pl = next((x for x in list_plans(rec["product_id"]) if x["plan"] == plan), None)
-                if pl:
-                    allowance = pl["resource_limit"] * 100_000 if pl["resource_limit"] else None
-                    period_days = pl["period_days"]
-            tariff = TARIFFS.get(rec["product_id"])
-            if tariff:
-                get_or_create_balance(
-                    customer_id=rec["customer_id"],
-                    product_id=rec["product_id"],
-                    allowance_tokens=allowance if allowance else tariff.token_allowance,
-                    period_days=period_days or tariff.period_days,
-                )
-            # План подписки — в subscriptions (ТЗ Купец v2 §7): /api/subscription
-            # отдаёт план ботам. Раньше таблица не писалась и гейтинг фолбэчил
-            # всех платных на первый план.
-            from app.payments import activate_subscription
-            try:
-                activate_subscription(
-                    rec["id"], rec["product_id"], str(rec.get("customer_email") or ""),
-                    pm_id,
-                    period_days=period_days or (tariff.period_days if tariff else 30),
-                    plan=plan,
-                    customer_id=rec["customer_id"],
-                )
-            except Exception:
-                pass
+        await process_succeeded_payment(payment_id, real)
 
     return JSONResponse({"ok": True})
+
+
+async def process_succeeded_payment(payment_id: str, real: dict) -> dict:
+    """Платёж подтверждён как succeeded: обновить запись, мету карты и
+    активировать подписку/баланс. Общий путь вебхука и реконсилиатора
+    (реконсилиатор: когда уведомления ЮKassa не дошли — сами опрашиваем API).
+    """
+    pm_id = (real.get("payment_method") or {}).get("id", "")
+    update_payment_status(payment_id, "succeeded", payment_method_id=pm_id)
+    # Мета карты (brand/last4) — блок «управление картами» (ЮKassa, 09.11)
+    card = (real.get("payment_method") or {}).get("card") or {}
+    if card:
+        try:
+            from app.payments import update_payment_card_meta
+            update_payment_card_meta(
+                payment_id, str(card.get("card_type") or ""), str(card.get("last4") or "")
+            )
+        except Exception:
+            pass
+
+    # Активация подписки: баланс + запись в subscriptions (план для ботов)
+    rec = get_payment_record(payment_id)
+    activated = False
+    if rec and rec["customer_id"] and rec["product_id"]:
+        # План из платежа (ТЗ tarify v2): allowance/period бёрём из плана, если есть
+        plan = (rec.get("plan") or "").strip()
+        allowance = None
+        period_days = None
+        if plan:
+            from app.tariffs_store import list_plans
+            pl = next((x for x in list_plans(rec["product_id"]) if x["plan"] == plan), None)
+            if pl:
+                allowance = pl["resource_limit"] * 100_000 if pl["resource_limit"] else None
+                period_days = pl["period_days"]
+        tariff = TARIFFS.get(rec["product_id"])
+        if tariff:
+            get_or_create_balance(
+                customer_id=rec["customer_id"],
+                product_id=rec["product_id"],
+                allowance_tokens=allowance if allowance else tariff.token_allowance,
+                period_days=period_days or tariff.period_days,
+            )
+        # План подписки — в subscriptions (ТЗ Купец v2 §7): /api/subscription
+        # отдаёт план ботам. Раньше таблица не писалась и гейтинг фолбэчил
+        # всех платных на первый план.
+        from app.payments import activate_subscription
+        try:
+            activate_subscription(
+                rec["id"], rec["product_id"], str(rec.get("customer_email") or ""),
+                pm_id,
+                period_days=period_days or (tariff.period_days if tariff else 30),
+                plan=plan,
+                customer_id=rec["customer_id"],
+            )
+            activated = True
+        except Exception:
+            pass
+    return {"payment_id": payment_id, "activated": activated}
 
 
 # ---------------------------------------------------------------------------
@@ -596,7 +635,10 @@ async def api_subscription_trial_start(request: Request):
         if not pl:
             return JSONResponse({"error": f"Неизвестный план: {plan_code}"}, status_code=400)
     else:
-        pl = plans[0]
+        # Без явного плана триал = СТАРШИЙ тариф продукта (решение Шефа:
+        # «триал = все опции старшего плана»; для ВежПома — «Бизнес»,
+        # для Купца — «Маркетинг»). Веха для гейтинга ВежПом-агента.
+        pl = max(plans, key=lambda x: (x["price_rub"], x["period_days"]))
 
     from app.payments import start_trial_subscription
     res = start_trial_subscription(
@@ -861,10 +903,136 @@ async def api_payment_refund(request: Request):
     return JSONResponse({"ok": True, "status": result.get("status", "pending"), "refund_id": result.get("id", "")})
 
 
+def _cards_sig(customer_id: str, exp: int) -> str:
+    """HMAC-подпись ссылки «управление картами» (секрет — CARDS_LINK_SECRET)."""
+    import hashlib
+    import hmac as _hmac
+
+    key = (config.CARDS_LINK_SECRET or "alt-cards").encode()
+    return _hmac.new(key, f"{customer_id}:{exp}".encode(), hashlib.sha256).hexdigest()
+
+
+def _check_cards_sig(customer_id: str, exp, sig) -> bool:
+    """Валидная подпись и не истёкший срок (24 ч от генерации)."""
+    try:
+        exp_i = int(exp)
+    except (TypeError, ValueError):
+        return False
+    import time
+
+    if exp_i < time.time() - 60:  # минута на расхождение часов
+        return False
+    import hmac as _hmac
+
+    return _hmac.compare_digest(_cards_sig(customer_id, exp_i), str(sig or ""))
+
+
+def _has_api_key(request: Request) -> bool:
+    from app.config import VITRINA_API_KEYS
+
+    key = (request.headers.get("X-API-Key") or "").strip()
+    return bool(key) and key in VITRINA_API_KEYS
+
+
+@router.get("/api/cards-link")
+async def api_cards_link(request: Request, customer_id: str = ""):
+    """Подписанная ссылка «управление картами» для ботов (требование ЮKassa).
+
+    Auth: X-API-Key (секрет ссылки наружу не выдаётся). Ссылка живёт 24 ч:
+    /techologis/?cards=<cid>&exp=<ts>&sig=<hmac>
+    """
+    if not _has_api_key(request):
+        return JSONResponse({"error": "unauthorized"}, status_code=401)
+    cid = (customer_id or "").strip()
+    if not cid:
+        return JSONResponse({"error": "customer_id is required"}, status_code=400)
+    import time as _time
+
+    exp = int(_time.time()) + 86400
+    sig = _cards_sig(cid, exp)
+    base = config.PUBLIC_BASE_URL.rstrip("/")
+    return JSONResponse({
+        "ok": True,
+        "url": f"{base}/techologis/?cards={cid}&exp={exp}&sig={sig}",
+        "expires_at": exp,
+    })
+
+
+@router.get("/api/payment-methods/{customer_id}")
+async def api_payment_methods(customer_id: str, exp: str = "", sig: str = ""):
+    """Список сохранённых карт клиента (для скрытого блока на витрине).
+
+    Требуется валидная подпись (exp+sig из ссылки бота). Отвязка —
+    POST /api/payment-method/delete с теми же exp/sig.
+    """
+    cid = (customer_id or "").strip()
+    if not cid or not _check_cards_sig(cid, exp, sig):
+        return JSONResponse({"error": "link expired or invalid"}, status_code=403)
+
+    from contextlib import closing
+    from app.payments import _connect as _pay_conn
+
+    with closing(_pay_conn()) as db:
+        rows = db.execute(
+            """SELECT product_id, payment_method_id, pm_brand, pm_last4,
+                      MIN(created_at) AS saved_at
+               FROM payments
+               WHERE customer_id = ? AND payment_method_id != ''
+               GROUP BY product_id, payment_method_id
+               ORDER BY saved_at DESC""",
+            (cid,),
+        ).fetchall()
+
+    cards = []
+    for r in rows:
+        last4 = r["pm_last4"] or ""
+        brand = (r["pm_brand"] or "").capitalize() or "Карта"
+        cards.append({
+            "product_id": r["product_id"],
+            "label": f"{brand} ••{last4}" if last4 else "Сохранённая карта",
+            "saved_at": (r["saved_at"] or "")[:10],
+            "exp": exp,
+            "sig": sig,
+        })
+
+    # Подписки клиента (ТЗ Алика 10.11 §1.2): последняя запись по продукту
+    with closing(_pay_conn()) as db:
+        srows = db.execute(
+            """SELECT product_id, status, plan, expires_at
+               FROM subscriptions s
+               WHERE customer_id = ?
+                 AND id = (SELECT MAX(id) FROM subscriptions s2
+                           WHERE s2.customer_id = s.customer_id
+                             AND s2.product_id = s.product_id)
+               ORDER BY expires_at DESC""",
+            (cid,),
+        ).fetchall()
+    from app.products_store import catalog
+
+    names = {p["id"]: p["name"] for p in catalog()}
+    subscriptions = []
+    for r in srows:
+        subscriptions.append({
+            "product_id": r["product_id"],
+            "product_name": names.get(r["product_id"], r["product_id"]),
+            "status": r["status"],
+            "plan": r["plan"] or "",
+            "expires_at": (r["expires_at"] or "")[:10],
+        })
+
+    return JSONResponse({
+        "ok": True,
+        "customer_id": cid,
+        "cards": cards,
+        "subscriptions": subscriptions,
+    })
+
+
 @router.post("/api/payment-method/delete")
 async def api_payment_method_delete(request: Request):
     """Отвязать сохранённую карту клиента по продукту.
-    Тело: {customer_id, product_id}."""
+    Тело: {customer_id, product_id, exp?, sig?}.
+    Auth: X-API-Key (боты) ИЛИ валидная подпись ссылки (блок на витрине)."""
     try:
         data = await request.json()
     except Exception:
@@ -875,18 +1043,32 @@ async def api_payment_method_delete(request: Request):
     if not customer_id or not product_id:
         return JSONResponse({"error": "customer_id and product_id are required"}, status_code=400)
 
+    if not _has_api_key(request) and not _check_cards_sig(customer_id, data.get("exp"), data.get("sig")):
+        return JSONResponse({"error": "unauthorized"}, status_code=403)
+
     pm_id = get_payment_method_id(customer_id, product_id)
     if not pm_id:
         return JSONResponse({"ok": True, "removed": False})  # карты и так нет
+
+    # Мета карты для журнала (до отвязки)
+    from contextlib import closing
+    from app.payments import _connect as _pay_conn
+
+    _label = ""
+    with closing(_pay_conn()) as db:
+        row = db.execute(
+            "SELECT pm_brand, pm_last4 FROM payments WHERE customer_id = ? AND product_id = ?"
+            " AND payment_method_id = ? ORDER BY id DESC LIMIT 1",
+            (customer_id, product_id, pm_id),
+        ).fetchone()
+        if row:
+            _label = f"{(row['pm_brand'] or 'карта').capitalize()} ****{row['pm_last4'] or '????'}"
 
     if not config.IS_YOOKASSA_SANDBOX:
         try:
             await delete_payment_method(pm_id)
         except Exception as exc:
             return JSONResponse({"error": str(exc)}, status_code=500)
-
-    from contextlib import closing
-    from app.payments import _connect as _pay_conn
 
     with closing(_pay_conn()) as db:
         db.execute(
@@ -895,4 +1077,10 @@ async def api_payment_method_delete(request: Request):
             (customer_id, product_id, pm_id),
         )
         db.commit()
+
+    from app.payments import log_admin_action
+    log_admin_action(
+        "unbind_card", "payment_method", f"{customer_id}/{product_id}",
+        detail=_label, admin_ip=request.client.host if request.client else "",
+    )
     return JSONResponse({"ok": True, "removed": True})

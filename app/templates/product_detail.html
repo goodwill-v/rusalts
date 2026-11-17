@@ -11,7 +11,7 @@
   }
   .pd h1 { font-size: 1.9rem; color: var(--site-heading); margin: 0 0 0.4rem; }
   .pd__platform { color: var(--site-muted, #6b7280); font-size: 0.95rem; }
-  .pd__desc { font-size: 1.05rem; line-height: 1.6; color: var(--site-text); margin: 0; }
+  .pd__desc { font-size: 1.05rem; line-height: 1.6; color: var(--site-text); margin: 0; white-space: pre-line; }
   .pd__grid { display: grid; gap: 1.25rem; }
   @media (min-width: 760px) { .pd__grid { grid-template-columns: 1.4fr 1fr; } }
   .pd__panel {
@@ -20,7 +20,7 @@
   }
   .pd__panel h2 { font-size: 1.1rem; color: var(--site-heading); margin: 0 0 0.75rem; }
   .pd__features { margin: 0; padding-left: 1.1rem; }
-  .pd__features li { margin-bottom: 0.5rem; line-height: 1.45; color: var(--site-text); }
+  .pd__features li { margin-bottom: 0.5rem; line-height: 1.45; color: var(--site-text); white-space: pre-line; }
   .pd__price { font-size: 2rem; font-weight: 800; color: var(--site-heading); }
   .pd__period { font-size: 0.95rem; color: var(--site-muted, #6b7280); font-weight: 500; }
   .pd__actions { display: flex; flex-direction: column; gap: 0.6rem; margin-top: 1rem; }
@@ -57,14 +57,14 @@
       </div>
     </div>
 
-    <p class="pd__desc">{{ p.description }}</p>
+    <p class="pd__desc">{{ p.description | safe }}</p>
 
     <div class="pd__grid" style="margin-top:1.5rem">
       <div class="pd__panel">
-        <h2>Что вы получаете</h2>
+        <h2>{{ features_title or "Что вы получаете" }}</h2>
         {% if features %}
         <ul class="pd__features">
-          {% for f in features %}<li>{{ f }}</li>{% endfor %}
+          {% for f in features %}<li>{% if features_bold_names and ":" in f and "<" not in f %}<strong>{{ f.split(":", 1)[0] }}:</strong>{{ f.split(":", 1)[1] }}{% else %}{{ f | safe }}{% endif %}</li>{% endfor %}
         </ul>
         {% else %}
         <p class="muted-site">Подробную консультацию по возможностям инструмента проведёт АЛТ-эксперт —
@@ -77,7 +77,7 @@
         <div class="pd__trial-btns">
           <a class="pd__trial-btn" href="{{ trial_bot_url }}" target="_blank" rel="noopener noreferrer"
              title="Откроется бот — триал включится сам при первом сообщении">🎁 {{ p.trial_days }} дней Пробный период</a>
-          <span class="muted-site" style="font-size:0.85rem;align-self:center">нажмите → бот включит триал сам, без оплаты и без ввода ID</span>
+          <span class="muted-site" style="font-size:0.85rem;align-self:center">{{ p.trial_hint or trial_note or "нажмите → бот включит триал сам, без оплаты и без ввода ID" }}</span>
         </div>
         {% else %}
         <p class="muted-site" style="margin:0 0 0.5rem">Пробный период {{ p.trial_days }} дней включается менеджером —
@@ -88,7 +88,13 @@
 
       <div class="pd__panel">
         <h2>Стоимость</h2>
-        {% if p.status == "free" or p.price_rub == 0 %}
+        {% if p.status == "inquiry" %}
+        <div class="pd__price">—</div>
+        <div class="pd__period">Стоимость — по запросу</div>
+        <div class="pd__actions">
+          <a class="btn-buy btn-buy--secondary btn-buy--large" href="/#contacts">Запросить →</a>
+        </div>
+        {% elif p.status == "free" or p.price_rub == 0 %}
         <div class="pd__price">0 ₽</div>
         <div class="pd__period">доступен без подписки</div>
         <div class="pd__actions">
@@ -145,11 +151,11 @@
   <div class="modal__content">
     <button class="modal__close" onclick="closeModal()">✕</button>
     <h2 id="modal-title">{{ p.name }}</h2>
-    <p id="modal-desc">{{ p.description }}</p>
+    <p id="modal-desc">{{ p.description | striptags }}</p>
     <div class="modal__price"><span id="modal-amount">{{ p.price_rub }} ₽</span></div>
     <div id="modal-customer-field" class="modal__field">
-      <label for="modal-customer">Telegram/МАКС ID (для активации подписки):</label>
-      <input id="modal-customer" type="text" placeholder="напишите боту /pay или введите ID вручную" />
+      <label for="modal-customer">Получите в боте ID. МАКС: /status  Telegram: /id — для активации подписки:</label>
+      <input id="modal-customer" type="text" placeholder="вставьте ID Telegram/МАКС" />
       <div id="modal-id-hint" class="modal__id-hint">
         {% if p.max_url or p.tg_url or p.bot_url %}
         Не знаете свой ID? Откройте бота и напишите <b>/status</b> или <b>/id</b> — он покажет ID и тариф.
@@ -159,6 +165,11 @@
         ID — номер из вашего мессенджера, где подключён продукт (подскажет менеджер или бот продукта).
         {% endif %}
       </div>
+    </div>
+    <div class="modal__field">
+      <label for="modal-promo">Промокод (если есть):</label>
+      <input id="modal-promo" type="text" placeholder="например, ALTAUTUMN" style="text-transform:uppercase" />
+      <span id="modal-promo-status" class="pd__period" style="font-size:0.82rem"></span>
     </div>
     <p class="modal__methods">💳 Карта · 📱 СБП · 🔒 ЮKassa</p>
     <button id="modal-pay-btn" class="btn-buy btn-buy--large">Перейти к оплате</button>
@@ -188,6 +199,8 @@ document.querySelectorAll(".btn-buy[data-product]").forEach((btn) => {
     if (!prod) return;
     document.getElementById("modal-amount").textContent = btn.dataset.price + " ₽";
     window.__currentPlan = "";
+    window.__curProductId = prod.id;
+    window.__resetPromo && window.__resetPromo();
     document.getElementById("modal-pay-btn").onclick = () => startPayment(prod.id, parseInt(btn.dataset.price), "");
     document.getElementById("payment-modal").style.display = "flex";
   });
@@ -202,16 +215,44 @@ document.querySelectorAll("[data-plan]").forEach((btn) => {
     document.getElementById("modal-desc").textContent = "Тарифный план. " + (document.querySelector(".pd__desc")?.textContent || "").slice(0, 140);
     document.getElementById("modal-amount").textContent = price + " ₽";
     window.__currentPlan = plan;
+    window.__curProductId = "{{ p.id }}";
+    window.__resetPromo && window.__resetPromo();
     document.getElementById("modal-pay-btn").onclick = () => startPayment("{{ p.id }}", price, plan);
     document.getElementById("payment-modal").style.display = "flex";
   });
+});
+
+// Промокод: проверка на сервере (скидка считается только там)
+const promoInput = document.getElementById("modal-promo");
+const promoStatus = document.getElementById("modal-promo-status");
+window.__resetPromo = () => { promoInput.value = ""; promoStatus.textContent = ""; window.__promoFinal = null; };
+promoInput.addEventListener("change", async () => {
+  const code = promoInput.value.trim();
+  const pid = window.__curProductId || "{{ p.id }}";
+  if (!code) { promoStatus.textContent = ""; window.__promoFinal = null; return; }
+  promoStatus.textContent = "Проверяем…";
+  try {
+    const r = await fetch("/api/promo/validate", {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ product_id: pid, promo_code: code }),
+    });
+    const d = await r.json();
+    if (d.final_rub !== undefined) {
+      window.__promoFinal = d;
+      promoStatus.textContent = "✓ Скидка " + d.discount_rub + " ₽ — к оплате " + d.final_rub + " ₽";
+      document.getElementById("modal-amount").textContent = d.final_rub + " ₽";
+    } else {
+      window.__promoFinal = null;
+      promoStatus.textContent = "✗ " + (d.error || "Промокод недействителен");
+    }
+  } catch (e) { window.__promoFinal = null; promoStatus.textContent = "Ошибка проверки"; }
 });
 
 async function startPayment(productId, price, plan) {
   const btn = document.getElementById("modal-pay-btn");
   const cid = document.getElementById("modal-customer").value.trim();
   if (!cid) {
-    document.getElementById("modal-desc").textContent = "❌ Укажите Telegram ID — напишите боту /pay или введите ID вручную";
+    document.getElementById("modal-desc").textContent = "❌ Получите ID в боте: МАКС — /status, Telegram — /id, и вставьте в поле";
     return;
   }
   btn.textContent = "⏳ Подготовка...";
@@ -221,6 +262,7 @@ async function startPayment(productId, price, plan) {
       method: "POST", headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         product_id: productId, amount_rub: price, customer_id: cid, plan: plan || "",
+        promo_code: promoInput.value.trim(),
         return_url: PAY_BASE.replace(/\/+$/, "") + "/techologis/?payment=success",
       }),
     });

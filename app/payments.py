@@ -40,14 +40,28 @@ PRODUCTS: dict[str, dict[str, Any]] = {
     "neyrosotrudnik": {
         "id": "neyrosotrudnik",
         "name": "НейроСотрудник — ИИ-ассистент",
-        "description": "ИИ-ассистент на GigaChat (Сбер) с индивидуальными настройками. Отвечает на вопросы, помогает с текстами и рутиной.",
+        # Контент синхронизирован с продом 15.11 (правка Шефа 09.11, §3 реестра)
+        "description": (
+            "<b>НейроСотрудник</b> — ИИ-ассистент в вашем мессенджере МАКС: отвечает клиентам, "
+            "ведёт диалоги и берёт рутину на себя.\n\n"
+            "<b>Три режима работы:</b>\n"
+            "• <b>GigaChat</b> — быстрые ответы на вопросы клиентов 24/7\n"
+            "• <b>Мультиагентный OpenClaw</b> — сложные многошаговые задачи и сценарии\n"
+            "• <b>Анализ документов (RAG)</b> — загружаете свои файлы, ассистент отвечает по ним\n\n"
+            "<b>Что это даёт:</b> клиенты получают мгновенные ответы, а вы — освобождаете время команды.\n"
+            "Настроим индивидуальное решение под ваш бизнес."
+        ),
+        "description_short": (
+            "ИИ-ассистент в МАКС: отвечает клиентам 24/7. Три режима — <b>GigaChat</b>, "
+            "мультиагентный <b>OpenClaw</b>, анализ документов (<b>RAG</b>). Настроим под ваш бизнес."
+        ),
         "price_rub": 500,  # цена от Шефа (Витрина.xlsx)
         "period_days": 30,
-        "trial_days": 14,
+        "trial_days": 7,
         "category": "product",
-        "platform": "MAX (бот)",
-        "bot_url": "https://web.max.ru/428555001",
-        "status": "coming",
+        "platform": "МАКС (бот)",
+        "bot_url": "https://max.ru/id667207863875_bot",
+        "status": "available",
     },
     "alt_expert": {
         "id": "alt_expert",
@@ -203,6 +217,10 @@ def _connect() -> sqlite3.Connection:
     cols = {r[1] for r in db.execute("PRAGMA table_info(payments)").fetchall()}
     if "plan" not in cols:
         db.execute("ALTER TABLE payments ADD COLUMN plan TEXT NOT NULL DEFAULT ''")
+    # Метаданные карты для блока «управление картами» (требование ЮKassa, 09.11)
+    for col in ("pm_brand", "pm_last4"):
+        if col not in cols:
+            db.execute(f"ALTER TABLE payments ADD COLUMN {col} TEXT NOT NULL DEFAULT ''")
     scols = {r[1] for r in db.execute("PRAGMA table_info(subscriptions)").fetchall()}
     if "plan" not in scols:
         db.execute("ALTER TABLE subscriptions ADD COLUMN plan TEXT NOT NULL DEFAULT ''")
@@ -243,6 +261,32 @@ def update_payment_status(yookassa_id: str, status: str, payment_method_id: str 
         sql = f"UPDATE payments SET status = ?, updated_at = datetime('now'){extra} WHERE yookassa_id = ?"
         db.execute(sql, params)
         db.commit()
+
+
+def update_payment_card_meta(yookassa_id: str, brand: str, last4: str) -> None:
+    """Запомнить brand/last4 карты из вебхука — для списка карт клиента."""
+    with closing(_connect()) as db:
+        db.execute(
+            "UPDATE payments SET pm_brand = ?, pm_last4 = ? WHERE yookassa_id = ?",
+            (brand, last4, yookassa_id),
+        )
+        db.commit()
+
+
+def list_stale_pending(hours: int = 48) -> list[dict[str, Any]]:
+    """Pending-платежи за последние часы (реконсилиатор: сверка с ЮKassa,
+    когда уведомления не дошли). Sandbox-платежи исключены."""
+    since = (datetime.now(timezone.utc) - timedelta(hours=hours)).isoformat()
+    with closing(_connect()) as db:
+        rows = db.execute(
+            """SELECT id, yookassa_id, customer_id, product_id, created_at
+               FROM payments
+               WHERE status = 'pending' AND yookassa_id NOT LIKE 'sandbox-%'
+                 AND created_at >= ?
+               ORDER BY id""",
+            (since,),
+        ).fetchall()
+    return [dict(r) for r in rows]
 
 
 async def create_recurring_payment(
@@ -516,3 +560,47 @@ def verify_webhook_signature(
         hashlib.sha256,
     ).hexdigest()
     return hmac.compare_digest(expected, signature)
+
+# ─── Audit log финансовых действий (ТЗ Алика 10.11 §3) ────────────────────
+
+def _audit_connect() -> sqlite3.Connection:
+    db = sqlite3.connect(str(config.DATA_DIR / "payments.db"))
+    db.row_factory = sqlite3.Row
+    db.execute(
+        """CREATE TABLE IF NOT EXISTS admin_audit_log (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            action TEXT NOT NULL,
+            target_type TEXT NOT NULL,
+            target_id TEXT NOT NULL,
+            detail TEXT DEFAULT '',
+            admin_ip TEXT DEFAULT '',
+            created_at TEXT NOT NULL DEFAULT (datetime('now'))
+        )"""
+    )
+    return db
+
+
+def log_admin_action(action: str, target_type: str, target_id: str,
+                     detail: str = "", admin_ip: str = "") -> None:
+    """Журнал финансовых действий (unbind_card / grant_trial / revoke /
+    refund_marked). Никогда не ломает основной сценарий."""
+    try:
+        with closing(_audit_connect()) as db:
+            db.execute(
+                "INSERT INTO admin_audit_log (action, target_type, target_id, detail, admin_ip)"
+                " VALUES (?, ?, ?, ?, ?)",
+                (action, target_type, target_id, detail, admin_ip),
+            )
+            db.commit()
+    except Exception:
+        pass
+
+
+def list_audit_log(limit: int = 50) -> list[dict[str, Any]]:
+    with closing(_audit_connect()) as db:
+        rows = db.execute(
+            "SELECT id, action, target_type, target_id, detail, admin_ip, created_at"
+            " FROM admin_audit_log ORDER BY id DESC LIMIT ?",
+            (int(limit),),
+        ).fetchall()
+    return [dict(r) for r in rows]

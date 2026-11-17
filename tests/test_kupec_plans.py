@@ -134,11 +134,13 @@ def test_trial_start_and_subscription_flag(client) -> None:
     assert r4.status_code == 404
 
 
-def test_trial_default_plan_is_first(client) -> None:
+def test_trial_default_plan_is_senior(client) -> None:
+    """Триал = все опции старшего плана (решение Шефа): без явного плана
+    триал подключает план с максимальной ценой (Купец → «Маркетинг»)."""
     r = client.post("/api/subscription/trial/start",
                     json={"customer_id": "777", "product_id": "kupec"})
     assert r.status_code == 200
-    assert r.json()["plan"] == "base"  # первый по position
+    assert r.json()["plan"] == "marketing"  # старший по цене
 
 
 def test_webhook_persists_plan(client, monkeypatch) -> None:
