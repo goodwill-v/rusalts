@@ -1009,15 +1009,28 @@ $("#clear-queue-btn").addEventListener("click", async () => {
 });
 
 // ─── Таб «Контент» (Этап A1) ──────────────────────────────────────────────
-let cbSchema = null, cbValues = null;
+// Правки хранятся в черновике cbDraft[страница][ключ]: переключение между
+// страницами больше НЕ сбрасывает введённое (инцидент 18.11 — правки
+// «Правовой базы» терялись при случайном переключении селекта до «Сохранить»)
+let cbSchema = null, cbValues = null, cbDraft = {};
+
+function cbFieldValue(page, key, def) {
+  const d = cbDraft[page];
+  return d && d[key] !== undefined ? d[key] : ((cbValues[page] || {})[key] ?? def);
+}
+
+function cbDraftHasEdits(page) {
+  const d = cbDraft[page] || {};
+  return Object.keys(d).some((k) => d[k] !== ((cbValues[page] || {})[k] ?? (cbSchema[page] || []).find((f) => f.key === k)?.default ?? ""));
+}
 
 async function loadContentBlocks() {
   const data = await api("/admin/api/content-blocks");
-  cbSchema = data.schema; cbValues = data.values;
+  cbSchema = data.schema; cbValues = data.values; cbDraft = {};
   const sel = $("#cb-page");
   sel.innerHTML = (data.pages || []).map((pg) => `<option value="${esc(pg.id)}">${esc(pg.title)}</option>`).join("");
   renderCbFields();
-  sel.onchange = renderCbFields;
+  sel.onchange = () => { renderCbFields(); cbRefreshMsg($("#cb-page").value); };
 }
 
 function renderCbFields() {
@@ -1027,19 +1040,35 @@ function renderCbFields() {
     <div class="admin-field" style="${f.type === "textarea" ? "grid-column: 1 / -1;" : ""}">
       <label for="cb-${esc(f.key)}">${esc(f.label)}</label>
       ${f.type === "textarea"
-        ? `<textarea id="cb-${esc(f.key)}" rows="2">${esc((cbValues[page] || {})[f.key] ?? f.default)}</textarea>`
-        : `<input id="cb-${esc(f.key)}" value="${esc((cbValues[page] || {})[f.key] ?? f.default)}" />`}
+        ? `<textarea id="cb-${esc(f.key)}" rows="2">${esc(cbFieldValue(page, f.key, f.default))}</textarea>`
+        : `<input id="cb-${esc(f.key)}" value="${esc(cbFieldValue(page, f.key, f.default))}" />`}
     </div>`).join("");
+}
+
+// любой ввод в полях → черновик страницы + индикатор
+$("#cb-fields").addEventListener("input", () => {
+  const page = $("#cb-page").value;
+  if (!page || !cbSchema) return;
+  for (const f of cbSchema[page]) {
+    const el = document.getElementById("cb-" + f.key);
+    if (el) (cbDraft[page] = cbDraft[page] || {})[f.key] = el.value;
+  }
+  cbRefreshMsg(page);
+});
+
+function cbRefreshMsg(page) {
+  setMsg($("#cb-msg"), cbDraftHasEdits(page) ? "✎ Есть несохранённые правки — нажми «💾 Сохранить»" : "", true);
 }
 
 $("#cb-save").addEventListener("click", async () => {
   const page = $("#cb-page").value;
   if (!page) return;
   const blocks = {};
-  for (const f of cbSchema[page] || []) blocks[f.key] = $("#cb-" + f.key).value;
+  for (const f of cbSchema[page] || []) blocks[f.key] = document.getElementById("cb-" + f.key).value;
   try {
     await api("/admin/api/content-blocks", { method: "POST", body: JSON.stringify({ page, blocks }) });
-    setMsg($("#cb-msg"), "Сохранено ✓ (на сайте — после Ctrl+F5)", true);
+    delete cbDraft[page];
+    setMsg($("#cb-msg"), "Сохранено ✓ — на сайте сразу (Ctrl+F5 для проверки)", true);
   } catch (e) { setMsg($("#cb-msg"), "Ошибка: " + e.message, false); }
 });
 
