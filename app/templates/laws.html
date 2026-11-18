@@ -51,37 +51,20 @@
     <div class="law-card">
       <h2>{{ content_block('laws', key ~ '_title', L[key ~ '_title']) }}</h2>
       <p>{{ content_block('laws', key ~ '_text', L[key ~ '_text']) }}</p>
-      {% if L[key ~ '_link'] %}<a class="more link" href="{{ L[key ~ '_link'] }}">подробнее →</a>{% endif %}
+      {% set card_link = content_block('laws', key ~ '_link', L[key ~ '_link'] or '') %}
+      {% if card_link %}<a class="more link" href="{{ card_link }}">подробнее →</a>{% endif %}
     </div>
     {% endfor %}
   </div>
 
   <h2 class="sec">{{ content_block('laws', 'topics_title', L['topics_title']) }}</h2>
-  <div class="sec-body">
-    <ul>
-      <li>Какие данные собирает ваш сайт и что об этом должно быть написано</li>
-      <li>Уведомление в РКН — пошагово</li>
-      <li>Cookie-баннер: когда обязателен</li>
-      <li>Русский язык в интерфейсе: что проверяет надзор</li>
-      <li>Готовность ИИ-сервиса к новым требованиям</li>
-    </ul>
-  </div>
+  <div class="sec-body">{{ content_block('laws', 'topics_text', '<ul><li>Какие данные собирает ваш сайт и что об этом должно быть написано</li><li>Уведомление в РКН — пошагово</li><li>Cookie-баннер: когда обязателен</li><li>Русский язык в интерфейсе: что проверяет надзор</li><li>Готовность ИИ-сервиса к новым требованиям</li></ul>') }}</div>
 
   <h2 class="sec">{{ content_block('laws', 'samples_title', L['samples_title']) }}</h2>
-  <div class="sec-body">
-    Шаблоны (на юрпроверку) и наши готовые страницы:
-    <a class="link" href="/legal/privacy/">Политика ПДн</a>,
-    <a class="link" href="/legal/cookies/">Cookies</a>,
-    <a class="link" href="/legal/consent/">Согласие на обработку</a>,
-    <a class="link" href="/legal/subject-request/">Запрос субъекта</a>.
-    Критические документы — только ссылками на официальные источники.
-  </div>
+  <div class="sec-body">{{ content_block('laws', 'samples_text', 'Шаблоны (на юрпроверку) и наши готовые страницы: <a class="link" href="/legal/privacy/">Политика ПДн</a>, <a class="link" href="/legal/cookies/">Cookies</a>, <a class="link" href="/legal/consent/">Согласие на обработку</a>, <a class="link" href="/legal/subject-request/">Запрос субъекта</a>. Критические документы — только ссылками на официальные источники.') }}</div>
 
   <h2 class="sec">{{ content_block('laws', 'sources_title', L['sources_title']) }}</h2>
-  <div class="sec-body">
-    <a class="link" href="http://pravo.gov.ru/" target="_blank" rel="noopener">pravo.gov.ru</a> —
-    официальный интернет-портал правовой информации; портал и реестры Роскомнадзора.
-  </div>
+  <div class="sec-body">{{ content_block('laws', 'sources_text', '<a class="link" href="http://pravo.gov.ru/" target="_blank" rel="noopener">pravo.gov.ru</a> — официальный интернет-портал правовой информации; портал и реестры Роскомнадзора.') }}</div>
 
   <div class="law-cta">
     <h2>{{ content_block('laws', 'cta_title', L['cta_title']) }}</h2>

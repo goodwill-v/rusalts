@@ -87,3 +87,24 @@ def test_admin_save_changes_laws_page(client) -> None:
 def test_other_pages_unaffected(client) -> None:
     for path in ("/legal/privacy/", "/news/", "/techologis/", "/request/", "/diagnostics/"):
         assert client.get(path).status_code == 200, path
+
+
+def test_laws_sections_render_admin_values(client) -> None:
+    """Регресс 18.11: topics/samples/sources тексты и ссылки карточек —
+    из админки, не захардкожены в шаблоне (Шеф правил — страница стояла)."""
+    r = client.post("/admin/api/content-blocks", headers=AUTH, json={
+        "page": "laws",
+        "blocks": {
+            "samples_text": "Документы Платформы АЛТ: <a href='/legal/privacy/'>Политика ПДн</a>. Шаблоны в АЛТ-эксперт.",
+            "sources_text": "Наш источник: <a href='http://pravo.gov.ru/'>pravo.gov.ru</a>.",
+            "topics_text": "<ul><li>Наша тема из админки</li></ul>",
+            "law168_link": "http://pravo.gov.ru/168fz",
+        },
+    })
+    assert r.status_code == 200, r.text
+    html = client.get("/laws/").text
+    assert "Документы Платформы АЛТ" in html            # текст секции из админки
+    assert "Шаблоны (на юрпроверку)" not in html         # дефолт больше не мешает
+    assert "Наш источник" in html                        # sources тоже
+    assert "Наша тема из админки" in html                # topics тоже
+    assert 'href="http://pravo.gov.ru/168fz"' in html    # ссылка карточки закона из админки
