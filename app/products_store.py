@@ -25,7 +25,7 @@ ALL_STATUSES = VISIBLE_STATUSES | {"draft", "archived"}
 _FIELDS = (
     "id", "name", "description", "description_short", "price_rub", "period_days",
     "trial_days", "category", "platform", "bot_url", "detail_url", "icon", "status",
-    "sort_order", "features", "trial_hint", "max_url", "tg_url", "vk_url", "detail_custom",
+    "sort_order", "features", "trial_hint", "commands_html", "max_url", "tg_url", "vk_url", "detail_custom",
 )
 
 
@@ -50,6 +50,7 @@ def _connect() -> sqlite3.Connection:
             sort_order INTEGER NOT NULL DEFAULT 100,
             features TEXT NOT NULL DEFAULT '',
             trial_hint TEXT,
+            commands_html TEXT NOT NULL DEFAULT '',
             max_url TEXT NOT NULL DEFAULT '',
             tg_url TEXT NOT NULL DEFAULT '',
             vk_url TEXT NOT NULL DEFAULT '',
@@ -63,6 +64,7 @@ def _connect() -> sqlite3.Connection:
         ("description_short", "ALTER TABLE products ADD COLUMN description_short TEXT NOT NULL DEFAULT ''"),
         ("features", "ALTER TABLE products ADD COLUMN features TEXT NOT NULL DEFAULT ''"),
         ("trial_hint", "ALTER TABLE products ADD COLUMN trial_hint TEXT"),
+        ("commands_html", "ALTER TABLE products ADD COLUMN commands_html TEXT NOT NULL DEFAULT ''"),
         ("max_url", "ALTER TABLE products ADD COLUMN max_url TEXT NOT NULL DEFAULT ''"),
         ("tg_url", "ALTER TABLE products ADD COLUMN tg_url TEXT NOT NULL DEFAULT ''"),
         ("vk_url", "ALTER TABLE products ADD COLUMN vk_url TEXT NOT NULL DEFAULT ''"),
@@ -118,6 +120,7 @@ def upsert_product(data: dict[str, Any]) -> dict[str, Any]:
         "status": status,
         "sort_order": int(data.get("sort_order") or 100),
         "features": str(data.get("features") or "").strip(),
+        "commands_html": str(data.get("commands_html") or "").strip(),
         "trial_hint": str(data.get("trial_hint") or "").strip(),
         "max_url": str(data.get("max_url") or "").strip(),
         "tg_url": str(data.get("tg_url") or "").strip(),

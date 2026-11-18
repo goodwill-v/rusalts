@@ -150,6 +150,11 @@
             <textarea id="pf-desc-short" rows="2"></textarea>
             <p class="admin-note">Показывается на карточке витрины. Пустое = используется полное описание.</p>
           </div>
+          <div class="admin-field" style="grid-column: 1 / -1;">
+            <label for="pf-commands">Как пользоваться ботом (HTML) — секция на странице продукта</label>
+            <textarea id="pf-commands" rows="5"></textarea>
+            <p class="admin-note">Команды и что требуется от пользователя. Пустое = стандартный гайд для этого продукта.</p>
+          </div>
           <div class="admin-field">
             <label for="pf-price">Цена, ₽ (0 = бесплатно)</label>
             <input id="pf-price" type="number" min="0" value="0" />
@@ -793,6 +798,7 @@ window.editProduct = (pid) => {
   $("#pf-name").value = p.name || "";
   $("#pf-desc").value = p.description || "";
   $("#pf-desc-short").value = p.description_short || "";
+  $("#pf-commands").value = p.commands_html || "";
   $("#pf-price").value = p.price_rub ?? 0;
   $("#pf-period").value = p.period_days ?? 30;
   $("#pf-trial").value = p.trial_days ?? 0;
@@ -810,7 +816,7 @@ window.editProduct = (pid) => {
 $("#prod-new").addEventListener("click", () => {
   editingId = null;
   $("#prod-form-title").textContent = "Новый товар";
-  ["pf-name","pf-desc","pf-desc-short","pf-icon","pf-platform","pf-bot","pf-detail"].forEach((id) => $("#" + id).value = "");
+  ["pf-name","pf-desc","pf-desc-short","pf-commands","pf-icon","pf-platform","pf-bot","pf-detail"].forEach((id) => $("#" + id).value = "");
   $("#pf-id").value = ""; $("#pf-id").disabled = false;
   $("#pf-price").value = 0; $("#pf-period").value = 30; $("#pf-trial").value = 0;
   $("#pf-category").value = "product"; $("#pf-status").value = "draft"; $("#pf-sort").value = 100;
@@ -824,6 +830,7 @@ $("#pf-save").addEventListener("click", async () => {
     name: $("#pf-name").value,
     description: $("#pf-desc").value,
     description_short: $("#pf-desc-short").value,
+    commands_html: $("#pf-commands").value,
     price_rub: +$("#pf-price").value || 0,
     period_days: +$("#pf-period").value || 0,
     trial_days: +$("#pf-trial").value || 0,

@@ -28,6 +28,13 @@
     font-size: 0.85rem; color: var(--site-muted, #6b7280); margin-top: 0.75rem; line-height: 1.45;
   }
   .pd__trial-btns { display: flex; flex-wrap: wrap; gap: 0.5rem; margin-top: 0.5rem; }
+  .pd__cmds { margin-top: 1.25rem; }
+  .pd__cmds h2 { margin: 0 0 0.6rem; }
+  .pd__cmds .cmd { display: flex; gap: 0.6rem; align-items: baseline; padding: 0.45rem 0; border-bottom: 1px dashed var(--site-border); }
+  .pd__cmds .cmd:last-child { border-bottom: none; }
+  .pd__cmds code { background: rgba(26,92,138,0.08); padding: 0.1rem 0.5rem; border-radius: 6px; font-size: 0.85rem; color: var(--site-primary); white-space: nowrap; }
+  .pd__cmds .cmd-body { color: var(--site-text); line-height: 1.45; font-size: 0.93rem; }
+  .pd__cmds .note { margin: 0.7rem 0 0; font-size: 0.87rem; color: var(--site-muted, #6b7280); }
   .pd__trial-btn {
     display: inline-flex; align-items: center; gap: 0.35rem;
     font: inherit; font-size: 0.9rem; font-weight: 600;
@@ -47,6 +54,40 @@
 {% endblock %}
 
 {% block body %}
+{% set CMDS = {
+'vezhpom': '
+  <div class="cmd"><code>/monitor</code><span class="cmd-body">поставить сайт или сервер под наблюдение — доступность, SSL-сертификат. <b>От вас: адрес сайта</b> — вставьте его в чат после команды.</span></div>
+  <div class="cmd"><code>/domain</code><span class="cmd-body">следить за сроком домена — предупредит за 30, 14, 7 и 1 день. <b>От вас: имя домена</b> (например, company.ru).</span></div>
+  <div class="cmd"><code>/backup</code><span class="cmd-body">контроль резервных копий — пришлёт пульс из скрипта бэкапа. <b>От вас: подключить свой скрипт бэкапа</b> (пришлём инструкцию).</span></div>
+  <div class="cmd"><code>/check</code><span class="cmd-body">состояние всего, что под контролем, прямо сейчас.</span></div>
+  <div class="cmd"><code>/link</code><span class="cmd-body">проверить подозрительную ссылку на фишинг. <b>От вас: сама ссылка</b>.</span></div>
+  <div class="cmd"><code>/scan</code><span class="cmd-body">экспресс-аудит безопасности вашего сайта: TLS, заголовки, опасные порты. <b>От вас: адрес сайта</b>. До 3 проверок в сутки.</span></div>
+  <div class="cmd"><code>/digest</code><span class="cmd-body">«светофор» по всем системам одним сообщением.</span></div>
+  <div class="cmd"><code>/history</code><span class="cmd-body">журнал событий за 30 дней.</span></div>
+  <div class="cmd"><code>/settings</code><span class="cmd-body">включить/выключить ежедневный светофор и еженедельный отчёт.</span></div>
+  <div class="cmd"><code>/status</code><span class="cmd-body">ваш тариф, лимиты и расход.</span></div>
+  <p class="note">Лимит тарифа — число объектов под контролем (сайты/серверы + домены): Мониторинг — 3, Страж — 10, Бизнес — 30. Смена тарифа — на этой странице ниже, отвязка карты — по ссылке из команды /pay.</p>',
+'kupec': '
+  <div class="cmd"><code>напиши, что ищешь</code><span class="cmd-body">обычным текстом: «найди термос до 2000 руб» — поиск по Ozon, Wildberries и Яндекс.Маркету с разбросом цен: где дешевле, средняя, максимум.</span></div>
+  <div class="cmd"><code>/compare</code><span class="cmd-body">сравнить два товара: «сравни iPhone 15 и Galaxy S24» — таблица цен, рейтингов и отзывов, вывод ИИ.</span></div>
+  <div class="cmd"><code>/check</code><span class="cmd-body">проверка товара на подделку: вердикт «клон или чисто», признаки и уверенность. <b>От вас: название или ссылка</b>.</span></div>
+  <div class="cmd"><code>/watch</code><span class="cmd-body">«Жду скидку»: следит за ценой товара и сообщит, когда изменится. <b>От вас: запрос товара</b>. Список слежек — /watches, убрать — /unwatch.</span></div>
+  <div class="cmd"><code>/gift</code><span class="cmd-body">подарочный подбор: «/gift мальчику 10 лет до 3000» — готовая подборка и чем её дополнить.</span></div>
+  <div class="cmd"><code>/report</code><span class="cmd-body">сводка для продавцов: объём ниши, ценовой коридор, топ-карточек, демпинг и клоны. <b>От вас: название ниши</b>. Тариф «Маркетинг».</span></div>
+  <div class="cmd"><code>/id</code><span class="cmd-body">ваш ID для подписки и выдачи доступа.</span></div>
+  <p class="note">Бесплатно — 3 поиска в день. На тарифах — месячные пакеты: Базовый 80, Продвинутый 270, Маркетинг 800 поисков/мес.</p>',
+'neyrosotrudnik': '
+  <div class="cmd"><code>просто напишите</code><span class="cmd-body">любой вопрос в чат МАКС — НейроСотрудник отвечает мгновенно, 24/7. Без команд и меню: общайтесь как с живым помощником.</span></div>
+  <div class="cmd"><code>сложная задача</code><span class="cmd-body">сформулируйте задачу шагами — включится мультиагентный режим (OpenClaw): разберёт задачу на части и соберёт результат.</span></div>
+  <div class="cmd"><code>пришлите документ</code><span class="cmd-body">загрузите свой файл (инструкцию, регламент, прайс) — ассистент будет отвечать по его содержимому, а не «в общем» (технология RAG).</span></div>
+  <p class="note">Ничего устанавливать не нужно — всё работает в привычном МАКСе. Индивидуальный сценарий под ваш бизнес (свои документы, тон ответов, интеграции) — <a class="link" href="/request/">оставьте заявку</a>, настроим.</p>',
+'alt_expert': '
+  <div class="cmd"><code>задайте вопрос в чате</code><span class="cmd-body">на странице <a class="link" href="/consultant">АЛТ-эксперт</a> напишите свой вопрос — ответит по базе знаний платформы: законы, миграция, инструменты, актуальные цены.</span></div>
+  <div class="cmd"><code>прикрепите файл</code><span class="cmd-body">можно приложить документ — эксперт учтёт его содержимое. 🔒 Не прикрепляйте персональные данные третьих лиц.</span></div>
+  <div class="cmd"><code>получите подборку</code><span class="cmd-body">после пары обменов эксперт предложит прислать персональную подборку инструментов — оставьте контакт или заполните форму.</span></div>
+  <div class="cmd"><code>диагностика</code><span class="cmd-body">быстрый путь: <a class="link" href="/diagnostics/">пройдите анкету</a> — получите оценку процессов и рекомендации, а эксперт подберёт решение под результат.</span></div>
+  <p class="note">Эксперт отвечает из официальной базы знаний и называет цены из актуальных тарифов сайта.</p>',
+} %}
 <main class="site-main">
   <div class="pd">
     <div class="pd__hero">
@@ -69,6 +110,14 @@
         {% else %}
         <p class="muted-site">Подробную консультацию по возможностям инструмента проведёт АЛТ-эксперт —
           <a class="link" href="/consultant">задайте вопрос в чате</a>.</p>
+        {% endif %}
+
+        {% set cmd_html = (p.commands_html or "") or CMDS.get(p.id, "") %}
+        {% if cmd_html %}
+        <div class="pd__cmds">
+          <h2>Как пользоваться</h2>
+          {{ cmd_html | safe }}
+        </div>
         {% endif %}
 
         {% if p.trial_days %}
