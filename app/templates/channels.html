@@ -22,8 +22,8 @@
   .ch-cta { margin-top: 2rem; background: var(--site-surface); border: 1px solid var(--site-border); border-radius: 12px; padding: 1.3rem 1.4rem; }
   /* Верх страницы: H1+лид слева, CTA справа на одном уровне.
      Ширина CTA ≈ сумме кнопок шапки, правый край не выходит за кнопку «АЛТ-эксперт» */
-  .ch-top { display: flex; align-items: center; justify-content: space-between; gap: 1.25rem; flex-wrap: wrap; }
-  .ch-top__text { flex: 1 1 auto; min-width: 0; }
+  .ch-top { display: grid; grid-template-columns: minmax(0, 1fr) 420px; align-items: center; gap: 1.25rem; }
+  .ch-top__text { min-width: 0; }
   .ch-top__text h1 { margin-bottom: 0.5rem; }
   .ch-top__text .lead { margin-bottom: 0; }
   .ch-cta--top { margin: 0; flex: 0 0 420px; max-width: 420px; box-sizing: border-box; }
