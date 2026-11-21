@@ -20,8 +20,12 @@
   .cd-block p { margin: 0 0 0.9rem; color: var(--site-text); line-height: 1.55; }
   .cd-block a.btn { display: inline-block; background: var(--site-accent, #1a5c8a); color: #fff; padding: 0.7rem 1.4rem; border-radius: 8px; text-decoration: none; font-weight: 600; }
   .ch-cta { margin-top: 2rem; background: var(--site-surface); border: 1px solid var(--site-border); border-radius: 12px; padding: 1.3rem 1.4rem; }
-  /* CTA в начале страницы: ширина ≈ сумме кнопок шапки, прижат вправо */
-  .ch-cta--top { margin: 0.25rem 0 1.5rem auto; max-width: 440px; }
+  /* Верх страницы: H1+лид слева, CTA справа на одном уровне.
+     Ширина CTA ≈ сумме кнопок шапки, правый край не выходит за кнопку «АЛТ-эксперт» */
+  .ch-top { display: flex; align-items: center; justify-content: space-between; gap: 1.5rem; flex-wrap: wrap; }
+  .ch-top__text h1 { margin-bottom: 0.5rem; }
+  .ch-top__text .lead { margin-bottom: 0; }
+  .ch-cta--top { margin: 0; width: 440px; max-width: 100%; box-sizing: border-box; }
   .ch-cta--top p { margin-bottom: 0.7rem; }
   .ch-cta h2 { margin: 0 0 0.4rem; font-size: 1.25rem; color: var(--site-heading); }
   .ch-cta p { margin: 0 0 0.9rem; color: var(--site-text); }
@@ -31,14 +35,17 @@
 {% block body %}
 {% set dzen_url = content_block('channels', 'dzen_url', '') %}
 <main class="ch">
-  <div class="ch-cta ch-cta--top">
-    <h2>{{ content_block('channels', 'cta_title', 'Нужен бот в вашем канале?') }}</h2>
-    <p>{{ content_block('channels', 'cta_text', 'Расскажем, как перенести общение с клиентами в удобный канал.') }}</p>
-    <a class="btn" href="{{ content_block('channels', 'cta_btn_url', '/request/') }}">{{ content_block('channels', 'cta_btn_text', 'Оставить заявку') }}</a>
+  <div class="ch-top">
+    <div class="ch-top__text">
+      <h1>{{ content_block('channels', 'h1', 'Каналы') }}</h1>
+      <p class="lead">{{ content_block('channels', 'lead', 'Здесь мы живём и разговариваем. Заходите — будет понятно и по-домашнему.') }}</p>
+    </div>
+    <div class="ch-cta ch-cta--top">
+      <h2>{{ content_block('channels', 'cta_title', 'Нужен бот в вашем канале?') }}</h2>
+      <p>{{ content_block('channels', 'cta_text', 'Расскажем, как перенести общение с клиентами в удобный канал.') }}</p>
+      <a class="btn" href="{{ content_block('channels', 'cta_btn_url', '/request/') }}">{{ content_block('channels', 'cta_btn_text', 'Оставить заявку') }}</a>
+    </div>
   </div>
-
-  <h1>{{ content_block('channels', 'h1', 'Каналы') }}</h1>
-  <p class="lead">{{ content_block('channels', 'lead', 'Здесь мы живём и разговариваем. Заходите — будет понятно и по-домашнему.') }}</p>
 
   <h2 class="sec">{{ content_block('channels', 'dir_title', 'Где нас читать') }}</h2>
   {# Скрыты по решению Шефа 20.11 (2–3 ярусы): site/vc/pikabu/wikiclaw —
