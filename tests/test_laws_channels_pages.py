@@ -124,3 +124,23 @@ def test_laws_sections_render_admin_values(client) -> None:
     assert "Наш источник" in html                        # sources тоже
     assert "Наша тема из админки" in html                # topics тоже
     assert 'href="http://pravo.gov.ru/168fz"' in html    # ссылка карточки закона из админки
+
+
+def test_cleared_field_hides_element(client) -> None:
+    """Семантика очистки (Шеф 21.11): сохранил пустую вводную строку —
+    элемент скрывается на сайте, дефолт не возвращается."""
+    client.post("/admin/api/content-blocks", headers=AUTH, json={
+        "page": "channels", "blocks": {"lead": ""},
+    })
+    html = client.get("/channels/").text
+    assert "Здесь мы живём и разговариваем" not in html
+    assert '<p class="lead">' not in html
+
+
+def test_cleared_field_restorable(client) -> None:
+    """Вернул текст в поле — элемент снова на сайте."""
+    client.post("/admin/api/content-blocks", headers=AUTH, json={
+        "page": "channels", "blocks": {"lead": "Снова на связи."},
+    })
+    html = client.get("/channels/").text
+    assert "Снова на связи." in html

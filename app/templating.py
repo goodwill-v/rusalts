@@ -23,4 +23,16 @@ def get_block(page: str, key: str, default: str = "") -> Markup:
 
 
 templates.env.globals["content_block"] = get_block
+
+
+def content_block_opt(page: str, key: str):
+    """Значение блока из БД или None. Пустое поле в админке = элемент скрыт
+    на сайте (семантика «очистил — убрал», решение Шефа 21.11)."""
+    from app.content_blocks import _read_all
+
+    v = _read_all(page).get(key)
+    return Markup(v) if v else None
+
+
+templates.env.globals["content_block_opt"] = content_block_opt
 templates.env.globals["metrika_id"] = config.METRIKA_ID
