@@ -50,7 +50,6 @@ def test_channels_page_renders_without_stub(client) -> None:
     assert r.status_code == 200
     assert "Где нас читать" in r.text
     assert "Новосёлы ЦД" in r.text
-    assert "Здесь мы живём и разговариваем" in r.text   # лид из дефолта
     assert "Очерк Алик" in r.text                        # лента публикаций
 
 

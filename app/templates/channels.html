@@ -39,8 +39,8 @@
   <div class="ch-top">
     <div class="ch-top__text">
       <h1>{{ content_block('channels', 'h1', 'Каналы') }}</h1>
-      {% set lead = content_block_opt('channels', 'lead') or content_block('channels', 'lead', 'Здесь мы живём и разговариваем. Заходите — будет понятно и по-домашнему.') %}
-  {% if lead %}<p class="lead">{{ lead }}</p>{% endif %}
+    {% set lead = content_block_opt('channels', 'lead') %}
+    {% if lead %}<p class="lead">{{ lead }}</p>{% endif %}
     </div>
     <div class="ch-cta ch-cta--top">
       <h2>{{ content_block('channels', 'cta_title', 'Нужен бот в вашем канале?') }}</h2>
