@@ -180,14 +180,16 @@ def _read_all(page: str) -> dict[str, str]:
         rows = db.execute(
             "SELECT key, value FROM site_content WHERE page = ?", (page,)
         ).fetchall()
-    return {r["key"]: r["value"] for r in rows if r["value"] != ""}
+    # Пустая строка — валидное значение («осознанно очищено», решение Шефа
+    # 21.11): такие блоки на сайте скрываются, дефолт не подставляется.
+    return {r["key"]: r["value"] for r in rows}
 
 
 def get_block(page: str, key: str, default: str = "") -> str:
     """Цепочка: БД → site_settings (hero) → дефолт шаблона."""
     stored = _read_all(page).get(key)
-    if stored:
-        return stored
+    if stored is not None:
+        return stored  # может быть '' — осознанная очистка блока
     if page == "index":
         try:
             from app import site_settings
