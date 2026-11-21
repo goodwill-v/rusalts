@@ -615,3 +615,33 @@ async def site_item(publication_id: str) -> PlainTextResponse:
         raise HTTPException(status_code=404, detail="Не найдено") from None
     return PlainTextResponse(text, media_type="text/markdown; charset=utf-8")
 
+
+@router.get("/channels/publications")
+async def channels_publications() -> dict:
+    """Лента «Свежих публикаций» для /channels/ (ТЗ МАКа 21.11).
+
+    Последние 10 (показывать=true), закреплённые сверху (до 3, по дате),
+    далее по дате убыв. Анонс = первые 3 непустые строки полного текста
+    (HTML в строках сохраняется — админский доверенный контент).
+    """
+    import re
+
+    from app.publications_store import list_visible
+
+    def excerpt(body_html: str, lines: int = 3) -> str:
+        chunks = [c for c in body_html.split("\n") if c.strip()]
+        return "\n".join(chunks[:lines])
+
+    items = []
+    for it in list_visible(limit=10):
+        items.append({
+            "id": it["id"],
+            "title": it["title"],
+            "image_url": it["image_url"],
+            "author": it["author"],
+            "published_at": (it["published_at"] or "")[:10],
+            "pinned": it["pinned"],
+            "excerpt": excerpt(it["body_html"]),
+            "body_html": it["body_html"],
+        })
+    return {"ok": True, "items": items}

@@ -27,6 +27,21 @@
   .ch-top__text h1 { margin-bottom: 0.5rem; }
   .ch-top__text .lead { margin-bottom: 0; }
   .ch-cta--top { margin: 0; flex: 0 0 420px; max-width: 420px; box-sizing: border-box; }
+  .pub-feed { display: grid; gap: 1rem; }
+  .pub-card { background: var(--site-surface); border: 1px solid var(--site-border); border-radius: 12px; padding: 1.1rem 1.25rem; cursor: pointer; }
+  .pub-card:hover { border-color: var(--site-accent, #1a5c8a); }
+  .pub-card__meta { font-size: 0.85rem; color: var(--site-muted, #6b7280); margin: 0 0 0.4rem; }
+  .pub-card__title { font-size: 1.15rem; font-weight: 700; color: var(--site-heading); margin: 0 0 0.5rem; }
+  .pub-card__row { display: flex; gap: 1rem; align-items: flex-start; }
+  .pub-card__row img { width: 220px; height: auto; border-radius: 8px; flex-shrink: 0; }
+  .pub-card__excerpt { color: var(--site-text); line-height: 1.5; white-space: pre-line; flex: 1; }
+  .pub-card__read { font-size: 0.9rem; margin-top: 0.5rem; }
+  .pub-full img { max-width: 100%; height: auto; border-radius: 8px; }
+  .pub-pin { background: rgba(46,204,143,0.15); border-radius: 6px; padding: 0.1rem 0.5rem; font-size: 0.8rem; }
+  @media (max-width: 640px) {
+    .pub-card__row { flex-direction: column; }
+    .pub-card__row img { width: 100%; }
+  }
   .ch-cta--top p { margin-bottom: 0.7rem; }
   .ch-cta h2 { margin: 0 0 0.4rem; font-size: 1.25rem; color: var(--site-heading); }
   .ch-cta p { margin: 0 0 0.9rem; color: var(--site-text); }
@@ -85,5 +100,60 @@
   <h2 class="sec">{{ content_block('channels', 'what_title', 'Что мы делаем с каналами') }}</h2>
   <div class="sec-body">{{ content_block('channels', 'what_text', '') }}</div>
 
+  <h2 class="sec" id="publications">{{ content_block('channels', 'pub_title', 'Свежие публикации') }}</h2>
+  <div id="pub-feed" class="pub-feed">Загрузка…</div>
 </main>
+
+<div id="pub-full" class="pub-full ch" style="display:none; max-width: 860px;">
+  <button class="btn" type="button" id="pub-back">← Все публикации</button>
+  <div id="pub-full-body"></div>
+</div>
+
+<script>
+(function () {
+  const feed = document.getElementById("pub-feed");
+  if (!feed) return;
+  const esc = (x) => String(x ?? "").replace(/[&<>"']/g, (c) => ({
+    "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;",
+  }[c]));
+  fetch("/api/content/channels/publications")
+    .then((r) => r.json())
+    .then((d) => {
+      const items = d.items || [];
+      if (!items.length) { feed.innerHTML = "<p class='muted-site'>Публикаций пока нет.</p>"; return; }
+      feed.innerHTML = items.map((it) => `
+        <div class="pub-card" data-id="${it.id}">
+          <p class="pub-card__meta">${it.pinned ? '<span class="pub-pin">📌 закреплено</span> · ' : ""}${esc(it.author ? it.author + " · " : "")}${esc(it.published_at)}</p>
+          <p class="pub-card__title">${esc(it.title)}</p>
+          <div class="pub-card__row">
+            ${it.image_url ? `<img src="${esc(it.image_url)}" alt="${esc(it.title)}" />` : ""}
+            <div class="pub-card__excerpt">${it.excerpt}</div>
+          </div>
+          <div class="pub-card__read">Читать →</div>
+        </div>`).join("");
+      feed.querySelectorAll(".pub-card").forEach((card) => {
+        card.addEventListener("click", () => {
+          const it = items.find((x) => String(x.id) === card.dataset.id);
+          if (!it) return;
+          feed.style.display = "none";
+          const full = document.getElementById("pub-full");
+          full.style.display = "block";
+          document.getElementById("pub-full-body").innerHTML = `
+            <button class="btn" type="button" id="pub-back">← Все публикации</button>
+            <h1 style="font-size:1.7rem">${esc(it.title)}</h1>
+            <p class="pub-card__meta">${esc(it.author ? it.author + " · " : "")}${esc(it.published_at)}</p>
+            ${it.image_url ? `<img src="${esc(it.image_url)}" alt="${esc(it.title)}" style="max-width:100%;border-radius:8px" />` : ""}
+            <div style="line-height:1.65;color:var(--site-text);white-space:pre-line">${it.body_html}</div>
+            <p style="margin-top:1.5rem"><button class="btn" type="button" onclick="document.getElementById('pub-back').click()">← Все публикации</button></p>`;
+          document.getElementById("pub-back").addEventListener("click", () => {
+            full.style.display = "none";
+            feed.style.display = "grid";
+            window.scrollTo({ top: document.getElementById("publications").offsetTop - 90 });
+          });
+          window.scrollTo({ top: 0 });
+        });
+      });
+    });
+})();
+</script>
 {% endblock %}
