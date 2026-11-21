@@ -864,3 +864,55 @@ async def api_finance_mark_refund(request: Request, _user: str = Depends(_requir
         admin_ip=request.client.host if request.client else "",
     )
     return JSONResponse({"ok": True, "payment_id": row["yookassa_id"], "amount": amount})
+
+
+# ─── Публикации «Каналов» (ТЗ МАКа 21.11) ────────────────────────────────
+
+from app.publications_store import (  # noqa: E402
+    MAX_PINNED as _PUB_MAX_PINNED,
+    delete as _pub_delete,
+    get as _pub_get,
+    list_all as _pub_list_all,
+    save as _pub_save,
+    validate as _pub_validate,
+)
+
+
+def _pub_from_form(body: dict) -> dict:
+    return {
+        "title": str(body.get("title") or "").strip(),
+        "body_html": str(body.get("body_html") or "").strip(),
+        "image_url": str(body.get("image_url") or "").strip(),
+        "author": str(body.get("author") or "").strip(),
+        "published_at": str(body.get("published_at") or "").strip(),
+        "pinned": bool(body.get("pinned")),
+        "visible": bool(body.get("visible", True)),
+    }
+
+
+@router.get("/admin/api/publications")
+async def api_publications_list(_user: str = Depends(_require_admin_auth)) -> JSONResponse:
+    return JSONResponse({"ok": True, "items": _pub_list_all(), "max_pinned": _PUB_MAX_PINNED})
+
+
+@router.post("/admin/api/publications")
+async def api_publications_save(request: Request, _user: str = Depends(_require_admin_auth)) -> JSONResponse:
+    try:
+        body = await request.json()
+    except Exception:
+        return JSONResponse({"ok": False, "error": "invalid JSON"}, status_code=400)
+
+    pub_id = body.get("id")
+    data = _pub_from_form(body)
+    err = _pub_validate(data["title"], data["pinned"], exclude_id=pub_id if pub_id else None)
+    if err:
+        return JSONResponse({"ok": False, "error": err}, status_code=400)
+
+    saved_id = _pub_save(data, pub_id=int(pub_id) if pub_id else None)
+    return JSONResponse({"ok": True, "id": saved_id, "item": _pub_get(saved_id)})
+
+
+@router.delete("/admin/api/publications/{pub_id}")
+async def api_publications_delete(pub_id: int, _user: str = Depends(_require_admin_auth)) -> JSONResponse:
+    removed = _pub_delete(pub_id)
+    return JSONResponse({"ok": True, "removed": removed})

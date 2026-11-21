@@ -19,6 +19,7 @@
       <button class="admin-tab-btn" data-tab="diagnostics">📋 Диагностики</button>
       <button class="admin-tab-btn" data-tab="pdn">🔒 ПДн</button>
       <button class="admin-tab-btn" data-tab="expert">💬 Диалоги эксперта</button>
+      <button class="admin-tab-btn" data-tab="publications">📰 Публикации</button>
     </nav>
 
     <!-- ═══ Таб 1: Главная (редакция страницы) ═══ -->
@@ -610,6 +611,55 @@
         </div>
       </div>
     </section>
+
+    <!-- ═══ Таб: Публикации «Каналов» (ТЗ МАКа 21.11) ═══ -->
+    <section id="tab-publications" class="admin-tab-content">
+      <div class="admin-panel">
+        <h2>📰 Публикации «Каналов» — список</h2>
+        <div id="pub-list-wrap"></div>
+        <div class="admin-actions" style="margin-top:0.75rem">
+          <button class="admin-btn admin-btn--action" id="pub-new">＋ Новая публикация</button>
+          <span class="admin-msg" id="pub-list-msg"></span>
+        </div>
+      </div>
+
+      <div class="admin-panel" id="pub-form-panel" hidden>
+        <h2 id="pub-form-title">Новая публикация</h2>
+        <div class="admin-form-grid">
+          <div class="admin-field" style="grid-column: 1 / -1;">
+            <label for="pub-title">Заголовок <span style="color:#dc2626">*</span> (до 100 знаков)</label>
+            <input id="pub-title" maxlength="100" />
+          </div>
+          <div class="admin-field">
+            <label for="pub-author">Автор / рубрика (МАК, Алик, #НЦД…)</label>
+            <input id="pub-author" />
+          </div>
+          <div class="admin-field">
+            <label for="pub-date">Дата публикации</label>
+            <input id="pub-date" type="date" />
+          </div>
+          <div class="admin-field" style="grid-column: 1 / -1;">
+            <label for="pub-image">Картинка шапки — URL (опционально)</label>
+            <input id="pub-image" placeholder="https://…" />
+          </div>
+          <div class="admin-field" style="grid-column: 1 / -1;">
+            <label><input type="checkbox" id="pub-pinned" /> 📌 Закрепить (максимум 3 закреплённых)</label>
+            <label style="margin-left:1.5rem"><input type="checkbox" id="pub-visible" checked /> Показывать на странице</label>
+          </div>
+          <div class="admin-field" style="grid-column: 1 / -1;">
+            <label for="pub-body">Полный текст (HTML; ссылки — &lt;a href&gt;; картинки внутри текста — &lt;img&gt;)</label>
+            <textarea id="pub-body" rows="10"></textarea>
+            <p class="admin-note">Анонс — первые 3 строки текста (каждая строка = Enter). Предпросмотр анонса ниже после ввода.</p>
+            <p class="admin-note" id="pub-preview"></p>
+          </div>
+        </div>
+        <div class="admin-actions">
+          <button class="admin-btn admin-btn--action" id="pub-save">💾 Сохранить публикацию</button>
+          <button class="admin-btn" id="pub-cancel">Отмена</button>
+          <span class="admin-msg" id="pub-form-msg"></span>
+        </div>
+      </div>
+    </section>
   </div>
 </main>
 
@@ -653,7 +703,7 @@ document.querySelectorAll(".admin-tab-btn").forEach((btn) => {
     $("#tab-" + btn.dataset.tab).classList.add("is-active");
     if (!loaded[btn.dataset.tab]) {
       loaded[btn.dataset.tab] = true;
-      const loaders = { products: loadProducts, billing: loadBilling, content: loadContentTab, diagnostics: loadDiagnostics, pagecontent: loadContentBlocks, finance: loadFinance };
+      const loaders = { products: loadProducts, billing: loadBilling, content: loadContentTab, diagnostics: loadDiagnostics, pagecontent: loadContentBlocks, finance: loadFinance, publications: loadPublications };
       if (loaders[btn.dataset.tab]) loaders[btn.dataset.tab]();
       if (btn.dataset.tab === 'products') loadReviews();
       if (btn.dataset.tab === 'billing') { loadPromos(); loadTariffPlans(); }
@@ -765,6 +815,92 @@ $("#frf-submit").addEventListener("click", async () => {
     if (d.ok) { $("#frf-payment").value = ""; $("#frf-note").value = ""; loadFinance(); }
   } catch (e) { setMsg($("#frf-msg"), "Ошибка: " + e.message, false); }
 });
+
+// ─── Публикации «Каналов» (ТЗ МАКа 21.11) ────────────────────────────────
+let pubItems = [], pubEditingId = null;
+
+function pubExcerptPreview() {
+  const lines = $("#pub-body").value.split("\n").filter((x) => x.trim()).slice(0, 3);
+  $("#pub-preview").textContent = lines.length ? "Анонс (3 строки): " + lines.join(" | ").slice(0, 200) : "";
+}
+
+$("#pub-body").addEventListener("input", pubExcerptPreview);
+
+$("#pub-new").addEventListener("click", () => {
+  pubEditingId = null;
+  $("#pub-form-title").textContent = "Новая публикация";
+  ["pub-title","pub-author","pub-image","pub-body"].forEach((id) => $("#" + id).value = "");
+  $("#pub-date").value = new Date().toISOString().slice(0, 10);
+  $("#pub-pinned").checked = false; $("#pub-visible").checked = true;
+  $("#pub-preview").textContent = "";
+  $("#pub-form-panel").hidden = false;
+  $("#pub-form-panel").scrollIntoView({ behavior: "smooth" });
+});
+
+$("#pub-cancel").addEventListener("click", () => { $("#pub-form-panel").hidden = true; });
+
+$("#pub-save").addEventListener("click", async () => {
+  const payload = {
+    title: $("#pub-title").value.trim(),
+    body_html: $("#pub-body").value,
+    image_url: $("#pub-image").value.trim(),
+    author: $("#pub-author").value.trim(),
+    published_at: $("#pub-date").value,
+    pinned: $("#pub-pinned").checked,
+    visible: $("#pub-visible").checked,
+  };
+  if (pubEditingId) payload.id = pubEditingId;
+  try {
+    const d = await api("/admin/api/publications", { method: "POST", body: JSON.stringify(payload) });
+    if (!d.ok) { setMsg($("#pub-form-msg"), "Ошибка: " + (d.error || "?"), false); return; }
+    setMsg($("#pub-form-msg"), "Сохранено ✓", true);
+    $("#pub-form-panel").hidden = true;
+    loadPublications();
+  } catch (e) { setMsg($("#pub-form-msg"), "Ошибка: " + e.message, false); }
+});
+
+async function loadPublications() {
+  const d = await api("/admin/api/publications");
+  pubItems = d.items || [];
+  $("#pub-list-wrap").innerHTML = pubItems.length ? `
+    <div class="admin-table-wrap"><table class="admin-table">
+      <thead><tr><th>Заголовок</th><th>Автор/рубрика</th><th>Дата</th><th>📌</th><th>Показ</th><th></th></tr></thead>
+      <tbody>
+        ${pubItems.map((it) => `
+          <tr>
+            <td>${esc(it.title)}${it.pinned ? " 📌" : ""}</td>
+            <td>${esc(it.author || "—")}</td>
+            <td>${esc((it.published_at || "—").slice(0, 10))}</td>
+            <td>${it.visible ? "✓" : "—"}</td>
+            <td><button class="admin-btn admin-btn--small" onclick="pubEdit(${it.id})">Править</button>
+                <button class="admin-btn admin-btn--small admin-btn--danger" onclick="pubDelete(${it.id})">Удалить</button></td>
+          </tr>`).join("")}
+      </tbody>
+    </table></div>` : '<p class="admin-note">Публикаций нет — добавьте первую.</p>';
+}
+
+window.pubEdit = (id) => {
+  const it = pubItems.find((x) => x.id === id);
+  if (!it) return;
+  pubEditingId = id;
+  $("#pub-form-title").textContent = "Публикация №" + id;
+  $("#pub-title").value = it.title || "";
+  $("#pub-author").value = it.author || "";
+  $("#pub-date").value = (it.published_at || "").slice(0, 10);
+  $("#pub-image").value = it.image_url || "";
+  $("#pub-body").value = it.body_html || "";
+  $("#pub-pinned").checked = !!it.pinned;
+  $("#pub-visible").checked = !!it.visible;
+  pubExcerptPreview();
+  $("#pub-form-panel").hidden = false;
+  $("#pub-form-panel").scrollIntoView({ behavior: "smooth" });
+};
+
+window.pubDelete = async (id) => {
+  if (!confirm("Удалить публикацию №" + id + "?")) return;
+  await api("/admin/api/publications/" + id, { method: "DELETE" });
+  loadPublications();
+};
 
 // ─── Таб 2: Товары ───────────────────────────────────────────────────────
 let productsCache = [];
