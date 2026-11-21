@@ -58,9 +58,10 @@ def test_channels_cta_top_and_hidden_tier23(client) -> None:
     """CTA «Нужен бот в вашем канале?» — в начале страницы, под кнопками
     шапки; карточки 2–3 ярусов (Сайт/VC/Пикабу/WikiClaw) скрыты (Шеф 20.11)."""
     html = client.get("/channels/").text
-    # CTA вверху: до заголовка H1 «Каналы»
+    # CTA и H1 в одном блоке ch-top (на одном уровне, Шеф 20.11)
+    assert '<div class="ch-top">' in html
     assert html.find("Нужен бот в вашем канале?") != -1
-    assert html.find("Нужен бот в вашем канале?") < html.find(">Каналы</h1>")
+    assert html.find(">Каналы</h1>") != -1
     # скрытые каналы не рендерятся
     for hidden in ("Сайт rusalts.ru", "VC.ru", "Пикабу", "WikiClaw"):
         assert f'<span class="nm">{hidden}</span>' not in html, hidden
