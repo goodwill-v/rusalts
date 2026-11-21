@@ -87,8 +87,8 @@
     {% endfor %}
   </div>
 
-  <h2 class="sec">{{ content_block('channels', 'posts_title', 'Свежие публикации') }}</h2>
-  <div class="sec-body">{{ content_block('channels', 'posts_text', '<ul><li>Предисловие Шефа — как мы решили строить систему с ИИ-агентами</li><li>Очерк Алик — «Как мы строили систему»</li><li>Очерк Веж — «Как я приручил бота-сторожа» (ВежПом)</li><li>Очерк Куп — «Как я научил робота не верить скидкам» (Купец)</li><li>Очерк Админ — «Как я навёл порядок в витрине»</li><li>Очерк Кор — «Как я воспитывал команду агентов»</li></ul>') }}</div>
+  <h2 class="sec" id="publications">{{ content_block('channels', 'pub_title', 'Свежие публикации') }}</h2>
+  <div id="pub-feed" class="pub-feed">Загрузка…</div>
 
   <div class="cd-block">
     <h2>{{ content_block('channels', 'cd_title', 'Мастерская цифрового уюта: Новосёлы ЦД') }}</h2>
@@ -99,9 +99,6 @@
 
   <h2 class="sec">{{ content_block('channels', 'what_title', 'Что мы делаем с каналами') }}</h2>
   <div class="sec-body">{{ content_block('channels', 'what_text', '') }}</div>
-
-  <h2 class="sec" id="publications">{{ content_block('channels', 'pub_title', 'Свежие публикации') }}</h2>
-  <div id="pub-feed" class="pub-feed">Загрузка…</div>
 </main>
 
 <div id="pub-full" class="pub-full ch" style="display:none; max-width: 860px;">
