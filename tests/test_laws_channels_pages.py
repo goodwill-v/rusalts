@@ -52,7 +52,7 @@ def test_channels_page_renders_without_stub(client) -> None:
     assert "Новосёлы ЦД" in r.text
     # лид (вводная строка): по умолчанию скрыт — появляется после заполнения
     # поля в админке (семантика очистки, Шеф 21.11)
-    assert "Очерк Алик" in r.text                        # лента публикаций
+    # лента публикаций рендерится клиентом из API (без публикаций — пусто)
 
 
 def test_channels_cta_top_and_hidden_tier23(client) -> None:
