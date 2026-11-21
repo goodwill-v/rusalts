@@ -20,6 +20,9 @@
   .cd-block p { margin: 0 0 0.9rem; color: var(--site-text); line-height: 1.55; }
   .cd-block a.btn { display: inline-block; background: var(--site-accent, #1a5c8a); color: #fff; padding: 0.7rem 1.4rem; border-radius: 8px; text-decoration: none; font-weight: 600; }
   .ch-cta { margin-top: 2rem; background: var(--site-surface); border: 1px solid var(--site-border); border-radius: 12px; padding: 1.3rem 1.4rem; }
+  /* CTA в начале страницы: ширина ≈ сумме кнопок шапки, прижат вправо */
+  .ch-cta--top { margin: 0.25rem 0 1.5rem auto; max-width: 440px; }
+  .ch-cta--top p { margin-bottom: 0.7rem; }
   .ch-cta h2 { margin: 0 0 0.4rem; font-size: 1.25rem; color: var(--site-heading); }
   .ch-cta p { margin: 0 0 0.9rem; color: var(--site-text); }
   .ch-cta a.btn { display: inline-block; background: var(--site-accent, #1a5c8a); color: #fff; padding: 0.7rem 1.4rem; border-radius: 8px; text-decoration: none; font-weight: 600; }
@@ -28,18 +31,23 @@
 {% block body %}
 {% set dzen_url = content_block('channels', 'dzen_url', '') %}
 <main class="ch">
+  <div class="ch-cta ch-cta--top">
+    <h2>{{ content_block('channels', 'cta_title', 'Нужен бот в вашем канале?') }}</h2>
+    <p>{{ content_block('channels', 'cta_text', 'Расскажем, как перенести общение с клиентами в удобный канал.') }}</p>
+    <a class="btn" href="{{ content_block('channels', 'cta_btn_url', '/request/') }}">{{ content_block('channels', 'cta_btn_text', 'Оставить заявку') }}</a>
+  </div>
+
   <h1>{{ content_block('channels', 'h1', 'Каналы') }}</h1>
   <p class="lead">{{ content_block('channels', 'lead', 'Здесь мы живём и разговариваем. Заходите — будет понятно и по-домашнему.') }}</p>
 
   <h2 class="sec">{{ content_block('channels', 'dir_title', 'Где нас читать') }}</h2>
+  {# Скрыты по решению Шефа 20.11 (2–3 ярусы): site/vc/pikabu/wikiclaw —
+     коды полей *_title/_desc/_url остаются в SCHEMA (админка), вернуть:
+     добавить кортежи в ch_cards ниже #}
   {% set ch_cards = [
     ('dzen', '🟠', 'Дзен', 'Лонгриды и разборы', ''),
     ('vk', '🔵', 'ВКонтакте «Альтернатива»', 'Сообщество, анонсы, обсуждения', 'https://vk.com/alternat777'),
     ('max', '🟣', 'МАКС-канал «AI для Дела»', 'Кейсы и демо ботов', ''),
-    ('site', '🏠', 'Сайт rusalts.ru', 'Хаб: витрина, правовая база, эксперт', '/'),
-    ('vc', '🟩', 'VC.ru', 'Деловые версии материалов', ''),
-    ('pikabu', '🟧', 'Пикабу', 'Лёгкие версии, с юмором', ''),
-    ('wikiclaw', '📚', 'WikiClaw', 'Образование, техническая аудитория', ''),
   ] %}
   <div class="ch-grid">
     {% for key, ic, def_name, def_desc, def_url in ch_cards %}
@@ -68,10 +76,5 @@
   <h2 class="sec">{{ content_block('channels', 'what_title', 'Что мы делаем с каналами') }}</h2>
   <div class="sec-body">{{ content_block('channels', 'what_text', '') }}</div>
 
-  <div class="ch-cta">
-    <h2>{{ content_block('channels', 'cta_title', 'Нужен бот в вашем канале?') }}</h2>
-    <p>{{ content_block('channels', 'cta_text', '') }}</p>
-    <a class="btn" href="{{ content_block('channels', 'cta_btn_url', '/request/') }}">{{ content_block('channels', 'cta_btn_text', 'Оставить заявку') }}</a>
-  </div>
 </main>
 {% endblock %}
