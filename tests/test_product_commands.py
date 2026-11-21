@@ -20,6 +20,10 @@ def client(tmp_path, monkeypatch):
     data = tmp_path / "data"
     data.mkdir()
     monkeypatch.setattr(config, "DATA_DIR", data)
+    # products_store.DB_PATH прибинжен при первом импорте — изолируем,
+    # иначе строки товаров из соседних тестов «переезжают» в этот (инцидент 19.11)
+    from app import products_store
+    monkeypatch.setattr(products_store, "DB_PATH", data / "shop.db")
     from app.main import app
 
     return TestClient(app)

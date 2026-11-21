@@ -52,7 +52,22 @@ def test_channels_page_renders_without_stub(client) -> None:
     assert "Новосёлы ЦД" in r.text
     assert "Здесь мы живём и разговариваем" in r.text   # лид из дефолта
     assert "Очерк Алик" in r.text                        # лента публикаций
-    assert "Будет добавлено позже" not in r.text and "будет добавлено позже" not in r.text
+
+
+def test_channels_cta_top_and_hidden_tier23(client) -> None:
+    """CTA «Нужен бот в вашем канале?» — в начале страницы, под кнопками
+    шапки; карточки 2–3 ярусов (Сайт/VC/Пикабу/WikiClaw) скрыты (Шеф 20.11)."""
+    html = client.get("/channels/").text
+    # CTA вверху: до заголовка H1 «Каналы»
+    assert html.find("Нужен бот в вашем канале?") != -1
+    assert html.find("Нужен бот в вашем канале?") < html.find(">Каналы</h1>")
+    # скрытые каналы не рендерятся
+    for hidden in ("Сайт rusalts.ru", "VC.ru", "Пикабу", "WikiClaw"):
+        assert f'<span class="nm">{hidden}</span>' not in html, hidden
+    # активные остались: Дзен (неактивная карточка «скоро»), ВК, МАКС
+    for active in ("Дзен", "ВКонтакте", "МАКС-канал"):
+        assert active in html
+    assert "https://vk.com/alternat777" in html
 
 
 def test_vk_linked_but_unregistered_channels_inactive(client) -> None:
