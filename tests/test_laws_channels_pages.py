@@ -50,7 +50,8 @@ def test_channels_page_renders_without_stub(client) -> None:
     assert r.status_code == 200
     assert "Где нас читать" in r.text
     assert "Новосёлы ЦД" in r.text
-    assert "Здесь мы живём и разговариваем" in r.text   # лид из дефолта
+    # лид (вводная строка): по умолчанию скрыт — появляется после заполнения
+    # поля в админке (семантика очистки, Шеф 21.11)
     assert "Очерк Алик" in r.text                        # лента публикаций
 
 
