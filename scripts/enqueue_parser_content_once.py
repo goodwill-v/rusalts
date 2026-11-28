@@ -17,6 +17,12 @@ def _ensure_repo_root_on_path() -> None:
         sys.path.insert(0, s)
 
 
+# Дни автоконтента (решение Шефа, 21.11): парсинг/обработка/публикация —
+# только Пн/Ср/Пт (3 раза в неделю). Двойная защита: график в
+# alt-pipeline.timer (Пн/Ср/Пт) + этот guard в скрипте.
+PUBLISH_WEEKDAYS = {0, 2, 4}  # Mon, Wed, Fri (0 = понедельник)
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(
         description=(
@@ -33,6 +39,16 @@ def main() -> int:
         help="Optional: only first N sources (debug). Omit for full run.",
     )
     args = parser.parse_args()
+
+    from datetime import datetime, timezone
+
+    weekday = datetime.now(timezone.utc).weekday()
+    if weekday not in PUBLISH_WEEKDAYS:
+        print(
+            f"Сегодня не день автоконтента (Пн/Ср/Пт). Пропуск (weekday={weekday}).",
+            file=sys.stderr,
+        )
+        return 0
 
     payload: dict = {}
     if args.limit is not None:
